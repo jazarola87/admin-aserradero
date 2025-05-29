@@ -26,15 +26,15 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { initialConfigData } from "@/lib/config-data"; // Import shared config data
 
-// Assuming precioCepilladoPorPie is fetched from config or fixed
-const PRECIO_CEPILLADO_POR_PIE_MOCK = 0.50; 
+const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_MOCK } = initialConfigData;
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().optional().or(z.literal("")),
-  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // Allow 0 or NaN for empty rows
+  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas (espesor)
   largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pies
@@ -49,7 +49,7 @@ const ventaFormSchema = z.object({
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && d.precioPorPie !== undefined),
+      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'),
       {
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
@@ -73,22 +73,23 @@ const initialDetalles = Array(15).fill(null).map(() => createEmptyDetalle());
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  const [precioCepillado, setPrecioCepillado] = useState(PRECIO_CEPILLADO_POR_PIE_MOCK); // Load from config in real app
+  const [precioCepillado, setPrecioCepillado] = useState(PRECIO_CEPILLADO_POR_PIE_MOCK);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, // Initialize as undefined to avoid server/client mismatch
+      fecha: undefined,
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
     },
   });
 
-  // Set initial date on client-side to avoid hydration mismatch
   useEffect(() => {
-    form.setValue('fecha', new Date());
-  }, [form.setValue]);
+    if (!form.getValues('fecha')) {
+      form.setValue('fecha', new Date());
+    }
+  }, [form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -112,17 +113,27 @@ export default function NuevaVentaPage() {
   };
   
   const totalVentaGeneral = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && detalle.precioPorPie !== undefined) { 
+    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
     return acc;
   }, 0);
 
+  const handleTipoMaderaChange = (value: string, index: number) => {
+    form.setValue(`detalles.${index}.tipoMadera`, value);
+    const maderaSeleccionada = tiposDeMaderaDisponibles.find(m => m.tipoMadera === value);
+    if (maderaSeleccionada) {
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie);
+    } else {
+      // Optionally clear price if wood type is cleared or not found
+      // form.setValue(`detalles.${index}.precioPorPie`, undefined);
+    }
+  };
 
   function onSubmit(data: VentaFormValues) {
     const processedDetalles = data.detalles.filter(
-      d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && d.precioPorPie !== undefined
+      d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'
     ).map(d => {
       const pies = calcularPiesTablares(d);
       return { ...d, piesTablares: pies, subTotal: calcularSubtotal(d, pies) };
@@ -150,7 +161,7 @@ export default function NuevaVentaPage() {
       variant: "default"
     });
     form.reset({
-      fecha: new Date(), // Reset with new Date on client side is fine
+      fecha: new Date(),
       nombreComprador: "",
       telefonoComprador: "",
       detalles: Array(15).fill(null).map(() => createEmptyDetalle()),
@@ -159,9 +170,8 @@ export default function NuevaVentaPage() {
 
   const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && !detalle.precioPorPie;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number';
   };
-
 
   return (
     <div className="container mx-auto py-6">
@@ -247,33 +257,54 @@ export default function NuevaVentaPage() {
                       return (
                         <TableRow key={field.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={`detalles.${index}.tipoMadera`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input placeholder="Ej: Pino" {...f} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                            <FormField
+                              control={form.control}
+                              name={`detalles.${index}.tipoMadera`}
+                              render={({ field: maderaField }) => (
+                                <FormItem>
+                                  <Select onValueChange={(value) => handleTipoMaderaChange(value, index)} value={maderaField.value || ""}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Seleccione tipo" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {tiposDeMaderaDisponibles.map(madera => (
+                                        <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                                          {madera.tipoMadera}
+                                        </SelectItem>
+                                      ))}
+                                      {tiposDeMaderaDisponibles.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage className="text-xs px-1" />
+                                </FormItem>
+                              )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.1" placeholder="Ej: 8" {...f} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.1" placeholder="Ej: 8" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
@@ -288,12 +319,12 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && fields.length > 1 ? (
+                            {!isEffectivelyEmpty && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
                               </Button>
-                            ) : null}
+                            )}
                           </TableCell>
                         </TableRow>
                       )
@@ -323,6 +354,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-
-
-    

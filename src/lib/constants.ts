@@ -1,5 +1,6 @@
+
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, PlusCircle, DollarSign, BookText, Settings, Lightbulb, Wrench } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, PlusCircle, DollarSign, BookText, Settings, Lightbulb, Wrench, HardHat } from 'lucide-react'; // Added HardHat for Costos
 
 export interface NavItem {
   title: string;
@@ -35,9 +36,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: DollarSign,
   },
   {
-    title: 'Configuración',
-    href: '/configuracion',
-    icon: Settings,
+    title: 'Costos y Precios Base',
+    href: '/costos', // Updated href
+    icon: HardHat, // Changed icon to something more related to costs/materials
   },
   {
     title: 'Asistente de Precios',
