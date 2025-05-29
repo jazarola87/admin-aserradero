@@ -3,7 +3,6 @@
 
 import Link from "next/link";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { useRouter } from 'next/navigation';
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,12 +19,11 @@ import { es } from "date-fns/locale";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-// Mock data for initial sales if localStorage is empty
 const mockVentasData: Venta[] = [
-  { 
-    id: "venta001", 
-    fecha: "2024-07-20", 
-    nombreComprador: "Juan Pérez", 
+  {
+    id: "venta001",
+    fecha: "2024-07-20",
+    nombreComprador: "Juan Pérez",
     telefonoComprador: "555-8765",
     fechaEntregaEstimada: "2024-07-25",
     sena: 50,
@@ -35,10 +33,10 @@ const mockVentasData: Venta[] = [
     ],
     totalVenta: 720,
   },
-  { 
-    id: "venta002", 
-    fecha: "2024-07-22", 
-    nombreComprador: "Constructora Moderna", 
+  {
+    id: "venta002",
+    fecha: "2024-07-22",
+    nombreComprador: "Constructora Moderna",
     telefonoComprador: "555-4321",
     detalles: [
       { id: "d003", tipoMadera: "Cedro", unidades: 20, ancho: 4, alto: 1, largo: 12, precioPorPie: 4.00, cepillado: true, piesTablares: 80, subTotal: 360, valorUnitario: 18 },
@@ -47,9 +45,9 @@ const mockVentasData: Venta[] = [
   },
 ];
 
-export default function VentasPage() {
+export default function VentasPage(): JSX.Element {
   const [ventas, setVentas] = useState<Venta[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const { toast } = useToast();
 
   const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
@@ -60,19 +58,25 @@ export default function VentasPage() {
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     if (typeof window !== 'undefined') {
       const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      if (storedVentas) {
-        try {
-          setVentas(JSON.parse(storedVentas));
-        } catch (e) {
-          console.error("Error parsing ventas from localStorage", e);
-          updateVentasListAndStorage(mockVentasData); 
+      if (isMounted) {
+        if (storedVentas) {
+          try {
+            setVentas(JSON.parse(storedVentas));
+          } catch (e) {
+            console.error("Error parsing ventas from localStorage", e);
+            updateVentasListAndStorage(mockVentasData);
+          }
+        } else {
+          updateVentasListAndStorage(mockVentasData);
         }
-      } else {
-        updateVentasListAndStorage(mockVentasData); 
       }
     }
+    return () => {
+      isMounted = false;
+    };
   }, [updateVentasListAndStorage]);
 
   const handleDeleteVenta = (idToDelete: string) => {
@@ -86,8 +90,10 @@ export default function VentasPage() {
   };
 
   const filteredVentas = useMemo(() => {
-    if (!searchTerm) return ventas;
-    return ventas.filter(venta => 
+    if (!searchTerm) {
+      return ventas;
+    }
+    return ventas.filter(venta =>
       venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (venta.telefonoComprador && venta.telefonoComprador.includes(searchTerm))
     );
@@ -109,18 +115,18 @@ export default function VentasPage() {
           <CardTitle>Historial de Ventas</CardTitle>
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
-                {filteredVentas.length > 0 
-                ? \`Mostrando \${filteredVentas.length} de \${ventas.length} venta(s).\` 
+                {filteredVentas.length > 0
+                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).`
                 : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                type="search"
-                placeholder="Buscar por comprador, teléfono..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 w-full sm:w-[300px]"
+                  type="search"
+                  placeholder="Buscar por comprador, teléfono..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 w-full sm:w-[300px]"
                 />
             </div>
           </div>
@@ -143,8 +149,8 @@ export default function VentasPage() {
                 <AccordionItem value={venta.id} key={venta.id}>
                   <AccordionTrigger asChild className="hover:no-underline">
                     <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left group", 
-                        "hover:bg-muted/50 rounded-md"
+                        "flex w-full items-center py-4 px-2 font-medium text-left group",
+                        "hover:bg-muted/50 rounded-md" 
                       )}>
                       <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
@@ -152,13 +158,13 @@ export default function VentasPage() {
                             <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
                         </div>
                         <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: $\${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Eliminar Venta</span>
-                                </Button>
+                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="sr-only">Eliminar Venta</span>
+                                  </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                 <AlertDialogHeader>
@@ -169,7 +175,7 @@ export default function VentasPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                     <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id)}} className="bg-destructive hover:bg-destructive/90">
+                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id);}} className="bg-destructive hover:bg-destructive/90">
                                     Eliminar
                                     </AlertDialogAction>
                                 </AlertDialogFooter>
@@ -184,7 +190,7 @@ export default function VentasPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-2 text-sm">
                         <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
                         {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
-                        {typeof venta.sena === 'number' && <p><strong>Seña:</strong> $\${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+                        {typeof venta.sena === 'number' && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
                         {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original:</strong> {venta.idOriginalPresupuesto}</p>}
                     </div>
                     <Table>
@@ -207,10 +213,10 @@ export default function VentasPage() {
                             <TableCell>{detalle.unidades}</TableCell>
                             <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell>$\${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell>$\${detalle.precioPorPie.toFixed(2)}</TableCell>
+                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                            <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
-                            <TableCell>$\${detalle.subTotal?.toFixed(2)}</TableCell>
+                            <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
