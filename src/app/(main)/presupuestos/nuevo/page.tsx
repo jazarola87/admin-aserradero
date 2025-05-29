@@ -31,7 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, PresupuestoDetalle } from "@/types";
 
-const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
+// Usar directamente desde initialConfigData
+// const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
 
 const itemDetalleSchema = z.object({
   tipoMadera: z.string().optional().or(z.literal("")),
@@ -70,12 +71,13 @@ const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
 });
 
 const initialDetallesCount = 15;
-const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
+// No inicializar con createEmptyDetalle aquí, se hará en defaultValues
+// const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
 
 
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
-  const [precioCepilladoGlobal, setPrecioCepilladoGlobal] = useState(PRECIO_CEPILLADO_POR_PIE_CONFIG);
+  // Eliminar estados locales, se usarán directamente de initialConfigData
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -83,7 +85,7 @@ export default function NuevoPresupuestoPage() {
       fecha: undefined, 
       nombreCliente: "",
       telefonoCliente: "",
-      detalles: initialDetalles,
+      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
 
@@ -109,7 +111,8 @@ export default function NuevoPresupuestoPage() {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
-      subtotal += piesTablares * precioCepilladoGlobal;
+      // Leer directamente de initialConfigData
+      subtotal += piesTablares * initialConfigData.precioCepilladoPorPie;
     }
     return subtotal;
   };
@@ -123,17 +126,21 @@ export default function NuevoPresupuestoPage() {
   }, 0);
 
   const handleTipoMaderaChange = (value: string, index: number) => {
-    form.setValue(`detalles.${index}.tipoMadera`, value);
-    const maderaSeleccionada = tiposDeMaderaDisponibles.find(m => m.tipoMadera === value);
+    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
+    // Leer directamente de initialConfigData
+    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
-      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie);
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
+    } else {
+      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true });
     }
   };
 
   function onSubmit(data: PresupuestoFormValues) {
     const processedDetalles = data.detalles.filter(
-      d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'
-    ).map((d, index) => {
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && d_form.unidades && d_form.unidades > 0 && typeof d_form.precioPorPie === 'number'
+    ).map((d_form, index) => {
+      const d = d_form as Required<typeof d_form>; // Assert non-optional
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
@@ -151,8 +158,8 @@ export default function NuevoPresupuestoPage() {
 
     const nuevoPresupuesto: Presupuesto = {
       ...data,
-      id: `pres-${Date.now()}`, // Generate unique ID
-      fecha: format(data.fecha, "yyyy-MM-dd"), // Format date to string
+      id: `pres-${Date.now()}`, 
+      fecha: format(data.fecha, "yyyy-MM-dd"), 
       detalles: processedDetalles,
       totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
     };
@@ -259,7 +266,7 @@ export default function NuevoPresupuestoPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fields.map((field, index) => {
+                    {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
@@ -267,26 +274,29 @@ export default function NuevoPresupuestoPage() {
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
                       return (
-                        <TableRow key={field.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
+                        <TableRow key={item.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
                           <TableCell className="p-1">
                             <FormField
                               control={form.control}
                               name={`detalles.${index}.tipoMadera`}
                               render={({ field: maderaField }) => (
                                 <FormItem>
-                                  <Select onValueChange={(value) => handleTipoMaderaChange(value, index)} value={maderaField.value}>
+                                  <Select
+                                    onValueChange={(value) => handleTipoMaderaChange(value, index)}
+                                    value={maderaField.value}
+                                  >
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue placeholder="Seleccione tipo" />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {tiposDeMaderaDisponibles.map(madera => (
+                                      {initialConfigData.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {tiposDeMaderaDisponibles.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -370,4 +380,3 @@ export default function NuevoPresupuestoPage() {
   );
 }
 
-    
