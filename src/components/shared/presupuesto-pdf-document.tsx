@@ -19,7 +19,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       width: '190mm', 
       margin: 'auto',
       boxSizing: 'border-box' as const,
-      backgroundColor: '#ffffff',
+      backgroundColor: '#ffffff', // Ensure background is white for PDF
     },
     header: { textAlign: 'center' as const, marginBottom: '10mm' },
     logo: { 
@@ -28,10 +28,20 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       margin: '0 auto 5mm auto', 
       display: 'block' 
     },
+    companyName: { fontSize: '14pt', fontWeight: 'bold' as const, color: '#333333', marginBottom: '2mm' },
     lema: { fontSize: '9pt', fontStyle: 'italic' as const, marginBottom: '8mm', color: '#555555' },
     documentTitle: { fontSize: '16pt', fontWeight: 'bold' as const, marginBottom: '8mm', color: '#333333' },
-    clientInfo: { marginBottom: '8mm', borderBottom: '1px solid #cccccc', paddingBottom: '5mm', fontSize: '10pt' },
-    clientInfoP: { margin: '2mm 0', lineHeight: '1.4' },
+    infoSection: { 
+      display: 'flex', 
+      justifyContent: 'space-between' as const, 
+      marginBottom: '8mm', 
+      borderBottom: '1px solid #cccccc', 
+      paddingBottom: '5mm', 
+      fontSize: '10pt' 
+    },
+    clientInfo: { textAlign: 'left' as const, maxWidth: '60%' },
+    orderInfo: { textAlign: 'right' as const, maxWidth: '35%' },
+    infoP: { margin: '2mm 0', lineHeight: '1.4' },
     detailsTable: { 
       width: '100%', 
       borderCollapse: 'collapse' as const, 
@@ -59,13 +69,13 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       textAlign: 'right' as const,
       wordWrap: 'break-word' as const,
     },
-    totalSection: { marginTop: '8mm', fontSize: '10pt' },
-    totalRow: { display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5mm'},
-    totalLabel: { fontWeight: 'normal' as const, marginRight: '5mm', color: '#444444' },
-    totalAmount: { fontWeight: 'bold' as const, minWidth: '40mm', textAlign: 'right' as const, color: '#333333' },
-    grandTotalRow: { display: 'flex', justifyContent: 'flex-end', marginTop: '3mm', paddingTop: '3mm', borderTop: '1px solid #cccccc'},
-    grandTotalLabel: { fontSize: '12pt', fontWeight: 'bold' as const, marginRight: '5mm', color: '#333333'},
-    grandTotalAmount: { fontSize: '12pt', fontWeight: 'bold' as const, minWidth: '40mm', textAlign: 'right' as const, color: '#333333' },
+    totalSection: { marginTop: '8mm', fontSize: '10pt', display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-end' as const },
+    totalRow: { display: 'flex', justifyContent: 'space-between' as const, width: '60%', marginBottom: '1.5mm'},
+    totalLabel: { fontWeight: 'normal' as const, color: '#444444' },
+    totalAmount: { fontWeight: 'bold' as const, textAlign: 'right' as const, color: '#333333' },
+    grandTotalRow: { display: 'flex', justifyContent: 'space-between' as const, width: '60%', marginTop: '3mm', paddingTop: '3mm', borderTop: '1px solid #cccccc'},
+    grandTotalLabel: { fontSize: '12pt', fontWeight: 'bold' as const, color: '#333333'},
+    grandTotalAmount: { fontSize: '12pt', fontWeight: 'bold' as const, textAlign: 'right' as const, color: '#333333' },
     footer: {
       fontSize: '8pt',
       textAlign: 'center' as const,
@@ -77,29 +87,36 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
   };
 
   const customerName = 'nombreCliente' in order ? order.nombreCliente : order.nombreComprador;
+  const customerPhone = 'telefonoCliente' in order ? order.telefonoCliente : ('telefonoComprador' in order ? order.telefonoComprador : undefined);
   const orderTotal = 'totalPresupuesto' in order ? order.totalPresupuesto : order.totalVenta;
-  const sena = 'sena' in order ? order.sena : undefined;
-  const saldoPendiente = (orderTotal ?? 0) - (sena ?? 0);
+  const sena = documentType === 'Venta' && 'sena' in order ? order.sena : undefined;
+  const saldoPendiente = (sena !== undefined && orderTotal !== undefined) ? orderTotal - sena : undefined;
+  const orderDate = order.fecha ? new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
+  const deliveryDate = documentType === 'Venta' && 'fechaEntregaEstimada' in order && order.fechaEntregaEstimada ? 
+                       new Date(order.fechaEntregaEstimada + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
+
 
   return (
     <div id={elementId} style={styles.container}>
       <div style={styles.header}>
         {config.logoUrl && (
-          <img src={config.logoUrl} alt="Logo de la Empresa" style={styles.logo} />
+          <img src={config.logoUrl} alt="Logo de la Empresa" style={styles.logo} data-ai-hint="company logo" />
         )}
+        <div style={styles.companyName}>{config.nombreAserradero || 'Nombre de Empresa'}</div>
         {config.lemaEmpresa && <p style={styles.lema}>{config.lemaEmpresa}</p>}
         <div style={styles.documentTitle}>{documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA'}</div>
       </div>
 
-      <div style={styles.clientInfo}>
-        <p style={styles.clientInfoP}><strong>Cliente:</strong> {customerName}</p>
-        <p style={styles.clientInfoP}><strong>Fecha:</strong> {new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        {('telefonoCliente' in order && order.telefonoCliente) && <p style={styles.clientInfoP}><strong>Teléfono:</strong> {order.telefonoCliente}</p>}
-        {('telefonoComprador' in order && order.telefonoComprador) && <p style={styles.clientInfoP}><strong>Teléfono:</strong> {order.telefonoComprador}</p>}
-        <p style={styles.clientInfoP}><strong>N° {documentType === 'Presupuesto' ? 'Presupuesto' : 'Venta'}:</strong> {order.id}</p>
-        {documentType === 'Venta' && 'fechaEntregaEstimada' in order && order.fechaEntregaEstimada && (
-          <p style={styles.clientInfoP}><strong>Fecha Entrega Estimada:</strong> {new Date(order.fechaEntregaEstimada + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        )}
+      <div style={styles.infoSection}>
+        <div style={styles.clientInfo}>
+          <p style={styles.infoP}><strong>Cliente:</strong> {customerName}</p>
+          {customerPhone && <p style={styles.infoP}><strong>Teléfono:</strong> {customerPhone}</p>}
+        </div>
+        <div style={styles.orderInfo}>
+          <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>
+          <p style={styles.infoP}><strong>Fecha:</strong> {orderDate}</p>
+          {deliveryDate && <p style={styles.infoP}><strong>Entrega Estimada:</strong> {deliveryDate}</p>}
+        </div>
       </div>
 
       <table style={styles.detailsTable}>
@@ -153,16 +170,16 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
             </div>
         )}
         <div style={styles.grandTotalRow}>
-          <span style={styles.grandTotalLabel}>{documentType === 'Presupuesto' ? 'TOTAL PRESUPUESTO:' : (sena !== undefined && sena > 0 ? 'SALDO PENDIENTE:' : 'TOTAL VENTA:')}</span>
+          <span style={styles.grandTotalLabel}>{documentType === 'Presupuesto' ? 'TOTAL PRESUPUESTO:' : (sena !== undefined && sena > 0 && saldoPendiente !== undefined ? 'SALDO PENDIENTE:' : 'TOTAL VENTA:')}</span>
           <span style={styles.grandTotalAmount}>
-            ${((sena !== undefined && sena > 0) ? saldoPendiente : (orderTotal ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ${((sena !== undefined && sena > 0 && saldoPendiente !== undefined) ? saldoPendiente : (orderTotal ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
 
       <div style={styles.footer}>
-        <p>{config.nombreAserradero}</p>
-        <p>{documentType === 'Presupuesto' ? 'Gracias por su consulta.' : '¡Gracias por su compra!'}</p>
+        <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
+        <p>{documentType === 'Presupuesto' ? 'Gracias por su consulta. Presupuesto válido por 15 días.' : '¡Gracias por su compra!'}</p>
       </div>
     </div>
   );

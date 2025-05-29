@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { GenericOrderPDFDocument } from '@/components/shared/generic-order-pdf-document';
+import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document'; // Corrected import path
 import { initialConfigData } from '@/lib/config-data';
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -72,7 +72,7 @@ export default function PresupuestosPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS; // Use a copy for manipulation
+      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS; 
       if (storedPresupuestos) {
         try {
           const parsed = JSON.parse(storedPresupuestos);
@@ -81,15 +81,15 @@ export default function PresupuestosPage() {
           }
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage", e);
-           // If parsing fails, use mock data and re-save
           localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime())));
         }
       }
-      // Always sort before setting state
       const sortedData = dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
       setPresupuestos(sortedData);
-      if (!storedPresupuestos) { // Only save to localStorage if it was initially empty
+      if (!storedPresupuestos && dataToLoad.length > 0) { 
           localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedData));
+      } else if (!storedPresupuestos && dataToLoad.length === 0) {
+          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify([]));
       }
     }
   }, []);
@@ -106,10 +106,10 @@ export default function PresupuestosPage() {
             currentList = JSON.parse(currentListFromStorage);
           } catch (e) {
             console.error("Error parsing presupuestos from localStorage for delete operation", e);
-            currentList = [...presupuestos]; // Fallback to current state if parsing fails
+            currentList = [...presupuestos]; 
           }
         } else {
-           currentList = [...presupuestos]; // Fallback if localStorage is empty
+           currentList = [...presupuestos]; 
         }
 
         const newList = currentList.filter(p => p.id !== budgetToDeleteId);
@@ -272,55 +272,50 @@ export default function PresupuestosPage() {
               {filteredPresupuestos.map((presupuesto) => (
                 <AccordionItem value={presupuesto.id} key={presupuesto.id}>
                   <AccordionTrigger asChild className="hover:no-underline">
-                     <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left group", 
-                        "hover:bg-muted/50 rounded-md"
-                      )}>
-                      <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <div>
-                            <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</span>
-                        </div>
-                        <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                            <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
-                                <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                <span className="hidden sm:inline">PDF</span>
+                    <div className={cn(
+                      "flex w-full items-center justify-between py-4 px-2 font-medium text-left hover:bg-muted/50 rounded-md"
+                    )}>
+                      <div className="flex-1">
+                          <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
+                          <span className="ml-4 text-sm text-muted-foreground">Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                          <span className="mr-2 font-semibold text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                          <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                              <Download className="mr-2 h-4 w-4" /> PDF
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
+                              <Send className="mr-2 h-4 w-4" /> A Venta
+                          </Button>
+                           <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                              <Link href={`/presupuestos/${presupuesto.id}/editar`}>
+                                <Pencil className="h-4 w-4" />
+                                <span className="sr-only">Editar Presupuesto</span>
+                              </Link>
                             </Button>
-                            <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
-                                <Send className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                <span className="hidden sm:inline">A Venta</span>
-                            </Button>
-                             <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                                <Link href={`/presupuestos/${presupuesto.id}/editar`}>
-                                  <Pencil className="h-4 w-4" />
-                                  <span className="sr-only">Editar Presupuesto</span>
-                                </Link>
+                          <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                  <Trash2 className="h-4 w-4" />
+                                  <span className="sr-only">Eliminar Presupuesto</span>
                               </Button>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Eliminar Presupuesto</span>
-                                </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
-                                    Eliminar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-2 group-data-[state=open]:rotate-180" data-manual-chevron="true" />
-                        </div>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                              <AlertDialogHeader>
+                                  <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                  Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
+                                  </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                  <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
+                                  Eliminar
+                                  </AlertDialogAction>
+                              </AlertDialogFooter>
+                              </AlertDialogContent>
+                          </AlertDialog>
+                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-2 group-data-[state=open]:rotate-180" />
                       </div>
                     </div>
                   </AccordionTrigger>
@@ -374,3 +369,4 @@ export default function PresupuestosPage() {
     </div>
   );
 }
+

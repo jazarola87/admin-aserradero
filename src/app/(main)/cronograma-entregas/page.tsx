@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CalendarClock, ChevronDown, Download } from "lucide-react";
-import type { Venta, VentaDetalle, Configuracion, Presupuesto } from "@/types"; // Presupuesto might not be needed directly here but for GenericOrderPDFDocument
+import type { Venta, VentaDetalle, Configuracion } from "@/types"; 
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
-import { GenericOrderPDFDocument } from "@/components/shared/generic-order-pdf-document"; // Import the generic component
+import { GenericOrderPDFDocument } from "@/components/shared/presupuesto-pdf-document"; // Corrected import path
 import { initialConfigData } from "@/lib/config-data";
 
 
@@ -221,3 +221,4 @@ export default function CronogramaEntregasPage() {
     </div>
   );
 }
+
