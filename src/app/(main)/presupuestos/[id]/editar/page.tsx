@@ -200,7 +200,7 @@ export default function EditarPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}` 
+        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
       } as PresupuestoDetalle;
     });
 
@@ -230,7 +230,7 @@ export default function EditarPresupuestoPage() {
       } else {
         presupuestosActuales.push(presupuestoActualizado); 
       }
-      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
+      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); 
       localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
     }
     
@@ -317,7 +317,7 @@ export default function EditarPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
-                      <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
+                      {/* Columna Precio/Pie Oculta */}
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -384,11 +384,7 @@ export default function EditarPresupuestoPage() {
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          <TableCell className="p-1">
-                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
-                            />
-                          </TableCell>
+                          {/* Columna Precio/Pie Oculta */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -404,7 +400,7 @@ export default function EditarPresupuestoPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && (
+                            {!isEffectivelyEmpty(currentDetalle) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -439,3 +435,4 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
+

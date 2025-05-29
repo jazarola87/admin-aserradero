@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-// Helper function to calculate board feet for a single sale item
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
     const alto = Number(detalle?.alto) || 0;
@@ -33,7 +32,6 @@ const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number =
     return unidades * alto * ancho * largo * 0.2734;
 };
 
-// Helper function to get wood cost for a single sale item
 const getCostoMaderaParaVentaItem = (detalle: Partial<VentaDetalle>, config: Configuracion): number => {
   if (!detalle.tipoMadera) return 0;
   const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
@@ -49,11 +47,21 @@ interface VentaItemProps {
   venta: Venta;
   onDelete: (id: string) => void;
   onMarkAsPaid: (id: string) => void;
+  onIngresarSena: (ventaId: string, montoSeña: number) => void;
 }
 
-function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
-  
+function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemProps) {
   const config = initialConfigData; 
+  const [isSenaDialogOpen, setIsSenaDialogOpen] = useState(false);
+  const [senaInputValue, setSenaInputValue] = useState<string>(venta.sena?.toString() || "");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Update senaInputValue if the prop 'venta.sena' changes from outside
+    // This is important if sena is updated globally and the component needs to reflect it
+    setSenaInputValue(venta.sena?.toString() || "");
+  }, [venta.sena]);
+
 
   const costoTotalMaderaVenta = useMemo(() => {
     if (typeof venta.costoMaderaVentaSnapshot === 'number') {
@@ -98,22 +106,34 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
 
   const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" | "outline" } => {
     const totalVentaNum = Number(venta.totalVenta) || 0;
-    const senaNum = Number(venta.sena) || 0;
+    const senaNum = senaActual; // Use senaActual which is already Number(venta.sena) || 0
 
-    if (totalVentaNum <= 0 && senaNum <=0) return { texto: "N/A", variant: "outline" }; 
+    if (totalVentaNum <= 0 && senaNum <=0 && (!venta.detalles || venta.detalles.length === 0)) return { texto: "N/A", variant: "outline" }; 
 
-    if (senaNum >= totalVentaNum) {
+    if (senaNum >= totalVentaNum && totalVentaNum > 0) { // Ensure totalVenta is positive for it to be "Cobrado"
       return { texto: "Cobrado", variant: "default" };
     } else if (senaNum > 0 && senaNum < totalVentaNum) {
       const saldo = totalVentaNum - senaNum;
       return { texto: `Parcialmente Cobrado (Resta: $${saldo.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, variant: "secondary" };
-    } else {
+    } else if (totalVentaNum > 0){ // Only "Pendiente" if there's something to be paid
       return { texto: "Pendiente", variant: "destructive" };
     }
+    return { texto: "Sin Cobro Requerido", variant: "outline" }; // If total is 0
   };
 
   const estadoCobro = getEstadoCobro();
   const isFullyPaid = estadoCobro.texto === "Cobrado";
+
+  const handleGuardarSena = () => {
+    const monto = parseFloat(senaInputValue);
+    if (!isNaN(monto) && monto >= 0) {
+      onIngresarSena(venta.id, monto);
+      setIsSenaDialogOpen(false);
+      toast({ title: "Seña Actualizada", description: `Seña para la venta ID ${venta.id} actualizada a $${monto.toFixed(2)}` });
+    } else {
+      toast({ title: "Error", description: "Monto de seña inválido.", variant: "destructive" });
+    }
+  };
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
@@ -136,16 +156,56 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
                 <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                 
                 {!isFullyPaid && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-xs h-8 px-2"
-                    onClick={(e) => { e.stopPropagation(); onMarkAsPaid(venta.id); }}
-                    title="Marcar como Cobrado Totalmente"
-                  >
-                    <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
-                    <span className="hidden sm:inline">Cobrado</span>
-                  </Button>
+                  <>
+                    <AlertDialog open={isSenaDialogOpen} onOpenChange={setIsSenaDialogOpen}>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-xs h-8 px-2"
+                          onClick={(e) => { e.stopPropagation(); setIsSenaDialogOpen(true); }}
+                          title="Ingresar o Modificar Seña"
+                        >
+                          <DollarSign className="mr-1 h-3.5 w-3.5 text-blue-500" />
+                          <span className="hidden sm:inline">Seña</span>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Ingresar/Modificar Seña</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Venta ID: {venta.id} <br/>
+                            Total Venta: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <br/>
+                            Seña Actual: ${senaActual.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <div className="py-4">
+                          <Input 
+                            type="number"
+                            placeholder="Monto de la seña"
+                            value={senaInputValue}
+                            onChange={(e) => setSenaInputValue(e.target.value)}
+                            step="0.01"
+                          />
+                        </div>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel onClick={() => setSenaInputValue(venta.sena?.toString() || "")}>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleGuardarSena}>Guardar Seña</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="text-xs h-8 px-2"
+                      onClick={(e) => { e.stopPropagation(); onMarkAsPaid(venta.id); }}
+                      title="Marcar como Cobrado Totalmente"
+                    >
+                      <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
+                      <span className="hidden sm:inline">Cobrado</span>
+                    </Button>
+                  </>
                 )}
 
                 <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
@@ -185,7 +245,6 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 mb-4 text-sm p-4 border rounded-md bg-muted/30">
           <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
           {venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) && <p><strong>Fecha Entrega Estimada:</strong> {format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es })}</p>}
-          {typeof venta.sena === 'number' && venta.sena > 0 && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {typeof venta.costoOperario === 'number' && venta.costoOperario > 0 && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
         </div>
@@ -333,7 +392,6 @@ export default function VentasPage() {
   const handleMarkAsPaid = (idToMark: string) => {
     const newList = ventas.map(venta => {
       if (venta.id === idToMark) {
-        // Ensure totalVenta is a number, default to 0 if not
         const totalVentaNum = Number(venta.totalVenta) || 0;
         return { ...venta, sena: totalVentaNum };
       }
@@ -344,6 +402,16 @@ export default function VentasPage() {
       title: "Venta Actualizada",
       description: "La venta ha sido marcada como cobrada.",
     });
+  };
+
+  const handleIngresarSena = (ventaId: string, montoSeña: number) => {
+    const newList = ventas.map(v => {
+      if (v.id === ventaId) {
+        return { ...v, sena: montoSeña };
+      }
+      return v;
+    });
+    updateVentasListAndStorage(newList);
   };
 
   const filteredVentas = useMemo(() => {
@@ -404,7 +472,13 @@ export default function VentasPage() {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
-                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
+                <VentaItem 
+                  key={venta.id} 
+                  venta={venta} 
+                  onDelete={handleDeleteVenta} 
+                  onMarkAsPaid={handleMarkAsPaid}
+                  onIngresarSena={handleIngresarSena} 
+                />
               ))}
             </Accordion>
           )}

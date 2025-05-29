@@ -30,13 +30,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, PresupuestoDetalle } from "@/types";
+import { useRouter } from "next/navigation";
+
+const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().optional().or(z.literal("")),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas (espesor)
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // metros
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
   cepillado: z.boolean().default(false).optional(),
 });
@@ -72,22 +75,17 @@ const initialDetallesCount = 15;
 
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
+  const router = useRouter(); 
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: new Date(), 
       nombreCliente: "",
       telefonoCliente: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
-
-   useEffect(() => {
-    if (!form.getValues('fecha')) {
-      form.setValue('fecha', new Date());
-    }
-  }, [form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -98,18 +96,17 @@ export default function NuevoPresupuestoPage() {
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     const unidades = Number(detalle.unidades) || 0;
-    const alto = Number(detalle.alto) || 0; // pulgadas
-    const ancho = Number(detalle.ancho) || 0; // pulgadas
-    const largo = Number(detalle.largo) || 0; // metros
+    const alto = Number(detalle.alto) || 0; 
+    const ancho = Number(detalle.ancho) || 0; 
+    const largo = Number(detalle.largo) || 0; 
   
     if (!unidades || !alto || !ancho || !largo) return 0;
-    // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
     return unidades * alto * ancho * largo * 0.2734;
   };
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
     const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0) return 0;
+    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0; 
     if (piesTablares === 0) return 0;
 
     let subtotal = piesTablares * precioPorPie;
@@ -120,7 +117,7 @@ export default function NuevoPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -155,7 +152,7 @@ export default function NuevoPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}` 
+        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
       } as PresupuestoDetalle;
     });
 
@@ -170,31 +167,26 @@ export default function NuevoPresupuestoPage() {
 
     const nuevoPresupuesto: Presupuesto = {
       ...data,
-      id: `pres-${Date.now()}`, 
+      id: `pres-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, 
       fecha: format(data.fecha, "yyyy-MM-dd"), 
       detalles: processedDetalles,
       totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
     };
 
     if (typeof window !== 'undefined') {
-      const storedPresupuestos = localStorage.getItem('presupuestosList');
-      const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
+      const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+      let presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
       presupuestosActuales.push(nuevoPresupuesto);
-      localStorage.setItem('presupuestosList', JSON.stringify(presupuestosActuales));
+      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); 
+      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
     }
     
-    console.log("Nuevo Presupuesto Data:", nuevoPresupuesto);
     toast({
       title: "Presupuesto Registrado",
       description: `Se ha registrado el presupuesto para ${data.nombreCliente}. Total: $${nuevoPresupuesto.totalPresupuesto?.toFixed(2)}`,
       variant: "default"
     });
-    form.reset({
-      fecha: new Date(),
-      nombreCliente: "",
-      telefonoCliente: "",
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-    });
+    router.push('/presupuestos');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
@@ -257,7 +249,7 @@ export default function NuevoPresupuestoPage() {
           <Card>
             <CardHeader>
               <CardTitle>Detalles del Presupuesto</CardTitle>
-              <CardDescription>Ingrese los productos a presupuestar. Las filas con tipo de madera, unidades y precio se considerarán válidas.</CardDescription>
+              <CardDescription>Ingrese los productos a presupuestar. Las filas con tipo de madera y unidades se considerarán válidas.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -269,7 +261,7 @@ export default function NuevoPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
-                      <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
+                      {/* Columna Precio/Pie Oculta */}
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -318,29 +310,25 @@ export default function NuevoPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          <TableCell className="p-1">
-                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
-                            />
-                          </TableCell>
+                          {/* Columna Precio/Pie Oculta - El FormField para precioPorPie se elimina de aquí */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -356,7 +344,7 @@ export default function NuevoPresupuestoPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && (
+                            {!isRowEffectivelyEmpty(currentDetalle) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
