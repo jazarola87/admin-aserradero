@@ -15,14 +15,16 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
 import { Save, PlusCircle, Trash2, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
-import { initialConfigData, updateConfigData } from "@/lib/config-data"; // Import shared config data and update function
-import type { Configuracion as ConfiguracionFormValues } from "@/types"; // Use the type directly
+import { initialConfigData, updateConfigData } from "@/lib/config-data"; 
+import type { Configuracion as ConfiguracionFormValues } from "@/types"; 
+import React, { useState } from "react";
 
 const precioMaderaSchema = z.object({
   tipoMadera: z.string().min(1, "El tipo de madera es requerido."),
@@ -33,7 +35,8 @@ const costosFormSchema = z.object({
   nombreAserradero: z.string().min(3, {
     message: "El nombre del aserradero debe tener al menos 3 caracteres.",
   }),
-  logoUrl: z.string().url({ message: "Por favor ingrese una URL válida para el logo." }).optional().or(z.literal("")),
+  logoUrl: z.string().optional().or(z.literal("")), // Will store Data URI or existing URL
+  lemaEmpresa: z.string().optional(),
   preciosMadera: z.array(precioMaderaSchema).optional(),
   precioCepilladoPorPie: z.coerce.number().nonnegative({
     message: "El precio de cepillado no puede ser negativo.",
@@ -43,9 +46,11 @@ const costosFormSchema = z.object({
 
 export default function CostosPage() {
   const { toast } = useToast();
+  const [logoPreview, setLogoPreview] = useState<string | undefined>(initialConfigData.logoUrl);
+
   const form = useForm<ConfiguracionFormValues>({
     resolver: zodResolver(costosFormSchema),
-    defaultValues: initialConfigData, // Load from shared config data
+    defaultValues: initialConfigData, 
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -53,8 +58,26 @@ export default function CostosPage() {
     name: "preciosMadera",
   });
 
+  React.useEffect(() => {
+    // Initialize logo preview from form default values
+    setLogoPreview(form.getValues("logoUrl"));
+  }, [form]);
+
+  const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUri = reader.result as string;
+        form.setValue("logoUrl", dataUri, { shouldValidate: true });
+        setLogoPreview(dataUri);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   function onSubmit(data: ConfiguracionFormValues) {
-    updateConfigData(data); // Update the shared configuration object
+    updateConfigData(data); 
     console.log("Configuración de Costos Guardada:", data);
     toast({
       title: "Costos Guardados",
@@ -63,19 +86,11 @@ export default function CostosPage() {
     });
   }
 
-  const logoPreview = form.watch("logoUrl");
-
-  // Reset form if initialConfigData changes (e.g., due to external update, though not typical in this setup)
-  // This is more to ensure the form reflects the 'source of truth' if it were to change.
-  // React.useEffect(() => {
-  //   form.reset(initialConfigData);
-  // }, [initialConfigData, form]);
-
   return (
     <div className="container mx-auto py-6">
       <PageTitle 
         title="Gestión de Costos y Precios Base" 
-        description="Defina los tipos de madera, sus precios por pie tablar y otros costos operativos." 
+        description="Defina la información del aserradero, tipos de madera, precios y otros costos operativos." 
       />
       <Card className="max-w-3xl mx-auto">
         <CardHeader>
@@ -98,31 +113,46 @@ export default function CostosPage() {
                   </FormItem>
                 )}
               />
+              
+              <FormItem>
+                <FormLabel>Logo de la Empresa</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={handleLogoChange} 
+                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                </FormControl>
+                {logoPreview && (
+                  <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
+                    <Image src={logoPreview} alt="Vista previa del logo" width={100} height={100} className="object-contain rounded" data-ai-hint="logo company"/>
+                  </div>
+                )}
+                 {!logoPreview && (
+                  <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[100px] h-[100px]">
+                    <ImageIcon className="w-10 h-10 text-muted-foreground" />
+                  </div>
+                )}
+                <FormDescription>Seleccione un archivo de imagen para el logo (PNG, JPG, etc.).</FormDescription>
+                <FormMessage>{form.formState.errors.logoUrl?.message}</FormMessage>
+              </FormItem>
 
               <FormField
                 control={form.control}
-                name="logoUrl"
+                name="lemaEmpresa"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>URL del Logo</FormLabel>
+                    <FormLabel>Lema de la Empresa</FormLabel>
                     <FormControl>
-                      <Input placeholder="https://ejemplo.com/logo.png" {...field} />
+                      <Textarea placeholder="Ej: Calidad y tradición en maderas desde 1985." {...field} />
                     </FormControl>
-                    {logoPreview && (
-                      <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
-                        <Image src={logoPreview} alt="Vista previa del logo" width={100} height={100} className="object-contain rounded" data-ai-hint="logo wood"/>
-                      </div>
-                    )}
-                     {!logoPreview && (
-                      <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[100px] h-[100px]">
-                        <ImageIcon className="w-10 h-10 text-muted-foreground" />
-                      </div>
-                    )}
-                    <FormDescription>Ingrese la URL completa de la imagen del logo.</FormDescription>
+                    <FormDescription>Un eslogan o frase que represente a su aserradero.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
 
               <Separator />
               <h3 className="text-lg font-medium">Precios de Madera por Pie Tablar</h3>

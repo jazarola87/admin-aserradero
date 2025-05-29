@@ -2,16 +2,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useRouter } from 'next/navigation';
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { PlusCircle, Trash2, Search, ChevronDown } from "lucide-react";
 import type { Venta } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 // Mock data for sales
 const mockVentasData: Venta[] = [
@@ -40,7 +43,9 @@ const mockVentasData: Venta[] = [
 
 export default function VentasPage() {
   const [ventas, setVentas] = useState<Venta[]>(mockVentasData);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleDeleteVenta = (idToDelete: string) => {
     setVentas(prevVentas => prevVentas.filter(venta => venta.id !== idToDelete));
@@ -50,6 +55,14 @@ export default function VentasPage() {
       variant: "default",
     });
   };
+
+  const filteredVentas = useMemo(() => {
+    if (!searchTerm) return ventas;
+    return ventas.filter(venta => 
+      venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (venta.telefonoComprador && venta.telefonoComprador.includes(searchTerm))
+    );
+  }, [ventas, searchTerm]);
 
   return (
     <div className="container mx-auto py-6">
@@ -65,47 +78,77 @@ export default function VentasPage() {
       <Card>
         <CardHeader>
           <CardTitle>Historial de Ventas</CardTitle>
-           <CardDescription>
-            {ventas.length > 0 
-              ? `Mostrando ${ventas.length} venta(s).` 
-              : "Aún no se han registrado ventas."}
-          </CardDescription>
+           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
+            <CardDescription>
+                {filteredVentas.length > 0 
+                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).` 
+                : "No se encontraron ventas con los criterios de búsqueda."}
+                {ventas.length === 0 && " Aún no se han registrado ventas."}
+            </CardDescription>
+            <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                type="search"
+                placeholder="Buscar por comprador, teléfono..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-full sm:w-[300px]"
+                />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {ventas.length > 0 ? (
+          {ventas.length === 0 ? (
+             <div className="text-center py-10 text-muted-foreground">
+              <p>No hay ventas registradas.</p>
+              <Button variant="link" asChild className="mt-2">
+                <Link href="/ventas/nueva">Registrar la primera venta</Link>
+              </Button>
+            </div>
+          ) : filteredVentas.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+             <p>No se encontraron ventas que coincidan con su búsqueda.</p>
+           </div>
+          ) : (
             <Accordion type="single" collapsible className="w-full">
-              {ventas.map((venta) => (
+              {filteredVentas.map((venta) => (
                 <AccordionItem value={venta.id} key={venta.id}>
-                  <AccordionTrigger className="hover:no-underline">
-                    <div className="flex justify-between w-full pr-4 items-center">
-                      <div className="flex-1">
-                        <span>Venta a: {venta.nombreComprador}</span>
-                        <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(venta.fecha).toLocaleDateString('es-ES')}</span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="mr-4 font-semibold">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                               <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Eliminar Venta</span>
-                               </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id)}} className="bg-destructive hover:bg-destructive/90">
-                                  Eliminar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                  <AccordionTrigger asChild className="hover:no-underline">
+                    <div className={cn(
+                        "flex w-full items-center py-4 px-2 font-medium text-left",
+                        "hover:bg-muted/50 rounded-md" 
+                      )}>
+                      <div className="flex-1 flex justify-between items-center">
+                        <div>
+                            <span>Venta a: {venta.nombreComprador}</span>
+                            <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(venta.fecha).toLocaleDateString('es-ES')}</span>
+                        </div>
+                        <div className="flex items-center">
+                            <span className="mr-4 font-semibold">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-2" onClick={(e) => e.stopPropagation()}>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Eliminar Venta</span>
+                                </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id)}} className="bg-destructive hover:bg-destructive/90">
+                                    Eliminar
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                        </div>
                       </div>
                     </div>
                   </AccordionTrigger>
@@ -143,13 +186,6 @@ export default function VentasPage() {
                 </AccordionItem>
               ))}
             </Accordion>
-          ) : (
-             <div className="text-center py-10 text-muted-foreground">
-              <p>No hay ventas registradas.</p>
-              <Button variant="link" asChild className="mt-2">
-                <Link href="/ventas/nueva">Registrar la primera venta</Link>
-              </Button>
-            </div>
           )}
         </CardContent>
       </Card>

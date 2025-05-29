@@ -30,6 +30,7 @@ export interface Venta {
   telefonoComprador?: string;
   detalles: VentaDetalle[];
   totalVenta?: number; // sum of subTotals
+  idOriginalPresupuesto?: string; // To track if it came from a budget
 }
 
 export interface PresupuestoDetalle {
@@ -63,7 +64,9 @@ export interface PrecioMadera {
 
 export interface Configuracion {
   nombreAserradero: string;
-  logoUrl?: string;
+  logoUrl?: string; // Can be a URL or a Data URI
+  lemaEmpresa?: string;
   preciosMadera: PrecioMadera[];
   precioCepilladoPorPie: number;
 }
+

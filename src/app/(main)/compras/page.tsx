@@ -2,13 +2,14 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { PlusCircle, Trash2, Search } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +23,7 @@ const mockComprasData: Compra[] = [
 
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>(mockComprasData);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
   const handleDeleteCompra = (idToDelete: string) => {
@@ -32,6 +34,15 @@ export default function ComprasPage() {
       variant: "default",
     });
   };
+
+  const filteredCompras = useMemo(() => {
+    if (!searchTerm) return compras;
+    return compras.filter(compra => 
+      compra.proveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (compra.telefonoProveedor && compra.telefonoProveedor.includes(searchTerm)) ||
+      compra.tipoMadera.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [compras, searchTerm]);
 
   return (
     <div className="container mx-auto py-6">
@@ -47,14 +58,38 @@ export default function ComprasPage() {
       <Card>
         <CardHeader>
           <CardTitle>Historial de Compras</CardTitle>
-          <CardDescription>
-            {compras.length > 0 
-              ? `Mostrando ${compras.length} compra(s).` 
-              : "Aún no se han registrado compras."}
-          </CardDescription>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <CardDescription>
+              {filteredCompras.length > 0 
+                ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s).` 
+                : "No se encontraron compras con los criterios de búsqueda."}
+              {compras.length === 0 && " Aún no se han registrado compras."}
+            </CardDescription>
+            <div className="relative w-full sm:w-auto">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar por proveedor, teléfono, tipo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-full sm:w-[300px]"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {compras.length > 0 ? (
+          {compras.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <p>No hay compras registradas.</p>
+              <Button variant="link" asChild className="mt-2">
+                <Link href="/compras/nueva">Registrar la primera compra</Link>
+              </Button>
+            </div>
+          ) : filteredCompras.length === 0 ? (
+             <div className="text-center py-10 text-muted-foreground">
+              <p>No se encontraron compras que coincidan con su búsqueda.</p>
+            </div>
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -68,7 +103,7 @@ export default function ComprasPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {compras.map((compra) => (
+                {filteredCompras.map((compra) => (
                   <TableRow key={compra.id}>
                     <TableCell>{new Date(compra.fecha).toLocaleDateString('es-ES')}</TableCell>
                     <TableCell>{compra.tipoMadera}</TableCell>
@@ -104,13 +139,6 @@ export default function ComprasPage() {
                 ))}
               </TableBody>
             </Table>
-          ) : (
-            <div className="text-center py-10 text-muted-foreground">
-              <p>No hay compras registradas.</p>
-              <Button variant="link" asChild className="mt-2">
-                <Link href="/compras/nueva">Registrar la primera compra</Link>
-              </Button>
-            </div>
           )}
         </CardContent>
       </Card>

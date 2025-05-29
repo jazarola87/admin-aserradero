@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data"; 
+import type { Presupuesto, VentaDetalle as VentaDetalleType } from "@/types";
 
 const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_MOCK } = initialConfigData;
 
@@ -54,6 +55,7 @@ const ventaFormSchema = z.object({
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
     ),
+  idOriginalPresupuesto: z.string().optional(), // For tracking budget conversion
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -68,28 +70,78 @@ const createEmptyDetalle = (): z.infer<typeof ventaDetalleSchema> => ({
   cepillado: false,
 });
 
-const initialDetalles = Array(15).fill(null).map(() => createEmptyDetalle());
+const initialDetallesCount = 15;
+const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
 
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
   const [precioCepillado, setPrecioCepillado] = useState(PRECIO_CEPILLADO_POR_PIE_MOCK);
+  // State to hold original budget ID if converting
+  const [originalPresupuestoId, setOriginalPresupuestoId] = useState<string | undefined>(undefined);
+
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, // Will be set by useEffect
+      fecha: undefined, 
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
+      idOriginalPresupuesto: undefined,
     },
   });
 
   useEffect(() => {
+    // Set default date if not already set (e.g., by budget import)
     if (!form.getValues('fecha')) {
       form.setValue('fecha', new Date());
     }
-  }, [form]);
+
+    // Check for budget data from localStorage
+    const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
+    if (presupuestoParaVentaString) {
+      try {
+        const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
+        
+        // Map PresupuestoDetalle to VentaDetalle (they are structurally similar)
+        const detallesVenta = presupuesto.detalles.map(d => ({
+          ...createEmptyDetalle(), // Ensure all optional fields are present
+          ...d, // Spread presupuesto detalle data
+          id: undefined, // Don't carry over old ID, new items for sale
+        }));
+
+        // Pad with empty rows if less than initialDetallesCount
+        while(detallesVenta.length < initialDetallesCount) {
+            detallesVenta.push(createEmptyDetalle());
+        }
+
+        form.reset({
+          fecha: presupuesto.fecha ? new Date(presupuesto.fecha) : new Date(),
+          nombreComprador: presupuesto.nombreCliente,
+          telefonoComprador: presupuesto.telefonoCliente || "",
+          detalles: detallesVenta,
+          idOriginalPresupuesto: presupuesto.id, // Store the original budget ID
+        });
+        setOriginalPresupuestoId(presupuesto.id); // Also set in component state for easier access in onSubmit
+        
+        toast({
+          title: "Presupuesto Cargado",
+          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
+        });
+      } catch (error) {
+        console.error("Error parsing presupuesto from localStorage", error);
+        toast({
+          title: "Error al Cargar Presupuesto",
+          description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
+          variant: "destructive",
+        });
+      } finally {
+        localStorage.removeItem('presupuestoParaVenta');
+      }
+    }
+  }, [form, toast]);
+
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -159,17 +211,25 @@ export default function NuevaVentaPage() {
       description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${processedData.totalVenta.toFixed(2)}`,
       variant: "default"
     });
+
+    if (data.idOriginalPresupuesto) {
+      localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
+      console.log(`Budget ${data.idOriginalPresupuesto} marked for deletion.`);
+    }
+    
     form.reset({
       fecha: new Date(),
       nombreComprador: "",
       telefonoComprador: "",
-      detalles: Array(15).fill(null).map(() => createEmptyDetalle()),
+      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
+      idOriginalPresupuesto: undefined,
     });
+    setOriginalPresupuestoId(undefined);
   }
 
   const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number';
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
   };
 
   return (

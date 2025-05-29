@@ -5,6 +5,7 @@ import type { Configuracion } from '@/types';
 export let initialConfigData: Configuracion = {
   nombreAserradero: "Aserradero El Roble",
   logoUrl: "https://placehold.co/150x150.png?text=Logo",
+  lemaEmpresa: "Calidad y tradición en maderas desde 1985.",
   preciosMadera: [
     { tipoMadera: "Pino", precioPorPie: 2.50 },
     { tipoMadera: "Roble", precioPorPie: 5.00 },
