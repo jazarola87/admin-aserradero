@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import type { Presupuesto, Venta, Configuracion } from '@/types';
@@ -122,14 +121,14 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
 
       <table style={styles.detailsTable}>
         <colgroup>
-            <col style={{width: '17.5%'}} /> {/* Tipo Madera - Reducido */}
-            <col style={{width: '7%'}} />  {/* Unid. */}
-            <col style={{width: '22%'}} /> {/* Dimensiones */}
-            <col style={{width: '7%'}} />  {/* Cepill. */}
-            <col style={{width: '10%'}} /> {/* P.Tabl. */}
-            <col style={{width: '9%'}} />  {/* $/Pie */}
-            <col style={{width: '9%'}} />  {/* Val.Unit. */}
-            <col style={{width: '18.5%'}} /> {/* Subtotal - Aumentado */}
+            <col style={{width: '10.5%'}} /> {/* Tipo Madera - Reducido */}
+            <col style={{width: '7%'}} />    {/* Unid. */}
+            <col style={{width: '22%'}} />   {/* Dimensiones */}
+            <col style={{width: '7%'}} />    {/* Cepill. */}
+            <col style={{width: '10%'}} />   {/* P.Tabl. */}
+            <col style={{width: '9%'}} />    {/* $/Pie */}
+            <col style={{width: '9%'}} />    {/* Val.Unit. */}
+            <col style={{width: '25.5%'}} /> {/* Subtotal - Aumentado */}
         </colgroup>
         <thead>
           <tr>
@@ -167,7 +166,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
         {sena !== undefined && sena > 0 && (
              <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>Seña:</span>
-                <span style={styles.totalAmount}>-${sena.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span style={styles.totalAmount}>-${sena.toLocaleString('es-ES', { minimumFraction Digits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         )}
         <div style={styles.grandTotalRow}>
