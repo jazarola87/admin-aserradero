@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from 'next/navigation';
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,7 @@ import html2canvas from 'html2canvas';
 import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { initialConfigData } from '@/lib/config-data';
 
-
-// Mock data for presupuestos
-const mockPresupuestosData: Presupuesto[] = [
+const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
   { 
     id: "pres001", 
     fecha: "2024-07-25", 
@@ -45,31 +43,75 @@ const mockPresupuestosData: Presupuesto[] = [
   },
 ];
 
+const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
+
 export default function PresupuestosPage() {
-  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>(mockPresupuestosData);
-  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
-
+  
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
+
+  const updatePresupuestosListAndStorage = useCallback((newList: Presupuesto[]) => {
+    setPresupuestos(newList);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(newList));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+      if (storedPresupuestos) {
+        try {
+          setPresupuestos(JSON.parse(storedPresupuestos));
+        } catch (e) {
+          console.error("Error parsing presupuestos from localStorage", e);
+          updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); // Fallback and store
+        }
+      } else {
+        updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); // Initialize if nothing in storage
+      }
+    }
+  }, [updatePresupuestosListAndStorage]);
 
 
   useEffect(() => {
     const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
-    if (budgetToDeleteId) {
-      setPresupuestos(prev => prev.filter(p => p.id !== budgetToDeleteId));
+    if (budgetToDeleteId && typeof window !== 'undefined') {
+      // Re-fetch from localStorage to ensure we have the most current list
+      const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+      let currentList: Presupuesto[] = [];
+      if (currentListFromStorage) {
+        try {
+          currentList = JSON.parse(currentListFromStorage);
+        } catch (e) {
+          console.error("Error parsing presupuestos from localStorage for delete operation", e);
+          // If parsing fails, we might rely on current state or re-initialize,
+          // for simplicity, we'll use the current state as a base if storage fails.
+          currentList = presupuestos;
+        }
+      } else {
+         // This case should ideally not happen if initialized correctly
+        currentList = presupuestos;
+      }
+
+      const newList = currentList.filter(p => p.id !== budgetToDeleteId);
+      updatePresupuestosListAndStorage(newList); 
       localStorage.removeItem('budgetToDeleteId');
       toast({
         title: "Presupuesto Convertido",
         description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
       });
     }
-  }, [toast]);
+  }, [toast, updatePresupuestosListAndStorage, presupuestos]);
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
-    setPresupuestos(prevPresupuestos => prevPresupuestos.filter(p => p.id !== idToDelete));
+    const newList = presupuestos.filter(p => p.id !== idToDelete);
+    updatePresupuestosListAndStorage(newList);
     toast({
       title: "Presupuesto Eliminado",
       description: "El presupuesto ha sido eliminado exitosamente.",
@@ -78,31 +120,37 @@ export default function PresupuestosPage() {
   };
 
   const handlePasarAVenta = (presupuesto: Presupuesto) => {
-    localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
+    }
     router.push('/ventas/nueva');
   };
 
   const downloadPDF = async (presupuesto: Presupuesto) => {
-    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; // Ensure unique ID for concurrent attempts
+    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; 
     setSelectedPresupuestoForPdf(presupuesto);
     setPdfTargetId(uniqueId);
   
-    // Allow React to render the hidden component
     setTimeout(async () => {
       const inputElement = document.getElementById(uniqueId);
       if (inputElement) {
         try {
-          // Ensure all images inside the element are loaded before capturing
           const images = Array.from(inputElement.getElementsByTagName('img'));
           await Promise.all(images.map(img => {
-            if (img.complete) return Promise.resolve();
-            return new Promise(resolve => { img.onload = img.onerror = resolve; });
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); // Check if already loaded and valid
+            return new Promise(resolve => { 
+              img.onload = resolve; 
+              img.onerror = () => { // Handle image load errors
+                console.warn(`Failed to load image for PDF: ${img.src}`);
+                resolve(null); // Resolve anyway to not block PDF generation
+              };
+            });
           }));
 
           const canvas = await html2canvas(inputElement, { 
-            scale: 2, // Higher scale for better resolution
-            useCORS: true, // If logo is from external URL
-            logging: false, // Disable html2canvas logging for cleaner console
+            scale: 2, 
+            useCORS: true, 
+            logging: false,
            });
           const imgData = canvas.toDataURL('image/png');
           
@@ -113,29 +161,19 @@ export default function PresupuestosPage() {
           });
   
           const pdfWidth = pdf.internal.pageSize.getWidth();
-          // const pdfHeight = pdf.internal.pageSize.getHeight(); // Not used directly, but good to know
-          
-          // Calculate image dimensions to fit A4 width (with some margin)
-          const margin = 10; // 10mm margin on each side
+          const margin = 10; 
           const availableWidth = pdfWidth - 2 * margin;
-          
           const imgOriginalWidth = canvas.width;
           const imgOriginalHeight = canvas.height;
-          
           const aspectRatio = imgOriginalWidth / imgOriginalHeight;
-          
           let imgRenderWidth = availableWidth;
           let imgRenderHeight = availableWidth / aspectRatio;
-
-          // If image height exceeds typical A4 content area after scaling, further adjust (this is a rough heuristic)
-          const typicalA4ContentHeight = 297 - 2 * margin; // 297mm A4 height
+          const typicalA4ContentHeight = 297 - 2 * margin; 
            if (imgRenderHeight > typicalA4ContentHeight) {
              imgRenderHeight = typicalA4ContentHeight;
              imgRenderWidth = imgRenderHeight * aspectRatio;
            }
-
-
-          const imgX = margin + (availableWidth - imgRenderWidth) / 2; // Center horizontally within margins
+          const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
           const imgY = margin;
   
           pdf.addImage(imgData, 'PNG', imgX, imgY, imgRenderWidth, imgRenderHeight);
@@ -143,15 +181,14 @@ export default function PresupuestosPage() {
           toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
         } catch (error) {
           console.error("Error generating PDF:", error);
-          toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF. Verifique la consola para más detalles.", variant: "destructive" });
+          toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
         }
       } else {
-        toast({ title: "Error al generar PDF", description: "No se encontró el elemento para convertir a PDF.", variant: "destructive" });
+        toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
       }
-      // Clean up state
       setSelectedPresupuestoForPdf(null);
       setPdfTargetId(null);
-    }, 250); // Increased timeout slightly
+    }, 300); // Increased timeout slightly
   };
 
 
@@ -197,7 +234,7 @@ export default function PresupuestosPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {presupuestos.length === 0 ? (
+          {presupuestos.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <ClipboardList className="mx-auto h-12 w-12 mb-4" />
               <p>No hay presupuestos registrados.</p>
@@ -213,29 +250,29 @@ export default function PresupuestosPage() {
             <Accordion type="single" collapsible className="w-full">
               {filteredPresupuestos.map((presupuesto) => (
                 <AccordionItem value={presupuesto.id} key={presupuesto.id}>
-                   <AccordionTrigger asChild className="hover:no-underline">
-                    <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left",
-                        "hover:bg-muted/50 rounded-md group" 
+                  <AccordionTrigger asChild className="hover:no-underline">
+                     <div className={cn(
+                        "flex w-full items-center py-4 px-2 font-medium text-left group", 
+                        "hover:bg-muted/50 rounded-md"
                       )}>
                       <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
                             <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
                             <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(presupuesto.fecha).toLocaleDateString('es-ES')}</span>
                         </div>
-                        <div className="flex items-center mt-2 sm:mt-0">
-                            <span className="mr-2 sm:mr-4 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                             <Button variant="outline" size="sm" className="mr-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                        <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
+                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                             <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
                                 <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">PDF</span>
                             </Button>
-                            <Button variant="outline" size="sm" className="mr-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
+                            <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
                                 <Send className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">A Venta</span>
                             </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-1 sm:mr-2" onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                     <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Eliminar Presupuesto</span>
                                 </Button>
@@ -297,7 +334,6 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
-      {/* Hidden container for PDF rendering */}
       {selectedPresupuestoForPdf && pdfTargetId && (
         <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
           <PresupuestoPDFDocument
@@ -310,3 +346,5 @@ export default function PresupuestosPage() {
     </div>
   );
 }
+
+    

@@ -29,6 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data"; 
+import type { Presupuesto, PresupuestoDetalle } from "@/types";
 
 const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
 
@@ -59,7 +60,7 @@ const presupuestoFormSchema = z.object({
 type PresupuestoFormValues = z.infer<typeof presupuestoFormSchema>;
 
 const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
-  tipoMadera: "",
+  tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
   alto: undefined,
@@ -99,12 +100,12 @@ export default function NuevoPresupuestoPage() {
 
   const watchedDetalles = form.watch("detalles");
 
-  const calcularPiesTablares = (detalle: typeof watchedDetalles[0] | undefined) => {
+  const calcularPiesTablares = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return 0;
     return (detalle.alto * detalle.ancho * detalle.largo * detalle.unidades) / 12;
   };
 
-  const calcularSubtotal = (detalle: typeof watchedDetalles[0] | undefined, piesTablares: number) => {
+  const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
@@ -132,11 +133,11 @@ export default function NuevoPresupuestoPage() {
   function onSubmit(data: PresupuestoFormValues) {
     const processedDetalles = data.detalles.filter(
       d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'
-    ).map(d => {
+    ).map((d, index) => {
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
-      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit };
+      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit, id: `pd-${Date.now()}-${index}` } as PresupuestoDetalle;
     });
 
     if (processedDetalles.length === 0) {
@@ -148,16 +149,25 @@ export default function NuevoPresupuestoPage() {
       return;
     }
 
-    const processedData = {
+    const nuevoPresupuesto: Presupuesto = {
       ...data,
+      id: `pres-${Date.now()}`, // Generate unique ID
+      fecha: format(data.fecha, "yyyy-MM-dd"), // Format date to string
       detalles: processedDetalles,
       totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
     };
 
-    console.log("Nuevo Presupuesto Data:", processedData);
+    if (typeof window !== 'undefined') {
+      const storedPresupuestos = localStorage.getItem('presupuestosList');
+      const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
+      presupuestosActuales.push(nuevoPresupuesto);
+      localStorage.setItem('presupuestosList', JSON.stringify(presupuestosActuales));
+    }
+    
+    console.log("Nuevo Presupuesto Data:", nuevoPresupuesto);
     toast({
       title: "Presupuesto Registrado",
-      description: `Se ha registrado el presupuesto para ${data.nombreCliente}. Total: $${processedData.totalPresupuesto.toFixed(2)}`,
+      description: `Se ha registrado el presupuesto para ${data.nombreCliente}. Total: $${nuevoPresupuesto.totalPresupuesto?.toFixed(2)}`,
       variant: "default"
     });
     form.reset({
@@ -168,7 +178,7 @@ export default function NuevoPresupuestoPage() {
     });
   }
 
-  const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
+  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
   };
@@ -264,7 +274,7 @@ export default function NuevoPresupuestoPage() {
                               name={`detalles.${index}.tipoMadera`}
                               render={({ field: maderaField }) => (
                                 <FormItem>
-                                  <Select onValueChange={(value) => handleTipoMaderaChange(value, index)} value={maderaField.value || ""}>
+                                  <Select onValueChange={(value) => handleTipoMaderaChange(value, index)} value={maderaField.value}>
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue placeholder="Seleccione tipo" />
@@ -360,3 +370,4 @@ export default function NuevoPresupuestoPage() {
   );
 }
 
+    
