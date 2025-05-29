@@ -11,10 +11,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown } from "lucide-react";
+import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download } from "lucide-react";
 import type { Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
+import { initialConfigData } from '@/lib/config-data';
+
 
 // Mock data for presupuestos
 const mockPresupuestosData: Presupuesto[] = [
@@ -46,6 +51,10 @@ export default function PresupuestosPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
+  const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
+
+
   useEffect(() => {
     const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
     if (budgetToDeleteId) {
@@ -56,7 +65,7 @@ export default function PresupuestosPage() {
         description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
       });
     }
-  }, []);
+  }, [toast]);
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
@@ -72,6 +81,79 @@ export default function PresupuestosPage() {
     localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
     router.push('/ventas/nueva');
   };
+
+  const downloadPDF = async (presupuesto: Presupuesto) => {
+    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; // Ensure unique ID for concurrent attempts
+    setSelectedPresupuestoForPdf(presupuesto);
+    setPdfTargetId(uniqueId);
+  
+    // Allow React to render the hidden component
+    setTimeout(async () => {
+      const inputElement = document.getElementById(uniqueId);
+      if (inputElement) {
+        try {
+          // Ensure all images inside the element are loaded before capturing
+          const images = Array.from(inputElement.getElementsByTagName('img'));
+          await Promise.all(images.map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => { img.onload = img.onerror = resolve; });
+          }));
+
+          const canvas = await html2canvas(inputElement, { 
+            scale: 2, // Higher scale for better resolution
+            useCORS: true, // If logo is from external URL
+            logging: false, // Disable html2canvas logging for cleaner console
+           });
+          const imgData = canvas.toDataURL('image/png');
+          
+          const pdf = new jsPDF({
+            orientation: 'p',
+            unit: 'mm',
+            format: 'a4',
+          });
+  
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          // const pdfHeight = pdf.internal.pageSize.getHeight(); // Not used directly, but good to know
+          
+          // Calculate image dimensions to fit A4 width (with some margin)
+          const margin = 10; // 10mm margin on each side
+          const availableWidth = pdfWidth - 2 * margin;
+          
+          const imgOriginalWidth = canvas.width;
+          const imgOriginalHeight = canvas.height;
+          
+          const aspectRatio = imgOriginalWidth / imgOriginalHeight;
+          
+          let imgRenderWidth = availableWidth;
+          let imgRenderHeight = availableWidth / aspectRatio;
+
+          // If image height exceeds typical A4 content area after scaling, further adjust (this is a rough heuristic)
+          const typicalA4ContentHeight = 297 - 2 * margin; // 297mm A4 height
+           if (imgRenderHeight > typicalA4ContentHeight) {
+             imgRenderHeight = typicalA4ContentHeight;
+             imgRenderWidth = imgRenderHeight * aspectRatio;
+           }
+
+
+          const imgX = margin + (availableWidth - imgRenderWidth) / 2; // Center horizontally within margins
+          const imgY = margin;
+  
+          pdf.addImage(imgData, 'PNG', imgX, imgY, imgRenderWidth, imgRenderHeight);
+          pdf.save(`presupuesto-${presupuesto.id}-${presupuesto.nombreCliente.replace(/\s+/g, '_')}.pdf`);
+          toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
+        } catch (error) {
+          console.error("Error generating PDF:", error);
+          toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF. Verifique la consola para más detalles.", variant: "destructive" });
+        }
+      } else {
+        toast({ title: "Error al generar PDF", description: "No se encontró el elemento para convertir a PDF.", variant: "destructive" });
+      }
+      // Clean up state
+      setSelectedPresupuestoForPdf(null);
+      setPdfTargetId(null);
+    }, 250); // Increased timeout slightly
+  };
+
 
   const filteredPresupuestos = useMemo(() => {
     if (!searchTerm) return presupuestos;
@@ -134,22 +216,26 @@ export default function PresupuestosPage() {
                    <AccordionTrigger asChild className="hover:no-underline">
                     <div className={cn(
                         "flex w-full items-center py-4 px-2 font-medium text-left",
-                        "hover:bg-muted/50 rounded-md" 
+                        "hover:bg-muted/50 rounded-md group" 
                       )}>
-                      <div className="flex-1 flex justify-between items-center">
+                      <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
-                            <span>Presupuesto para: {presupuesto.nombreCliente}</span>
-                            <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(presupuesto.fecha).toLocaleDateString('es-ES')}</span>
+                            <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(presupuesto.fecha).toLocaleDateString('es-ES')}</span>
                         </div>
-                        <div className="flex items-center">
-                            <span className="mr-4 font-semibold">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                        <div className="flex items-center mt-2 sm:mt-0">
+                            <span className="mr-2 sm:mr-4 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                             <Button variant="outline" size="sm" className="mr-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                                <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="hidden sm:inline">PDF</span>
+                            </Button>
                             <Button variant="outline" size="sm" className="mr-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
-                                <Send className="mr-2 h-3 w-3" />
-                                Pasar a Venta
+                                <Send className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="hidden sm:inline">A Venta</span>
                             </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-2" onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-1 sm:mr-2" onClick={(e) => e.stopPropagation()}>
                                     <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Eliminar Presupuesto</span>
                                 </Button>
@@ -175,16 +261,16 @@ export default function PresupuestosPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="mb-2"><strong>Teléfono Cliente:</strong> {presupuesto.telefonoCliente || "N/A"}</p>
+                    <p className="mb-2 text-sm"><strong>Teléfono Cliente:</strong> {presupuesto.telefonoCliente || "N/A"}</p>
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Tipo Madera</TableHead>
-                          <TableHead>Unidades</TableHead>
-                          <TableHead>Dimensiones (Ancho x Alto x Largo)</TableHead>
-                          <TableHead>Pies Tablares</TableHead>
-                          <TableHead>Valor Unit.</TableHead>
-                          <TableHead>Precio/Pie</TableHead>
+                          <TableHead>Unid.</TableHead>
+                          <TableHead>Dimensiones</TableHead>
+                          <TableHead>P.Tabl.</TableHead>
+                          <TableHead>Val.Unit.</TableHead>
+                          <TableHead>$/Pie</TableHead>
                           <TableHead>Cepillado</TableHead>
                           <TableHead>Subtotal</TableHead>
                         </TableRow>
@@ -196,7 +282,7 @@ export default function PresupuestosPage() {
                             <TableCell>{detalle.unidades}</TableCell>
                             <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                             <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
                             <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
                             <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
@@ -211,6 +297,16 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
+      {/* Hidden container for PDF rendering */}
+      {selectedPresupuestoForPdf && pdfTargetId && (
+        <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
+          <PresupuestoPDFDocument
+            presupuesto={selectedPresupuestoForPdf}
+            config={initialConfigData}
+            elementId={pdfTargetId}
+          />
+        </div>
+      )}
     </div>
   );
 }

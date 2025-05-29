@@ -55,7 +55,7 @@ const ventaFormSchema = z.object({
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
     ),
-  idOriginalPresupuesto: z.string().optional(), // For tracking budget conversion
+  idOriginalPresupuesto: z.string().optional(),
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -77,14 +77,11 @@ const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createE
 export default function NuevaVentaPage() {
   const { toast } = useToast();
   const [precioCepillado, setPrecioCepillado] = useState(PRECIO_CEPILLADO_POR_PIE_MOCK);
-  // State to hold original budget ID if converting
-  const [originalPresupuestoId, setOriginalPresupuestoId] = useState<string | undefined>(undefined);
-
-
+  
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: undefined, // Will be set by useEffect or budget import
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
@@ -93,41 +90,32 @@ export default function NuevaVentaPage() {
   });
 
   useEffect(() => {
-    // Set default date if not already set (e.g., by budget import)
-    if (!form.getValues('fecha')) {
-      form.setValue('fecha', new Date());
-    }
-
-    // Check for budget data from localStorage
     const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        // Map PresupuestoDetalle to VentaDetalle (they are structurally similar)
         const detallesVenta = presupuesto.detalles.map(d => ({
-          ...createEmptyDetalle(), // Ensure all optional fields are present
-          ...d, // Spread presupuesto detalle data
-          id: undefined, // Don't carry over old ID, new items for sale
+          ...createEmptyDetalle(),
+          ...d,
+          id: undefined, 
         }));
 
-        // Pad with empty rows if less than initialDetallesCount
         while(detallesVenta.length < initialDetallesCount) {
             detallesVenta.push(createEmptyDetalle());
         }
 
         form.reset({
-          fecha: presupuesto.fecha ? new Date(presupuesto.fecha) : new Date(),
+          fecha: new Date(), // Always use current date when converting from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           detalles: detallesVenta,
-          idOriginalPresupuesto: presupuesto.id, // Store the original budget ID
+          idOriginalPresupuesto: presupuesto.id,
         });
-        setOriginalPresupuestoId(presupuesto.id); // Also set in component state for easier access in onSubmit
         
         toast({
-          title: "Presupuesto Cargado",
-          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
+          title: "Presupuesto Cargado para Venta",
+          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada al día de hoy.`,
         });
       } catch (error) {
         console.error("Error parsing presupuesto from localStorage", error);
@@ -136,9 +124,16 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
+        // Set default date if budget load fails and no date is set
+        if (!form.getValues('fecha')) {
+          form.setValue('fecha', new Date());
+        }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
+    } else if (!form.getValues('fecha')) {
+      // If not loading from budget and no date is set, set to current date
+      form.setValue('fecha', new Date());
     }
   }, [form, toast]);
 
@@ -177,6 +172,8 @@ export default function NuevaVentaPage() {
     const maderaSeleccionada = tiposDeMaderaDisponibles.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie);
+    } else {
+      form.setValue(`detalles.${index}.precioPorPie`, undefined);
     }
   };
 
@@ -187,7 +184,7 @@ export default function NuevaVentaPage() {
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
-      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit };
+      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit } as VentaDetalleType;
     });
 
     if (processedDetalles.length === 0) {
@@ -214,17 +211,15 @@ export default function NuevaVentaPage() {
 
     if (data.idOriginalPresupuesto) {
       localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
-      console.log(`Budget ${data.idOriginalPresupuesto} marked for deletion.`);
     }
     
     form.reset({
-      fecha: new Date(),
+      fecha: new Date(), // Reset with current date
       nombreComprador: "",
       telefonoComprador: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
     });
-    setOriginalPresupuestoId(undefined);
   }
 
   const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
@@ -383,7 +378,7 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && (
+                            {(!isEffectivelyEmpty || fields.length > 1) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -418,3 +413,4 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
+
