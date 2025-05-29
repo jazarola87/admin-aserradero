@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
+import { GenericOrderPDFDocument } from '@/components/shared/generic-order-pdf-document';
 import { initialConfigData } from '@/lib/config-data';
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -58,7 +58,11 @@ export default function PresupuestosPage() {
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
 
   const updatePresupuestosListAndStorage = useCallback((newList: Presupuesto[]) => {
-    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const sortedList = newList.sort((a, b) => {
+        const dateA = parseISO(a.fecha);
+        const dateB = parseISO(b.fecha);
+        return dateB.getTime() - dateA.getTime();
+    });
     setPresupuestos(sortedList);
     if (typeof window !== 'undefined') {
       localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedList));
@@ -68,7 +72,7 @@ export default function PresupuestosPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS;
+      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS; // Use a copy for manipulation
       if (storedPresupuestos) {
         try {
           const parsed = JSON.parse(storedPresupuestos);
@@ -77,14 +81,15 @@ export default function PresupuestosPage() {
           }
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage", e);
+           // If parsing fails, use mock data and re-save
+          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime())));
         }
       }
-      const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
+      // Always sort before setting state
+      const sortedData = dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
       setPresupuestos(sortedData);
-      if (!storedPresupuestos && dataToLoad.length > 0) {
-        localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedData));
-      } else if (!storedPresupuestos && dataToLoad.length === 0) {
-        localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify([]));
+      if (!storedPresupuestos) { // Only save to localStorage if it was initially empty
+          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedData));
       }
     }
   }, []);
@@ -101,10 +106,10 @@ export default function PresupuestosPage() {
             currentList = JSON.parse(currentListFromStorage);
           } catch (e) {
             console.error("Error parsing presupuestos from localStorage for delete operation", e);
-            currentList = [...presupuestos];
+            currentList = [...presupuestos]; // Fallback to current state if parsing fails
           }
         } else {
-           currentList = [...presupuestos];
+           currentList = [...presupuestos]; // Fallback if localStorage is empty
         }
 
         const newList = currentList.filter(p => p.id !== budgetToDeleteId);
@@ -141,6 +146,8 @@ export default function PresupuestosPage() {
     setSelectedPresupuestoForPdf(presupuesto);
     setPdfTargetId(uniqueId);
   
+    toast({ title: "Generando PDF...", description: "Por favor espere."});
+
     setTimeout(async () => {
       const inputElement = document.getElementById(uniqueId);
       if (inputElement) {
@@ -171,18 +178,23 @@ export default function PresupuestosPage() {
           });
   
           const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
           const margin = 10; 
           const availableWidth = pdfWidth - 2 * margin;
+          const availableHeight = pdfHeight - 2 * margin;
+
           const imgOriginalWidth = canvas.width;
           const imgOriginalHeight = canvas.height;
           const aspectRatio = imgOriginalWidth / imgOriginalHeight;
+          
           let imgRenderWidth = availableWidth;
           let imgRenderHeight = availableWidth / aspectRatio;
-          const typicalA4ContentHeight = 297 - 2 * margin; 
-           if (imgRenderHeight > typicalA4ContentHeight) {
-             imgRenderHeight = typicalA4ContentHeight;
+   
+           if (imgRenderHeight > availableHeight) {
+             imgRenderHeight = availableHeight;
              imgRenderWidth = imgRenderHeight * aspectRatio;
            }
+          
           const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
           const imgY = margin;
   
@@ -203,7 +215,7 @@ export default function PresupuestosPage() {
 
 
   const filteredPresupuestos = useMemo(() => {
-    if (!searchTerm) return presupuestos; // presupuestos is already sorted
+    if (!searchTerm) return presupuestos; 
     return presupuestos.filter(presupuesto => 
       presupuesto.nombreCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (presupuesto.telefonoCliente && presupuesto.telefonoCliente.includes(searchTerm))
@@ -228,8 +240,7 @@ export default function PresupuestosPage() {
             <CardDescription>
                 {filteredPresupuestos.length > 0 
                 ? `Mostrando ${filteredPresupuestos.length} de ${presupuestos.length} presupuesto(s). (Ordenados por fecha descendente)` 
-                : "No se encontraron presupuestos con los criterios de búsqueda."}
-                {presupuestos.length === 0 && " Aún no se han registrado presupuestos."}
+                : presupuestos.length === 0 ? "Aún no se han registrado presupuestos." : "No se encontraron presupuestos con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -308,7 +319,7 @@ export default function PresupuestosPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
+                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-2 group-data-[state=open]:rotate-180" data-manual-chevron="true" />
                         </div>
                       </div>
                     </div>
@@ -325,7 +336,7 @@ export default function PresupuestosPage() {
                           <TableHead>Val.Unit.</TableHead>
                           <TableHead>$/Pie</TableHead>
                           <TableHead>Cepillado</TableHead>
-                          <TableHead>Subtotal</TableHead>
+                          <TableHead className="text-right">Subtotal</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -333,12 +344,12 @@ export default function PresupuestosPage() {
                           <TableRow key={detalle.id}>
                             <TableCell>{detalle.tipoMadera}</TableCell>
                             <TableCell>{detalle.unidades}</TableCell>
-                            <TableCell>{detalle.alto}" x {detalle.ancho}" x {detalle.largo}m</TableCell>
+                            <TableCell>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">${detalle.precioPorPie?.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
-                            <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
+                            <TableCell className="text-right">${detalle.subTotal?.toFixed(2)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -352,10 +363,11 @@ export default function PresupuestosPage() {
       </Card>
       {selectedPresupuestoForPdf && pdfTargetId && (
         <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
-          <PresupuestoPDFDocument
-            presupuesto={selectedPresupuestoForPdf}
+          <GenericOrderPDFDocument
+            order={selectedPresupuestoForPdf}
             config={initialConfigData}
             elementId={pdfTargetId}
+            documentType="Presupuesto"
           />
         </div>
       )}
