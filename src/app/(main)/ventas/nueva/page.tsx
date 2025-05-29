@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -28,8 +28,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data"; 
+import { initialConfigData } from "@/lib/config-data";
 import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
+import { Separator } from "@/components/ui/separator";
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -75,11 +76,11 @@ const initialDetallesCount = 15;
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  
+
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: undefined,
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -94,21 +95,22 @@ export default function NuevaVentaPage() {
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        
-        // Reset top-level fields first
+        const budgetDetailsToMap = presupuesto.detalles || [];
+        const defaultDetailsArray = Array(Math.max(initialDetallesCount, budgetDetailsToMap.length)).fill(null).map(() => createEmptyDetalle());
+
         form.reset({
-          fecha: new Date(), // Set fecha to current date when converting from budget
+          fecha: new Date(), // Use current date for new sale from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           idOriginalPresupuesto: presupuesto.id,
-          fechaEntregaEstimada: undefined, 
+          fechaEntregaEstimada: undefined,
           sena: undefined,
-          // Initialize details with empty structure, matching the length requirements
-          detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
+          detalles: defaultDetailsArray,
         });
 
         // Explicitly set values for each detail item using form.setValue
-        presupuesto.detalles.forEach((d_presupuesto_item, index) => {
+        // This is to ensure Select components pick up the values correctly.
+        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
           form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
           form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
           form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
@@ -117,10 +119,10 @@ export default function NuevaVentaPage() {
           form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
           form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
-        
-        // If presupuesto has fewer items than initialDetallesCount, reset remaining items
-        if (presupuesto.detalles.length < initialDetallesCount) {
-            for (let i = presupuesto.detalles.length; i < initialDetallesCount; i++) {
+
+        // Fill remaining form detail lines with empty values if budget had fewer items
+        if (budgetDetailsToMap.length < initialDetallesCount) {
+            for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
                 const emptyDetail = createEmptyDetalle();
                 form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
                 form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
@@ -131,9 +133,9 @@ export default function NuevaVentaPage() {
                 form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
             }
         }
-        
-        form.trigger(); 
-        
+
+        form.trigger();
+
         toast({
           title: "Presupuesto Cargado para Venta",
           description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada al día de hoy.`,
@@ -145,13 +147,13 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) { 
+        if (!form.getValues('fecha')) {
           form.setValue('fecha', new Date());
         }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
-    } else if (!form.getValues('fecha')) { 
+    } else if (!form.getValues('fecha')) {
       form.setValue('fecha', new Date());
     }
   }, [form, toast]);
@@ -173,18 +175,60 @@ export default function NuevaVentaPage() {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
-      subtotal += piesTablares * initialConfigData.precioCepilladoPorPie;
+      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
-  
-  const totalVentaGeneral = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') { 
-      const pies = calcularPiesTablares(detalle);
-      return acc + calcularSubtotal(detalle, pies);
-    }
-    return acc;
-  }, 0);
+
+  const totalVentaGeneral = useMemo(() => {
+    return watchedDetalles.reduce((acc, detalle) => {
+      if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+        const pies = calcularPiesTablares(detalle);
+        return acc + calcularSubtotal(detalle, pies);
+      }
+      return acc;
+    }, 0);
+  }, [watchedDetalles]);
+
+
+  const costoTotalMaderaVenta = useMemo(() => {
+    let costoTotal = 0;
+    watchedDetalles.forEach(detalle => {
+      if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+        const piesTablaresArticulo = calcularPiesTablares(detalle);
+        if (piesTablaresArticulo > 0) {
+          const costoMaderaConfig = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoPorMetroCubicoDelTipo = costoMaderaConfig?.costoPorMetroCubico || 0;
+          const metrosCubicosArticulo = piesTablaresArticulo / 200; // 200 pies = 1 m3
+          costoTotal += metrosCubicosArticulo * costoPorMetroCubicoDelTipo;
+        }
+      }
+    });
+    return costoTotal;
+  }, [watchedDetalles]);
+
+  const costoTotalAserrioVenta = useMemo(() => {
+    const precioNafta = initialConfigData.precioLitroNafta || 0;
+    const precioAfilado = initialConfigData.precioAfiladoSierra || 0;
+
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoOperativoAjustado = costoOperativoBase * 1.38;
+    const costoAserrioPorPie = costoOperativoAjustado / 600;
+
+    const totalPiesTablaresVenta = watchedDetalles.reduce((acc, detalle) => {
+      if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+        return acc + calcularPiesTablares(detalle);
+      }
+      return acc;
+    }, 0);
+
+    return totalPiesTablaresVenta * costoAserrioPorPie;
+  }, [watchedDetalles]);
+
+  const gananciaBrutaEstimada = useMemo(() => {
+    return totalVentaGeneral - costoTotalMaderaVenta - costoTotalAserrioVenta;
+  }, [totalVentaGeneral, costoTotalMaderaVenta, costoTotalAserrioVenta]);
+
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
@@ -200,7 +244,7 @@ export default function NuevaVentaPage() {
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && d_form.unidades && d_form.unidades > 0 && typeof d_form.precioPorPie === 'number'
     ).map((d_form, idx) => {
-      const d = d_form as Required<VentaDetalleType>; 
+      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0;
@@ -234,7 +278,7 @@ export default function NuevaVentaPage() {
         ventasActuales.push(nuevaVenta);
         localStorage.setItem('ventasList', JSON.stringify(ventasActuales));
     }
-    
+
     toast({
       title: "Venta Registrada",
       description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
@@ -245,9 +289,9 @@ export default function NuevaVentaPage() {
         localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
       }
     }
-    
+
     form.reset({
-      fecha: new Date(), 
+      fecha: new Date(),
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -453,7 +497,7 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isEffectivelyEmpty || fields.length > 1) && ( 
+                            {(!isEffectivelyEmpty || fields.length > 1) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -473,11 +517,28 @@ export default function NuevaVentaPage() {
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Producto
               </Button>
             </CardContent>
-            <CardFooter className="flex flex-col items-end gap-4 mt-8">
-              <div className="text-xl font-semibold">
-                Total General: <span className="text-primary">${totalVentaGeneral.toFixed(2)}</span>
+            <CardFooter className="flex flex-col items-end gap-2 mt-8 border-t pt-6">
+              <div className="w-full max-w-md space-y-1 text-right">
+                <div className="flex justify-between text-lg">
+                  <span>Total Venta:</span>
+                  <span className="font-semibold text-primary">${totalVentaGeneral.toFixed(2)}</span>
+                </div>
+                <Separator className="my-1" />
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Costo Total Madera:</span>
+                  <span>${costoTotalMaderaVenta.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>Costo Total Aserrío:</span>
+                  <span>${costoTotalAserrioVenta.toFixed(2)}</span>
+                </div>
+                 <Separator className="my-1" />
+                <div className="flex justify-between text-md font-semibold">
+                  <span>Ganancia Bruta Estimada:</span>
+                  <span>${gananciaBrutaEstimada.toFixed(2)}</span>
+                </div>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
+              <Button type="submit" size="lg" disabled={form.formState.isSubmitting} className="mt-4">
                 <Save className="mr-2 h-4 w-4" />
                 {form.formState.isSubmitting ? "Registrando..." : "Registrar Venta"}
               </Button>
@@ -488,5 +549,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-
-    
