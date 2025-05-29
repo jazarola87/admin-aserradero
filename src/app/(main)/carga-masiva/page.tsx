@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Download, UploadCloud } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { initialConfigData } from "@/lib/config-data";
+import * as XLSX from 'xlsx';
 
 export default function CargaMasivaPage() {
   const { toast } = useToast();
@@ -26,24 +27,9 @@ export default function CargaMasivaPage() {
     }
   };
   
-  const downloadCSV = (csvString: string, filename: string) => {
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    if (link.download !== undefined) { 
-        const url = URL.createObjectURL(blob);
-        link.setAttribute("href", url);
-        link.setAttribute("download", filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-    }
-  };
-
   const handleProformaDownload = (type: 'compras' | 'ventas') => {
     const validTimberTypes = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
-    let csvString = "";
+    let data: any[][] = [];
     let filename = "";
 
     if (type === 'compras') {
@@ -55,17 +41,17 @@ export default function CargaMasivaPage() {
         "Proveedor", 
         "Telefono Proveedor (Opcional)"
       ];
-      const exampleRow = ['"2024-01-15"', '"Pino"', '"12.5"', '"180.00"', '"Aserradero El Progreso"', '"1122334455"'];
+      const exampleRow = ['2024-01-15', 'Pino', 12.5, 180.00, 'Aserradero El Progreso', '1122334455'];
       
-      let csvContent = headers.join(',') + '\n';
-      csvContent += exampleRow.join(',') + '\n\n'; 
-      csvContent += "Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo de Madera'):\n";
+      data.push(headers);
+      data.push(exampleRow);
+      data.push([]); // Empty row for spacing
+      data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo de Madera'):"]);
       validTimberTypes.forEach(timber => {
-        csvContent += `"${timber}"\n`;
+        data.push([timber]);
       });
       
-      csvString = csvContent;
-      filename = "proforma_compras.csv";
+      filename = "proforma_compras.xlsx";
 
     } else if (type === 'ventas') {
       const headers = [
@@ -84,29 +70,32 @@ export default function CargaMasivaPage() {
         "Precio Por Pie ($) (Artículo)", 
         "Cepillado (Si/No, Artículo)"
       ];
-      // Ejemplo para una venta con dos artículos
       const exampleRow1 = [
-        '"VENTA001"', '"2024-02-10"', '"Ana Torres"', '"555-9876"', '"2024-02-20"', '"50.00"', '"25.00"',
-        '"Roble"', '"20"', '"6"', '"2"', '"3.05"', '"5.50"', '"Si"'
+        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', 50.00, 25.00,
+        'Roble', 20, 6, 2, 3.05, 5.50, 'Si'
       ];
       const exampleRow2 = [
-        '"VENTA001"', '"2024-02-10"', '"Ana Torres"', '"555-9876"', '"2024-02-20"', '""', '""', // Seña y costo operario solo en la primera línea del ID Venta
-        '"Pino"', '"30"', '"4"', '"1"', '"2.44"', '"2.75"', '"No"'
+        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', null, null, // Seña y costo operario solo en la primera línea del ID Venta
+        'Pino', 30, 4, 1, 2.44, 2.75, 'No'
       ];
 
-      let csvContent = headers.join(',') + '\n';
-      csvContent += exampleRow1.join(',') + '\n';
-      csvContent += exampleRow2.join(',') + '\n\n';
-      csvContent += "Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo Madera (Artículo)'):\n";
+      data.push(headers);
+      data.push(exampleRow1);
+      data.push(exampleRow2);
+      data.push([]); // Empty row for spacing
+      data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo Madera (Artículo)'):"]);
       validTimberTypes.forEach(timber => {
-        csvContent += `"${timber}"\n`;
+        data.push([timber]);
       });
 
-      csvString = csvContent;
-      filename = "proforma_ventas.csv";
+      filename = "proforma_ventas.xlsx";
     }
 
-    downloadCSV(csvString, filename);
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Proforma");
+    XLSX.writeFile(wb, filename);
+
     toast({
       title: "Descarga Iniciada",
       description: `Se está descargando la proforma para ${type} (${filename}).`,
@@ -143,7 +132,7 @@ export default function CargaMasivaPage() {
     <div className="container mx-auto py-6">
       <PageTitle 
         title="Carga Masiva de Compras y Ventas" 
-        description="Descargue las plantillas proforma (formato CSV), complete sus datos y luego cargue los archivos para registrar múltiples operaciones a la vez." 
+        description="Descargue las plantillas proforma (formato XLSX), complete sus datos y luego cargue los archivos para registrar múltiples operaciones a la vez." 
       />
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -151,19 +140,19 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Compras</CardTitle>
             <CardDescription>
-              Descargue la plantilla CSV, complete sus datos de compra y luego cargue el archivo.
+              Descargue la plantilla XLSX, complete sus datos de compra y luego cargue el archivo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => handleProformaDownload('compras')} variant="outline" className="w-full">
-              <Download className="mr-2 h-4 w-4" /> Descargar Proforma Compras (CSV)
+              <Download className="mr-2 h-4 w-4" /> Descargar Proforma Compras (XLSX)
             </Button>
             <div className="space-y-2">
-              <label htmlFor="compras-file-upload" className="text-sm font-medium">Subir Archivo de Compras (CSV)</label>
+              <label htmlFor="compras-file-upload" className="text-sm font-medium">Subir Archivo de Compras (CSV/XLSX)</label>
               <Input 
                 id="compras-file-upload" 
                 type="file" 
-                accept=".csv" 
+                accept=".csv,.xlsx,.xls" 
                 onChange={(e) => handleFileChange(e, 'compras')} 
               />
               {comprasFile && <p className="text-xs text-muted-foreground">Archivo seleccionado: {comprasFile.name}</p>}
@@ -182,19 +171,19 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Ventas</CardTitle>
             <CardDescription>
-              Descargue la plantilla CSV, complete sus datos de venta y luego cargue el archivo.
+              Descargue la plantilla XLSX, complete sus datos de venta y luego cargue el archivo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={() => handleProformaDownload('ventas')} variant="outline" className="w-full">
-              <Download className="mr-2 h-4 w-4" /> Descargar Proforma Ventas (CSV)
+              <Download className="mr-2 h-4 w-4" /> Descargar Proforma Ventas (XLSX)
             </Button>
              <div className="space-y-2">
-              <label htmlFor="ventas-file-upload" className="text-sm font-medium">Subir Archivo de Ventas (CSV)</label>
+              <label htmlFor="ventas-file-upload" className="text-sm font-medium">Subir Archivo de Ventas (CSV/XLSX)</label>
               <Input 
                 id="ventas-file-upload" 
                 type="file" 
-                accept=".csv" 
+                accept=".csv,.xlsx,.xls" 
                 onChange={(e) => handleFileChange(e, 'ventas')}
               />
               {ventasFile && <p className="text-xs text-muted-foreground">Archivo seleccionado: {ventasFile.name}</p>}
