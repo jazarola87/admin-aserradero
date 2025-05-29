@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect } from "react"; // Added React import
+import React, { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,7 +47,7 @@ const compraFormSchema = z.object({
   }),
   costo: z.coerce.number().nonnegative({
     message: "El costo total no puede ser negativo."
-  }), // Se calculará, pero es bueno tenerlo en el schema
+  }),
   proveedor: z.string().min(2, {
     message: "El nombre del proveedor debe tener al menos 2 caracteres.",
   }),
@@ -84,15 +84,16 @@ export default function NuevaCompraPage() {
 
   function onSubmit(data: CompraFormValues) {
     const nuevaCompra: Compra = {
-      ...data, // Incluye el costo calculado
+      ...data, 
       id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      const comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
+      let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
       comprasActuales.push(nuevaCompra);
+      comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
       localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
     }
     
@@ -100,15 +101,6 @@ export default function NuevaCompraPage() {
       title: "Compra Registrada",
       description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
       variant: "default"
-    });
-    form.reset({ 
-      fecha: new Date(),
-      tipoMadera: "",
-      volumen: undefined, 
-      precioPorMetroCubico: undefined,
-      costo: 0,
-      proveedor: "",
-      telefonoProveedor: "",
     });
     router.push('/compras');
   }

@@ -33,10 +33,10 @@ import type { Presupuesto, PresupuestoDetalle } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
-const initialDetallesCount = 15; // Consistent with nuevoPresupuestoPage
+const initialDetallesCount = 15; 
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().optional().or(z.literal("")),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
@@ -99,21 +99,25 @@ export default function EditarPresupuestoPage() {
         if (presupuestoAEditar) {
             const detallesParaForm = Array(Math.max(initialDetallesCount, presupuestoAEditar.detalles.length)).fill(null).map(() => createEmptyDetalle());
             
+            presupuestoAEditar.detalles.forEach((detalle, index) => {
+                if (index < detallesParaForm.length) {
+                    detallesParaForm[index] = {
+                        tipoMadera: detalle.tipoMadera,
+                        unidades: detalle.unidades,
+                        ancho: detalle.ancho,
+                        alto: detalle.alto,
+                        largo: detalle.largo,
+                        precioPorPie: detalle.precioPorPie,
+                        cepillado: detalle.cepillado ?? false,
+                    };
+                }
+            });
+            
             form.reset({
                 fecha: presupuestoAEditar.fecha ? parseISO(presupuestoAEditar.fecha) : new Date(),
                 nombreCliente: presupuestoAEditar.nombreCliente,
                 telefonoCliente: presupuestoAEditar.telefonoCliente || "",
-                detalles: detallesParaForm, // Reset with correct number of empty items
-            });
-
-            presupuestoAEditar.detalles.forEach((detalle, index) => {
-                form.setValue(`detalles.${index}.tipoMadera`, detalle.tipoMadera, { shouldDirty: true });
-                form.setValue(`detalles.${index}.unidades`, detalle.unidades, { shouldDirty: true });
-                form.setValue(`detalles.${index}.ancho`, detalle.ancho, { shouldDirty: true });
-                form.setValue(`detalles.${index}.alto`, detalle.alto, { shouldDirty: true });
-                form.setValue(`detalles.${index}.largo`, detalle.largo, { shouldDirty: true });
-                form.setValue(`detalles.${index}.precioPorPie`, detalle.precioPorPie, { shouldDirty: true });
-                form.setValue(`detalles.${index}.cepillado`, detalle.cepillado ?? false, { shouldDirty: true });
+                detalles: detallesParaForm,
             });
             form.trigger();
 
@@ -148,7 +152,7 @@ export default function EditarPresupuestoPage() {
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
     const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0) return 0;
+    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0;
     if (piesTablares === 0) return 0;
 
     let subtotal = piesTablares * precioPorPie;
@@ -159,7 +163,7 @@ export default function EditarPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -196,7 +200,7 @@ export default function EditarPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}` // Nuevos IDs para detalles al editar
+        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}` 
       } as PresupuestoDetalle;
     });
 
@@ -211,7 +215,7 @@ export default function EditarPresupuestoPage() {
 
     const presupuestoActualizado: Presupuesto = {
       ...data,
-      id: presupuestoId, // Usar el ID original del presupuesto
+      id: presupuestoId, 
       fecha: format(data.fecha, "yyyy-MM-dd"), 
       detalles: processedDetalles,
       totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
@@ -224,8 +228,9 @@ export default function EditarPresupuestoPage() {
       if (index !== -1) {
         presupuestosActuales[index] = presupuestoActualizado;
       } else {
-        presupuestosActuales.push(presupuestoActualizado); // Si no se encuentra, lo añade (no debería ocurrir)
+        presupuestosActuales.push(presupuestoActualizado); 
       }
+      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
       localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
     }
     

@@ -13,16 +13,14 @@ import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
-import { Separator } from "@/components/ui/separator";
 
-// Helper functions for calculations (similar to those in ventas/nueva)
+// Helper functions for calculations
 const calcularPiesTablaresItem = (detalle: VentaDetalle): number => {
   const unidades = Number(detalle?.unidades) || 0;
   const alto = Number(detalle?.alto) || 0;
   const ancho = Number(detalle?.ancho) || 0;
   const largo = Number(detalle?.largo) || 0;
   if (!unidades || !alto || !ancho || !largo) return 0;
-  // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
   return unidades * alto * ancho * largo * 0.2734;
 };
 
@@ -33,7 +31,6 @@ const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracio
 
   const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
   const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-  // 1 m³ = 200 pies tablares
   return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
 };
 
@@ -56,33 +53,63 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
+  const [initialDatesSet, setInitialDatesSet] = useState(false);
   
-  const today = new Date();
-  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(startOfMonth(subMonths(today,1))); // Default to start of previous month
-  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(endOfMonth(subMonths(today,1))); // Default to end of previous month
+  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
+  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem('comprasList');
+      let loadedCompras: Compra[] = [];
       if (storedCompras) {
         try {
             const parsed = JSON.parse(storedCompras);
-            if (Array.isArray(parsed)) setComprasList(parsed);
+            if (Array.isArray(parsed)) loadedCompras = parsed;
         } catch (e) { console.error("Error parsing compras from localStorage", e); }
       }
+      setComprasList(loadedCompras);
 
       const storedVentas = localStorage.getItem('ventasList');
+      let loadedVentas: Venta[] = [];
       if (storedVentas) {
         try {
             const parsed = JSON.parse(storedVentas);
-            if (Array.isArray(parsed)) setVentasList(parsed);
+            if (Array.isArray(parsed)) loadedVentas = parsed;
         } catch (e) { console.error("Error parsing ventas from localStorage", e); }
       }
+      setVentasList(loadedVentas);
     }
   }, []);
 
+  useEffect(() => {
+    if (!initialDatesSet && (comprasList.length > 0 || ventasList.length > 0)) {
+      const allRecordDates: Date[] = [];
+      comprasList.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha)); });
+      ventasList.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha)); });
+
+      if (allRecordDates.length > 0) {
+        allRecordDates.sort((a, b) => a.getTime() - b.getTime());
+        setFechaDesde(allRecordDates[0]);
+        setFechaHasta(allRecordDates[allRecordDates.length - 1]);
+      } else {
+        const today = new Date();
+        setFechaDesde(startOfMonth(today));
+        setFechaHasta(endOfMonth(today));
+      }
+      setInitialDatesSet(true);
+    } else if (!initialDatesSet && comprasList.length === 0 && ventasList.length === 0) {
+      // Default if no records at all
+      const today = new Date();
+      setFechaDesde(startOfMonth(today));
+      setFechaHasta(endOfMonth(today));
+      setInitialDatesSet(true);
+    }
+  }, [comprasList, ventasList, initialDatesSet]);
+
+
   const filteredComprasList = useMemo(() => {
-    if (!fechaDesde || !fechaHasta) return comprasList; // Return all if no dates
+    if (!fechaDesde || !fechaHasta) return [];
     const startOfDesdePeriod = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), fechaDesde.getDate());
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
     
@@ -98,7 +125,7 @@ export default function DashboardPage() {
   }, [comprasList, fechaDesde, fechaHasta]);
 
   const filteredVentasList = useMemo(() => {
-    if (!fechaDesde || !fechaHasta) return ventasList; // Return all if no dates
+    if (!fechaDesde || !fechaHasta) return [];
     const startOfDesdePeriod = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), fechaDesde.getDate());
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
 
@@ -129,18 +156,10 @@ export default function DashboardPage() {
       return sum + costoMaderaEstaVenta;
     }, 0);
   }, [filteredVentasList]);
-
-  const saldoMaderaRecuperar = useMemo(() => {
-    // This should use total historical purchases - total historical wood cost recovered from sales
-    const totalComprasHistoricas = comprasList.reduce((sum, compra) => sum + (Number(compra.costo) || 0), 0);
-    const costoMaderaRecuperadoHistorico = ventasList.reduce((sum, venta) => {
-        const costoMaderaEstaVenta = (venta.detalles || []).reduce((itemSum, detalle) => {
-            return itemSum + getCostoMaderaParaVentaItem(detalle, initialConfigData);
-        },0);
-        return sum + costoMaderaEstaVenta;
-    }, 0);
-    return totalComprasHistoricas - costoMaderaRecuperadoHistorico;
-  }, [comprasList, ventasList]);
+  
+  const saldoMaderaARecuperarFiltrado = useMemo(() => {
+    return valorTotalCompras - costoMaderaRecuperado;
+  }, [valorTotalCompras, costoMaderaRecuperado]);
 
 
   const gananciaNetaSocios = useMemo(() => {
@@ -165,37 +184,35 @@ export default function DashboardPage() {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
 
-    // Sum all historical purchases
+    // Sum all HISTORICAL purchases
     comprasList.forEach(compra => {
       if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
         stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
       } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) {
-        // Edge case: purchase for a wood type not in current config (should ideally not happen)
         stockMap[compra.tipoMadera] = { compradosM3: Number(compra.volumen) || 0, vendidosPies: 0 };
       }
     });
 
-    // Sum all historical sales
+    // Sum all HISTORICAL sales
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
           stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
         } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) {
-           // Edge case: sale of a wood type not in current config
           stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
         }
       });
     });
 
     return Object.entries(stockMap).map(([tipoMadera, data]) => {
-      const vendidosM3 = data.vendidosPies / 200; // 1 m³ = 200 pies tablares
+      const vendidosM3 = data.vendidosPies / 200;
       return {
         tipoMadera,
         compradosM3: data.compradosM3,
         vendidosM3: vendidosM3,
         stockM3: data.compradosM3 - vendidosM3,
       };
-    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Only show types with activity or stock
+    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0);
   }, [comprasList, ventasList, initialConfigData.preciosMadera]);
 
 
@@ -313,8 +330,8 @@ export default function DashboardPage() {
             <ArchiveX className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${saldoMaderaRecuperar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Costo total de madera en inventario (histórico).</p>
+            <div className="text-2xl font-bold">${saldoMaderaARecuperarFiltrado.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">Costo de madera en inventario (según compras del período menos recupero del período).</p>
           </CardContent>
         </Card>
       </div>
@@ -354,5 +371,3 @@ export default function DashboardPage() {
   );
 }
     
-
-      

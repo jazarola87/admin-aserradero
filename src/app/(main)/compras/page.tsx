@@ -12,13 +12,16 @@ import { Input } from "@/components/ui/input";
 import { PlusCircle, Trash2, Search, Pencil } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
+import { format, parseISO, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
+
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
 const mockComprasData: Compra[] = [
-  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, precioPorMetroCubico: 500, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
-  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, precioPorMetroCubico: 1500, costo: 3000, proveedor: "Bosques del Norte Ltda." },
-  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, precioPorMetroCubico: 1500, costo: 2250, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
+  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, precioPorMetroCubico: 100, costo: 500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
+  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, precioPorMetroCubico: 250, costo: 500, proveedor: "Bosques del Norte Ltda." },
+  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, precioPorMetroCubico: 300, costo: 450, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
 ];
 
 
@@ -28,36 +31,41 @@ export default function ComprasPage() {
   const { toast } = useToast();
 
   const updateComprasListAndStorage = useCallback((newList: Compra[]) => {
-    setCompras(newList);
+    // Sort before setting state and localStorage
+    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    setCompras(sortedList);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(newList));
+      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(sortedList));
     }
   }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+      let dataToLoad = mockComprasData;
       if (storedCompras) {
         try {
           const parsedCompras = JSON.parse(storedCompras);
           if (Array.isArray(parsedCompras)) {
-            setCompras(parsedCompras);
-          } else {
-            updateComprasListAndStorage(mockComprasData);
+            dataToLoad = parsedCompras;
           }
         } catch (e) {
           console.error("Error parsing compras from localStorage", e);
-          updateComprasListAndStorage(mockComprasData); 
+          // Fallback to mockData if parsing fails
         }
-      } else {
-        updateComprasListAndStorage(mockComprasData); 
+      }
+      // Ensure data is sorted before setting/saving
+      const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
+      setCompras(sortedData);
+      if (!storedCompras) { // Only save mockData if localStorage was empty
+        localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(sortedData));
       }
     }
-  }, [updateComprasListAndStorage]);
+  }, []); // Removed updateComprasListAndStorage from dependencies to run only once on mount
 
   const handleDeleteCompra = (idToDelete: string) => {
     const newList = compras.filter(compra => compra.id !== idToDelete);
-    updateComprasListAndStorage(newList);
+    updateComprasListAndStorage(newList); // This will sort and save
     toast({
       title: "Compra Eliminada",
       description: "La compra ha sido eliminada exitosamente.",
@@ -66,7 +74,7 @@ export default function ComprasPage() {
   };
 
   const filteredCompras = useMemo(() => {
-    if (!searchTerm) return compras;
+    if (!searchTerm) return compras; // compras is already sorted
     return compras.filter(compra => 
       compra.proveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (compra.telefonoProveedor && compra.telefonoProveedor.includes(searchTerm)) ||
@@ -91,7 +99,7 @@ export default function ComprasPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardDescription>
               {filteredCompras.length > 0 
-                ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s).` 
+                ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s). (Ordenadas por fecha descendente)` 
                 : compras.length === 0 ? "Aún no se han registrado compras." : "No se encontraron compras con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -135,7 +143,7 @@ export default function ComprasPage() {
               <TableBody>
                 {filteredCompras.map((compra) => (
                   <TableRow key={compra.id}>
-                    <TableCell>{new Date(compra.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</TableCell> 
+                    <TableCell>{compra.fecha && isValid(parseISO(compra.fecha)) ? format(parseISO(compra.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</TableCell> 
                     <TableCell>{compra.tipoMadera}</TableCell>
                     <TableCell>{compra.volumen} m³</TableCell>
                     <TableCell>${(compra.precioPorMetroCubico ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>

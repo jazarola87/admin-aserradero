@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download, Pencil } from "lucide-react"; // Importar Pencil
+import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download, Pencil } from "lucide-react";
 import type { Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,9 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { initialConfigData } from '@/lib/config-data';
+import { format, parseISO, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
+
 
 const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
   { 
@@ -55,32 +58,36 @@ export default function PresupuestosPage() {
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
 
   const updatePresupuestosListAndStorage = useCallback((newList: Presupuesto[]) => {
-    setPresupuestos(newList);
+    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    setPresupuestos(sortedList);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(newList));
+      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedList));
     }
   }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS;
       if (storedPresupuestos) {
         try {
           const parsed = JSON.parse(storedPresupuestos);
           if (Array.isArray(parsed)) {
-            setPresupuestos(parsed);
-          } else {
-            updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS);
+            dataToLoad = parsed;
           }
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage", e);
-          updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); 
         }
-      } else {
-        updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); 
+      }
+      const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
+      setPresupuestos(sortedData);
+      if (!storedPresupuestos && dataToLoad.length > 0) {
+        localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedData));
+      } else if (!storedPresupuestos && dataToLoad.length === 0) {
+        localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify([]));
       }
     }
-  }, [updatePresupuestosListAndStorage]);
+  }, []);
 
 
   useEffect(() => {
@@ -94,11 +101,10 @@ export default function PresupuestosPage() {
             currentList = JSON.parse(currentListFromStorage);
           } catch (e) {
             console.error("Error parsing presupuestos from localStorage for delete operation", e);
-            // Fallback to current state if localStorage is corrupted
-            currentList = [...presupuestos]; // Create a copy to avoid direct state mutation
+            currentList = [...presupuestos];
           }
         } else {
-           currentList = [...presupuestos]; // Create a copy
+           currentList = [...presupuestos];
         }
 
         const newList = currentList.filter(p => p.id !== budgetToDeleteId);
@@ -110,9 +116,7 @@ export default function PresupuestosPage() {
         });
       }
     }
-  // Omitting 'presupuestos' from dependency array to avoid potential loops if toast/update functions aren't stable
-  // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [toast, updatePresupuestosListAndStorage]); 
+  }, [toast, presupuestos, updatePresupuestosListAndStorage]); 
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
@@ -199,7 +203,7 @@ export default function PresupuestosPage() {
 
 
   const filteredPresupuestos = useMemo(() => {
-    if (!searchTerm) return presupuestos;
+    if (!searchTerm) return presupuestos; // presupuestos is already sorted
     return presupuestos.filter(presupuesto => 
       presupuesto.nombreCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (presupuesto.telefonoCliente && presupuesto.telefonoCliente.includes(searchTerm))
@@ -223,7 +227,7 @@ export default function PresupuestosPage() {
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
                 {filteredPresupuestos.length > 0 
-                ? `Mostrando ${filteredPresupuestos.length} de ${presupuestos.length} presupuesto(s).` 
+                ? `Mostrando ${filteredPresupuestos.length} de ${presupuestos.length} presupuesto(s). (Ordenados por fecha descendente)` 
                 : "No se encontraron presupuestos con los criterios de búsqueda."}
                 {presupuestos.length === 0 && " Aún no se han registrado presupuestos."}
             </CardDescription>
@@ -264,7 +268,7 @@ export default function PresupuestosPage() {
                       <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
                             <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(presupuesto.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</span>
                         </div>
                         <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
                             <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>

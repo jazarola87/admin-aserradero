@@ -14,13 +14,15 @@ import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil, CircleChec
 import type { Venta, VentaDetalle, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
+
+const mockVentasData: Venta[] = []; // Start with empty if localStorage is preferred source
 
 // Helper function to calculate board feet for a single sale item
 const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
@@ -33,6 +35,17 @@ const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
     return unidades * alto * ancho * largo * 0.2734;
 };
 
+const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracion): number => {
+  if (!detalle.tipoMadera) return 0;
+  const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
+  if (piesTablaresArticulo <= 0) return 0;
+
+  const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+  const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+  return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+};
+
+
 interface VentaItemProps {
   venta: Venta;
   config: Configuracion;
@@ -44,19 +57,11 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
   
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
-    const currentCostosMaderaMetroCubico = Array.isArray(config.costosMaderaMetroCubico) ? config.costosMaderaMetroCubico : [];
     (venta.detalles || []).forEach(detalle => {
-      if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
-        const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
-        if (piesTablaresArticulo > 0) {
-          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
-          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          costoTotal += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
-        }
-      }
+       costoTotal += getCostoMaderaParaVentaItem(detalle, config);
     });
     return costoTotal;
-  }, [venta.detalles, config.costosMaderaMetroCubico]);
+  }, [venta.detalles, config]);
 
   const costoTotalAserrioVenta = useMemo(() => {
     const precioNafta = Number(config.precioLitroNafta) || 0;
@@ -67,10 +72,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
     const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
 
     const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
-      if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
-        return acc + calcularPiesTablaresVentaItem(detalle);
-      }
-      return acc;
+      return acc + calcularPiesTablaresVentaItem(detalle);
     }, 0);
 
     return totalPiesTablaresVenta * costoAserrioPorPie;
@@ -121,7 +123,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
                   {estadoCobro.texto}
                 </Badge>
                 <span className="text-sm text-muted-foreground block sm:inline">
-                  Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}
+                  Fecha: {venta.fecha && isValid(parseISO(venta.fecha)) ? format(parseISO(venta.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
                 </span>
             </div>
             <div className="flex items-center mt-2 sm:mt-0 space-x-1">
@@ -176,7 +178,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
       <AccordionContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 mb-4 text-sm p-4 border rounded-md bg-muted/30">
           <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
-          {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es })}</p>}
+          {venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) && <p><strong>Fecha Entrega Estimada:</strong> {format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es })}</p>}
           {typeof venta.sena === 'number' && venta.sena > 0 && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {typeof venta.costoOperario === 'number' && venta.costoOperario > 0 && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
@@ -266,9 +268,10 @@ export default function VentasPage() {
   const { toast } = useToast();
 
   const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
-    setVentas(newList);
+    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    setVentas(sortedList);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(newList));
+      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedList));
     }
   }, []);
 
@@ -276,32 +279,32 @@ export default function VentasPage() {
     let isMounted = true;
     if (typeof window !== 'undefined') {
       const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      const mockVentasData: Venta[] = [ /* Default mock data if needed, or ensure it's empty */ ];
+      let dataToLoad = mockVentasData; 
 
-      if (isMounted) {
-        if (storedVentas) {
-          try {
-            const parsedVentas = JSON.parse(storedVentas);
-            if(Array.isArray(parsedVentas)) {
-              setVentas(parsedVentas);
-            } else {
-              // Fallback if localStorage data is not an array
-              updateVentasListAndStorage(mockVentasData); 
-            }
-          } catch (e) {
-            console.error("Error parsing ventas from localStorage", e);
-            updateVentasListAndStorage(mockVentasData);
+      if (storedVentas) {
+        try {
+          const parsedVentas = JSON.parse(storedVentas);
+          if(Array.isArray(parsedVentas)) {
+            dataToLoad = parsedVentas;
           }
-        } else {
-          // No data in localStorage, initialize with mock or empty
-          updateVentasListAndStorage(mockVentasData);
+        } catch (e) {
+          console.error("Error parsing ventas from localStorage", e);
+        }
+      }
+      if (isMounted) {
+        const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        setVentas(sortedData);
+        if (!storedVentas && dataToLoad.length > 0) { // Only save mockData if localStorage was empty and mockData was used
+          localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedData));
+        } else if (!storedVentas && dataToLoad.length === 0) { // If localStorage is empty and mockData is empty
+          localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify([]));
         }
       }
     }
     return () => {
       isMounted = false;
     };
-  }, [updateVentasListAndStorage]);
+  }, []); // updateVentasListAndStorage removed as it causes re-runs if not stable
 
   const handleDeleteVenta = (idToDelete: string) => {
     const newList = ventas.filter(venta => venta.id !== idToDelete);
@@ -329,7 +332,7 @@ export default function VentasPage() {
 
   const filteredVentas = useMemo(() => {
     if (!searchTerm) {
-      return ventas;
+      return ventas; // ventas is already sorted
     }
     return ventas.filter(venta =>
       venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -354,7 +357,7 @@ export default function VentasPage() {
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
                 {filteredVentas.length > 0
-                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).`
+                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s). (Ordenadas por fecha descendente)`
                 : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -394,5 +397,3 @@ export default function VentasPage() {
     </div>
   );
 }
-
-    

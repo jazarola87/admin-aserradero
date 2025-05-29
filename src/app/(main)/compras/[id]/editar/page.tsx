@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react"; // Added React import
+import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,7 +47,7 @@ const compraFormSchema = z.object({
   }),
   costo: z.coerce.number().nonnegative({
     message: "El costo total no puede ser negativo."
-  }), // Se calculará
+  }),
   proveedor: z.string().min(2, {
     message: "El nombre del proveedor debe tener al menos 2 caracteres.",
   }),
@@ -84,7 +84,7 @@ export default function EditarCompraPage() {
     const vol = Number(watchedVolumen) || 0;
     const precioM3 = Number(watchedPrecioPorMetroCubico) || 0;
     const total = vol * precioM3;
-    if (form.getValues("costo") !== total) { // Evitar bucle si el valor ya es correcto
+    if (form.getValues("costo") !== total) { 
       form.setValue("costo", total, { shouldValidate: true, shouldDirty: true });
     }
   }, [watchedVolumen, watchedPrecioPorMetroCubico, form]);
@@ -97,7 +97,7 @@ export default function EditarCompraPage() {
 
       if (compraAEditar) {
         let precioM3Calculado = compraAEditar.precioPorMetroCubico;
-        if (precioM3Calculado === undefined && compraAEditar.volumen > 0) {
+        if (precioM3Calculado === undefined && compraAEditar.volumen > 0 && compraAEditar.costo > 0) {
             precioM3Calculado = compraAEditar.costo / compraAEditar.volumen;
         }
 
@@ -106,7 +106,7 @@ export default function EditarCompraPage() {
           fecha: compraAEditar.fecha ? parseISO(compraAEditar.fecha) : new Date(),
           volumen: compraAEditar.volumen ?? undefined,
           precioPorMetroCubico: precioM3Calculado ?? undefined,
-          costo: compraAEditar.costo ?? 0, // El costo total original
+          costo: compraAEditar.costo ?? 0,
           telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
         });
       } else {
@@ -125,7 +125,7 @@ export default function EditarCompraPage() {
     if (!compraId) return;
 
     const compraActualizada: Compra = {
-      ...data, // incluye el costo calculado
+      ...data,
       id: compraId,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
@@ -137,9 +137,9 @@ export default function EditarCompraPage() {
       if (index !== -1) {
         comprasActuales[index] = compraActualizada;
       } else {
-        // Esto no debería pasar si la carga inicial fue exitosa
         comprasActuales.push(compraActualizada);
       }
+      comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
       localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
     }
     

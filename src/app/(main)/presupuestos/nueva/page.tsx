@@ -30,12 +30,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, PresupuestoDetalle } from "@/types";
-import { useRouter } from "next/navigation"; // Importar useRouter
+import { useRouter } from "next/navigation";
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().optional().or(z.literal("")),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
@@ -75,7 +75,7 @@ const initialDetallesCount = 15;
 
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
-  const router = useRouter(); // Inicializar useRouter
+  const router = useRouter(); 
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -112,7 +112,7 @@ export default function NuevoPresupuestoPage() {
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
     const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0) return 0;
+    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0; // Changed this condition
     if (piesTablares === 0) return 0;
 
     let subtotal = piesTablares * precioPorPie;
@@ -123,7 +123,7 @@ export default function NuevoPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -181,8 +181,9 @@ export default function NuevoPresupuestoPage() {
 
     if (typeof window !== 'undefined') {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
+      let presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
       presupuestosActuales.push(nuevoPresupuesto);
+      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
       localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
     }
     
@@ -191,13 +192,7 @@ export default function NuevoPresupuestoPage() {
       description: `Se ha registrado el presupuesto para ${data.nombreCliente}. Total: $${nuevoPresupuesto.totalPresupuesto?.toFixed(2)}`,
       variant: "default"
     });
-    form.reset({
-      fecha: new Date(),
-      nombreCliente: "",
-      telefonoCliente: "",
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-    });
-    router.push('/presupuestos'); // Redirigir a la página de listado
+    router.push('/presupuestos');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {

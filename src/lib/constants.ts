@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, DollarSign, Settings, Lightbulb, HardHat, FileText, BookText, ClipboardList, Wrench, Tag } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, DollarSign, Settings, Lightbulb, HardHat, FileText, BookText, ClipboardList, Wrench, Tag, CalendarClock } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -31,14 +31,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: ClipboardList,
   },
   {
-    title: 'Precios de Venta', // Renamed from "Costos y Precios Base"
-    href: '/precios-venta',    // New route
-    icon: Tag, // Using Tag icon for pricing
+    title: 'Cronograma de Entregas',
+    href: '/cronograma-entregas',
+    icon: CalendarClock,
   },
   {
-    title: 'Costos Operativos', // New section
+    title: 'Precios de Venta',
+    href: '/precios-venta',
+    icon: Tag,
+  },
+  {
+    title: 'Costos Operativos',
     href: '/costos-operativos',
-    icon: Wrench, // Wrench for operational costs/settings
+    icon: Wrench,
   },
   {
     title: 'Asistente de Precios',
@@ -46,3 +51,4 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Lightbulb,
   },
 ];
+
