@@ -31,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, VentaDetalle as VentaDetalleType } from "@/types";
 
-const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_MOCK } = initialConfigData;
+const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().optional().or(z.literal("")),
@@ -76,12 +76,12 @@ const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createE
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  const [precioCepillado, setPrecioCepillado] = useState(PRECIO_CEPILLADO_POR_PIE_MOCK);
+  const [precioCepilladoGlobal, setPrecioCepilladoGlobal] = useState(PRECIO_CEPILLADO_POR_PIE_CONFIG); // Renamed for clarity
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, // Will be set by useEffect or budget import
+      // fecha will be set by useEffect
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
@@ -95,18 +95,25 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const detallesVenta = presupuesto.detalles.map(d => ({
-          ...createEmptyDetalle(),
-          ...d,
-          id: undefined, 
-        }));
+        const detallesVenta = presupuesto.detalles.map(d_presupuesto => {
+          const emptyDetail = createEmptyDetalle();
+          return {
+            ...emptyDetail, // Start with defaults
+            ...d_presupuesto, // Spread budget item values
+            tipoMadera: d_presupuesto.tipoMadera || emptyDetail.tipoMadera, // Ensure tipoMadera is explicitly set
+            precioPorPie: d_presupuesto.precioPorPie ?? emptyDetail.precioPorPie, // Ensure precioPorPie is explicitly set (use ?? for numbers to allow 0)
+            // id is intentionally omitted or set to undefined if needed by schema/logic elsewhere,
+            // as venta details will get new IDs or are identified by index in the form.
+            // We don't want to reuse budget detail IDs.
+          };
+        });
 
         while(detallesVenta.length < initialDetallesCount) {
             detallesVenta.push(createEmptyDetalle());
         }
 
         form.reset({
-          fecha: new Date(), // Always use current date when converting from budget
+          fecha: new Date(), // Set fecha to current date when converting from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           detalles: detallesVenta,
@@ -124,15 +131,14 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        // Set default date if budget load fails and no date is set
-        if (!form.getValues('fecha')) {
+        if (!form.getValues('fecha')) { // Set default date if budget load fails AND no date is set
           form.setValue('fecha', new Date());
         }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
     } else if (!form.getValues('fecha')) {
-      // If not loading from budget and no date is set, set to current date
+      // If not loading from budget and no date is set yet, set to current date
       form.setValue('fecha', new Date());
     }
   }, [form, toast]);
@@ -154,7 +160,7 @@ export default function NuevaVentaPage() {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
-      subtotal += piesTablares * precioCepillado;
+      subtotal += piesTablares * precioCepilladoGlobal;
     }
     return subtotal;
   };
@@ -203,6 +209,7 @@ export default function NuevaVentaPage() {
     };
 
     console.log("Nueva Venta Data:", processedData);
+    // TODO: Actually save the sale data (e.g., to mock data array, API, etc.)
     toast({
       title: "Venta Registrada",
       description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${processedData.totalVenta.toFixed(2)}`,
@@ -214,7 +221,7 @@ export default function NuevaVentaPage() {
     }
     
     form.reset({
-      fecha: new Date(), // Reset with current date
+      fecha: new Date(), 
       nombreComprador: "",
       telefonoComprador: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
@@ -378,7 +385,7 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isEffectivelyEmpty || fields.length > 1) && (
+                            {(!isEffectivelyEmpty || fields.length > 1) && ( // Allow deleting the last row if it's not empty
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
