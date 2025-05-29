@@ -11,13 +11,13 @@ export interface Compra {
 
 export interface VentaDetalle {
   id: string; // Could be uuid or similar for actual items
-  tipoMadera: string;
-  unidades: number;
-  ancho: number; // pulgadas
-  alto: number; // pulgadas (espesor)
-  largo: number; // pies
-  precioPorPie: number;
-  cepillado: boolean;
+  tipoMadera?: string; // Made optional to align with form state
+  unidades?: number;
+  ancho?: number; // pulgadas
+  alto?: number; // pulgadas (espesor)
+  largo?: number; // pies
+  precioPorPie?: number;
+  cepillado?: boolean;
   piesTablares?: number; // auto-calculado
   subTotal?: number; // auto-calculado
   valorUnitario?: number; // auto-calculado
@@ -81,3 +81,4 @@ export interface Configuracion {
   precioAfiladoSierra?: number;
   costosMaderaMetroCubico?: CostoMaderaMetroCubico[];
 }
+

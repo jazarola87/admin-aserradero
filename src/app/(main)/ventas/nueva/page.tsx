@@ -89,37 +89,26 @@ export default function NuevaVentaPage() {
     },
   });
 
-  useEffect(() => {
+ useEffect(() => {
     const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const budgetDetailsToMap = presupuesto.detalles || [];
-        // Prepare details for reset, ensuring the array has at least initialDetallesCount items
-        const mappedSaleDetailsForReset = Array(Math.max(initialDetallesCount, budgetDetailsToMap.length))
-          .fill(null)
-          .map((_, i) => {
-            if (i < budgetDetailsToMap.length) {
-              const { id, ...restOfDetail } = budgetDetailsToMap[i]; // Omit original detail id
-              return { ...createEmptyDetalle(), ...restOfDetail };
-            }
-            return createEmptyDetalle();
-          });
-
+        // Reset top-level fields first
         form.reset({
           fecha: new Date(), // Set fecha to current date when converting from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
-          detalles: mappedSaleDetailsForReset, // Use the correctly mapped details
           idOriginalPresupuesto: presupuesto.id,
           fechaEntregaEstimada: undefined, 
           sena: undefined,
+          // Initialize details with empty structure, matching the length requirements
+          detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
         });
 
-        // Explicitly set values for each detail item and its fields after reset
-        // This is to ensure Select components pick up the values correctly.
-        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
+        // Explicitly set values for each detail item using form.setValue
+        presupuesto.detalles.forEach((d_presupuesto_item, index) => {
           form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
           form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
           form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
@@ -129,6 +118,20 @@ export default function NuevaVentaPage() {
           form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
         
+        // If presupuesto has fewer items than initialDetallesCount, reset remaining items
+        if (presupuesto.detalles.length < initialDetallesCount) {
+            for (let i = presupuesto.detalles.length; i < initialDetallesCount; i++) {
+                const emptyDetail = createEmptyDetalle();
+                form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
+                form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
+                form.setValue(`detalles.${i}.ancho`, emptyDetail.ancho, { shouldDirty: true });
+                form.setValue(`detalles.${i}.alto`, emptyDetail.alto, { shouldDirty: true });
+                form.setValue(`detalles.${i}.largo`, emptyDetail.largo, { shouldDirty: true });
+                form.setValue(`detalles.${i}.precioPorPie`, emptyDetail.precioPorPie, { shouldDirty: true });
+                form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
+            }
+        }
+        
         form.trigger(); 
         
         toast({
@@ -136,7 +139,7 @@ export default function NuevaVentaPage() {
           description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada al día de hoy.`,
         });
       } catch (error) {
-        console.error("Error parsing presupuesto from localStorage or resetting form", error);
+        console.error("Error parsing presupuesto from localStorage or setting form values", error);
         toast({
           title: "Error al Cargar Presupuesto",
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
@@ -197,7 +200,7 @@ export default function NuevaVentaPage() {
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && d_form.unidades && d_form.unidades > 0 && typeof d_form.precioPorPie === 'number'
     ).map((d_form, idx) => {
-      const d = d_form as Required<typeof d_form>; 
+      const d = d_form as Required<VentaDetalleType>; 
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0;

@@ -214,7 +214,7 @@ export default function VentasPage(): JSX.Element {
                             <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
                             <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
+                            <TableCell>${detalle.precioPorPie?.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
                             <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
                           </TableRow>
@@ -231,3 +231,4 @@ export default function VentasPage(): JSX.Element {
     </div>
   );
 }
+
