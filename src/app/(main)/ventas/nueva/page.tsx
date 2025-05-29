@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,9 @@ const ventaFormSchema = z.object({
       }
     ),
   idOriginalPresupuesto: z.string().optional(),
+  totalVentaManual: z.coerce.number().optional(),
+  costoMaderaManual: z.coerce.number().optional(),
+  costoAserrioManual: z.coerce.number().optional(),
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -91,6 +94,9 @@ export default function NuevaVentaPage() {
       costoOperario: undefined,
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
+      totalVentaManual: undefined,
+      costoMaderaManual: undefined,
+      costoAserrioManual: undefined,
     },
   });
 
@@ -105,7 +111,7 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const budgetItemsToAppend = (presupuesto.detalles || []).map(d_presupuesto_item => ({
+        const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
             tipoMadera: d_presupuesto_item.tipoMadera,
             unidades: Number(d_presupuesto_item.unidades) || undefined,
             ancho: Number(d_presupuesto_item.ancho) || undefined,
@@ -116,25 +122,28 @@ export default function NuevaVentaPage() {
         }));
 
         form.reset({
-          fecha: new Date(), // Fecha actual para la venta
+          fecha: new Date(),
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           idOriginalPresupuesto: presupuesto.id,
           fechaEntregaEstimada: undefined,
           sena: undefined,
           costoOperario: undefined,
-          detalles: [], // Start with empty details, will be populated by replace/append
+          detalles: [], // Reset with empty, then populate
+          totalVentaManual: undefined,
+          costoMaderaManual: undefined,
+          costoAserrioManual: undefined,
         });
+        
+        replace(budgetItemsToMap); // Replace the empty array with mapped items
 
-        replace(budgetItemsToAppend);
-
-        let currentLength = budgetItemsToAppend.length;
+        let currentLength = budgetItemsToMap.length;
         while (currentLength < initialDetallesCount) {
           append(createEmptyDetalle(), { shouldFocus: false });
           currentLength++;
         }
         
-        form.trigger(); // Trigger validation and re-render for all fields
+        form.trigger();
 
         toast({
           title: "Presupuesto Cargado para Venta",
@@ -151,12 +160,17 @@ export default function NuevaVentaPage() {
         localStorage.removeItem('presupuestoParaVenta');
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, replace, append, toast]);
 
 
   const watchedDetalles = form.watch("detalles");
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
+  const watchedTotalVentaManual = form.watch("totalVentaManual");
+  const watchedCostoMaderaManual = form.watch("costoMaderaManual");
+  const watchedCostoAserrioManual = form.watch("costoAserrioManual");
+
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -224,15 +238,19 @@ export default function NuevaVentaPage() {
     });
   }
   const calculatedCostoTotalAserrioVenta = totalPiesTablaresVentaParaAserrio * costoAserrioPorPie;
+  
+  const displayTotalVenta = typeof watchedTotalVentaManual === 'number' && !isNaN(watchedTotalVentaManual) ? watchedTotalVentaManual : calculatedTotalVentaGeneral;
+  const displayCostoMadera = typeof watchedCostoMaderaManual === 'number' && !isNaN(watchedCostoMaderaManual) ? watchedCostoMaderaManual : calculatedCostoTotalMaderaVenta;
+  const displayCostoAserrio = typeof watchedCostoAserrioManual === 'number' && !isNaN(watchedCostoAserrioManual) ? watchedCostoAserrioManual : calculatedCostoTotalAserrioVenta;
   const costoOperarioActual = Number(watchedCostoOperario) || 0;
 
-  const gananciaNetaEstimada = calculatedTotalVentaGeneral - calculatedCostoTotalMaderaVenta - calculatedCostoTotalAserrioVenta - costoOperarioActual;
+  const gananciaNetaEstimada = displayTotalVenta - displayCostoMadera - displayCostoAserrio - costoOperarioActual;
 
-  const valorJavier = calculatedCostoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = calculatedCostoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorJavier = displayCostoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = displayCostoAserrio + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
 
   const senaActual = Number(watchedSena) || 0;
-  const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
+  const saldoPendiente = displayTotalVenta - senaActual;
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
@@ -276,6 +294,10 @@ export default function NuevaVentaPage() {
       return;
     }
 
+    const finalTotalVenta = typeof data.totalVentaManual === 'number' && !isNaN(data.totalVentaManual) ? data.totalVentaManual : calculatedTotalVentaGeneral;
+    const finalCostoMadera = typeof data.costoMaderaManual === 'number' && !isNaN(data.costoMaderaManual) ? data.costoMaderaManual : calculatedCostoTotalMaderaVenta;
+    const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
+
     const nuevaVenta: Venta = {
       id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
@@ -285,10 +307,10 @@ export default function NuevaVentaPage() {
       sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
-      totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
+      totalVenta: finalTotalVenta,
       idOriginalPresupuesto: data.idOriginalPresupuesto,
-      costoMaderaVentaSnapshot: calculatedCostoTotalMaderaVenta, // Guardar snapshot
-      costoAserrioVentaSnapshot: calculatedCostoTotalAserrioVenta, // Guardar snapshot
+      costoMaderaVentaSnapshot: finalCostoMadera,
+      costoAserrioVentaSnapshot: finalCostoAserrio,
     };
 
     if (typeof window !== 'undefined') {
@@ -309,17 +331,6 @@ export default function NuevaVentaPage() {
         localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
       }
     }
-
-    form.reset({
-      fecha: new Date(),
-      nombreComprador: "",
-      telefonoComprador: "",
-      fechaEntregaEstimada: undefined,
-      sena: undefined,
-      costoOperario: undefined,
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-      idOriginalPresupuesto: undefined,
-    });
     router.push('/ventas');
   }
 
@@ -407,7 +418,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Seña ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 50.00" {...field} value={field.value === 0 ? "" : (isNaN(field.value as number) ? "" : field.value)} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 50.00" {...field} value={isNaN(field.value as number) ? "" : field.value} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -420,7 +431,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Costo Operario ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value === 0 ? "" : (isNaN(field.value as number) ? "" : field.value)} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={isNaN(field.value as number) ? "" : field.value} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -493,27 +504,27 @@ export default function NuevaVentaPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
@@ -553,19 +564,75 @@ export default function NuevaVentaPage() {
             </CardContent>
             <CardFooter className="flex flex-col items-end gap-1 mt-8 border-t pt-6">
               <div className="w-full max-w-md space-y-1 text-right">
-                <div className="flex justify-between text-lg">
-                  <span>Total Venta:</span>
-                  <span className="font-semibold text-primary">${(Number(calculatedTotalVentaGeneral) || 0).toFixed(2)}</span>
-                </div>
+                
+                <FormField
+                  control={form.control}
+                  name="totalVentaManual"
+                  render={({ field }) => (
+                    <FormItem className="flex justify-between items-center">
+                      <FormLabel className="text-lg">Total Venta:</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className="font-semibold text-primary text-right w-32 h-8" 
+                          placeholder={calculatedTotalVentaGeneral.toFixed(2)}
+                          {...field}
+                          value={isNaN(field.value as number) ? "" : field.value}
+                          onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormMessage>{form.formState.errors.totalVentaManual?.message}</FormMessage>
+                
                 <Separator className="my-1" />
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Costo Total Madera:</span>
-                  <span>${(Number(calculatedCostoTotalMaderaVenta) || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Costo Total Aserrío:</span>
-                  <span>${(Number(calculatedCostoTotalAserrioVenta) || 0).toFixed(2)}</span>
-                </div>
+
+                <FormField
+                  control={form.control}
+                  name="costoMaderaManual"
+                  render={({ field }) => (
+                    <FormItem className="flex justify-between items-center">
+                      <FormLabel className="text-sm text-muted-foreground">Costo Total Madera:</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className="text-right w-32 h-8 bg-muted/30" 
+                          placeholder={calculatedCostoTotalMaderaVenta.toFixed(2)}
+                          {...field}
+                          value={isNaN(field.value as number) ? "" : field.value}
+                          onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormMessage>{form.formState.errors.costoMaderaManual?.message}</FormMessage>
+
+                <FormField
+                  control={form.control}
+                  name="costoAserrioManual"
+                  render={({ field }) => (
+                    <FormItem className="flex justify-between items-center">
+                      <FormLabel className="text-sm text-muted-foreground">Costo Total Aserrío:</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          className="text-right w-32 h-8 bg-muted/30" 
+                          placeholder={calculatedCostoTotalAserrioVenta.toFixed(2)}
+                          {...field}
+                          value={isNaN(field.value as number) ? "" : field.value}
+                          onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormMessage>{form.formState.errors.costoAserrioManual?.message}</FormMessage>
+
                 <div className="flex justify-between text-sm text-muted-foreground">
                   <span>Costo Operario:</span>
                   <span>${(Number(costoOperarioActual) || 0).toFixed(2)}</span>
@@ -588,7 +655,7 @@ export default function NuevaVentaPage() {
                   <>
                     <Separator className="my-1" />
                     <div className="flex justify-between text-sm text-destructive">
-                        <span>Seña Aplicada:</span>
+                        <span className="text-muted-foreground">Seña Aplicada:</span>
                         <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-lg font-semibold">
