@@ -10,14 +10,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign } from "lucide-react";
-import type { Venta, VentaDetalle } from "@/types";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil, Send, Download } from "lucide-react"; // Importar Pencil, Send, Download
+import type { Venta, VentaDetalle, Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
+import { useRouter } from "next/navigation";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
+
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
@@ -94,11 +99,12 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
     return (venta.totalVenta || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta - costoOperarioActual;
   }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta, costoOperarioActual]);
 
-  const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada / 2);
-  const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada / 2);
+  const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual;
 
   const senaActual = Number(venta.sena) || 0;
   const saldoPendiente = (venta.totalVenta || 0) - senaActual;
+
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
@@ -112,11 +118,17 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
                 <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
                 <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
             </div>
-            <div className="flex items-center mt-2 sm:mt-0">
-                <span className="mr-2 sm:mr-4 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+            <div className="flex items-center mt-2 sm:mt-0 space-x-1">
+                <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                  <Link href={`/ventas/${venta.id}/editar`}>
+                    <Pencil className="h-4 w-4" />
+                    <span className="sr-only">Editar Venta</span>
+                  </Link>
+                </Button>
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-2" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Eliminar Venta</span>
                     </Button>
@@ -136,7 +148,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
                     </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" data-manual-chevron="true" />
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
             </div>
           </div>
         </div>
@@ -202,27 +214,26 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             </div>
             <Separator className="my-1" />
             <div className="flex justify-between">
-                <span>Javier (Madera + 50% Gan.):</span>
+                <span>Javier (Madera + 50% Gan. Neta):</span>
                 <span>${(Number(valorJavier) || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
-                <span>Lucas (Aserrío + 50% Gan.):</span>
+                <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
                 <span>${(Number(valorLucas) || 0).toFixed(2)}</span>
             </div>
             {senaActual > 0 && (
                 <>
                 <Separator className="my-1" />
-                <div className="flex justify-between text-destructive">
+                <div className="flex justify-between text-sm text-destructive">
                     <span>Seña Aplicada:</span>
                     <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between text-lg font-semibold">
+                    <span>Saldo Pendiente:</span>
+                    <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
+                </div>
                 </>
             )}
-             <Separator className="my-1" />
-            <div className="flex justify-between text-lg font-semibold">
-                <span>Saldo Pendiente:</span>
-                <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
-            </div>
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -253,7 +264,6 @@ export default function VentasPage() {
             if(Array.isArray(parsedVentas)) {
               setVentas(parsedVentas);
             } else {
-              console.warn("Stored ventas data is not an array, falling back to mock data.");
               updateVentasListAndStorage(mockVentasData);
             }
           } catch (e) {
@@ -347,4 +357,3 @@ export default function VentasPage() {
     </div>
   );
 }
-

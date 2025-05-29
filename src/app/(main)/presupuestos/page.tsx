@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download } from "lucide-react";
+import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download, Pencil } from "lucide-react"; // Importar Pencil
 import type { Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,8 @@ const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
     nombreCliente: "Ana Gómez", 
     telefonoCliente: "555-1122",
     detalles: [
-      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 3.05, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 }, // Largo en metros
-      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 }, // Largo en metros
+      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 3.05, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 },
+      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 },
     ],
     totalPresupuesto: 754,
   },
@@ -37,7 +37,7 @@ const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
     fecha: "2024-07-26", 
     nombreCliente: "Empresa Constructora XYZ", 
     detalles: [
-      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 4.88, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 }, // Largo en metros
+      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 4.88, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 },
     ],
     totalPresupuesto: 10666.65,
   },
@@ -66,7 +66,12 @@ export default function PresupuestosPage() {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
       if (storedPresupuestos) {
         try {
-          setPresupuestos(JSON.parse(storedPresupuestos));
+          const parsed = JSON.parse(storedPresupuestos);
+          if (Array.isArray(parsed)) {
+            setPresupuestos(parsed);
+          } else {
+            updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS);
+          }
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage", e);
           updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); 
@@ -79,31 +84,35 @@ export default function PresupuestosPage() {
 
 
   useEffect(() => {
-    const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
-    if (budgetToDeleteId && typeof window !== 'undefined') {
-      const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let currentList: Presupuesto[] = [];
-      if (currentListFromStorage) {
-        try {
-          currentList = JSON.parse(currentListFromStorage);
-        } catch (e) {
-          console.error("Error parsing presupuestos from localStorage for delete operation", e);
-          currentList = presupuestos;
+    if (typeof window !== 'undefined') {
+      const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
+      if (budgetToDeleteId) {
+        const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+        let currentList: Presupuesto[] = [];
+        if (currentListFromStorage) {
+          try {
+            currentList = JSON.parse(currentListFromStorage);
+          } catch (e) {
+            console.error("Error parsing presupuestos from localStorage for delete operation", e);
+            // Fallback to current state if localStorage is corrupted
+            currentList = [...presupuestos]; // Create a copy to avoid direct state mutation
+          }
+        } else {
+           currentList = [...presupuestos]; // Create a copy
         }
-      } else {
-        currentList = presupuestos;
-      }
 
-      const newList = currentList.filter(p => p.id !== budgetToDeleteId);
-      updatePresupuestosListAndStorage(newList); 
-      localStorage.removeItem('budgetToDeleteId');
-      toast({
-        title: "Presupuesto Convertido",
-        description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
-      });
+        const newList = currentList.filter(p => p.id !== budgetToDeleteId);
+        updatePresupuestosListAndStorage(newList); 
+        localStorage.removeItem('budgetToDeleteId');
+        toast({
+          title: "Presupuesto Convertido",
+          description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
+        });
+      }
     }
+  // Omitting 'presupuestos' from dependency array to avoid potential loops if toast/update functions aren't stable
   // eslint-disable-next-line react-hooks/exhaustive-deps 
-  }, [toast, updatePresupuestosListAndStorage]); // presupuestos quitado para evitar bucle
+  }, [toast, updatePresupuestosListAndStorage]); 
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
@@ -259,7 +268,7 @@ export default function PresupuestosPage() {
                         </div>
                         <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
                             <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                             <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                            <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
                                 <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">PDF</span>
                             </Button>
@@ -267,6 +276,12 @@ export default function PresupuestosPage() {
                                 <Send className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
                                 <span className="hidden sm:inline">A Venta</span>
                             </Button>
+                             <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                                <Link href={`/presupuestos/${presupuesto.id}/editar`}>
+                                  <Pencil className="h-4 w-4" />
+                                  <span className="sr-only">Editar Presupuesto</span>
+                                </Link>
+                              </Button>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
@@ -343,5 +358,3 @@ export default function PresupuestosPage() {
     </div>
   );
 }
-
-    

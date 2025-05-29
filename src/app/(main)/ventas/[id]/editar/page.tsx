@@ -22,18 +22,19 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data";
-import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
+import type { VentaDetalle as VentaDetalleType, Venta } from "@/types";
 import { Separator } from "@/components/ui/separator";
-import { useRouter } from "next/navigation"; // Importar useRouter
+import { useRouter, useParams } from "next/navigation";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
+const initialDetallesCount = 15; // Consistent with nuevaVentaPage
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -60,7 +61,7 @@ const ventaFormSchema = z.object({
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
     ),
-  idOriginalPresupuesto: z.string().optional(),
+  idOriginalPresupuesto: z.string().optional(), // Aunque no se usa directamente en la lógica de edición, lo mantenemos por consistencia
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -75,16 +76,17 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
   cepillado: false,
 });
 
-const initialDetallesCount = 15;
-
-export default function NuevaVentaPage() {
+export default function EditarVentaPage() {
   const { toast } = useToast();
-  const router = useRouter(); // Inicializar useRouter
+  const router = useRouter();
+  const params = useParams();
+  const ventaId = params.id as string;
+  const [isLoadingData, setIsLoadingData] = useState(true);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: new Date(), 
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -95,71 +97,51 @@ export default function NuevaVentaPage() {
     },
   });
 
- useEffect(() => {
-    const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
-    if (presupuestoParaVentaString) {
-      try {
-        const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        
+  useEffect(() => {
+    if (ventaId && typeof window !== 'undefined') {
+      setIsLoadingData(true);
+      const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+      const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
+      const ventaAEditar = ventasActuales.find(v => v.id === ventaId);
+
+      if (ventaAEditar) {
+        const detallesParaForm = Array(Math.max(initialDetallesCount, ventaAEditar.detalles.length)).fill(null).map(() => createEmptyDetalle());
+
         form.reset({
-          fecha: new Date(), // Sale date is today
-          nombreComprador: presupuesto.nombreCliente,
-          telefonoComprador: presupuesto.telefonoCliente || "",
-          idOriginalPresupuesto: presupuesto.id,
-          fechaEntregaEstimada: undefined, 
-          sena: undefined,                 
-          costoOperario: undefined,
-          // Ensure details array has enough empty slots and initialize them
-          detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
-        });
-
-        const budgetDetailsToMap = presupuesto.detalles || [];
-        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
-          form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
-          form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
-          form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
-          form.setValue(`detalles.${index}.alto`, d_presupuesto_item.alto, { shouldDirty: true });
-          form.setValue(`detalles.${index}.largo`, d_presupuesto_item.largo, { shouldDirty: true });
-          form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
-          form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
+          fecha: ventaAEditar.fecha ? parseISO(ventaAEditar.fecha) : new Date(),
+          nombreComprador: ventaAEditar.nombreComprador,
+          telefonoComprador: ventaAEditar.telefonoComprador || "",
+          fechaEntregaEstimada: ventaAEditar.fechaEntregaEstimada ? parseISO(ventaAEditar.fechaEntregaEstimada) : undefined,
+          sena: ventaAEditar.sena ?? undefined,
+          costoOperario: ventaAEditar.costoOperario ?? undefined,
+          idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
+          detalles: detallesParaForm, // Reset con la estructura correcta primero
         });
         
-        if (budgetDetailsToMap.length < initialDetallesCount) {
-            for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
-                const emptyDetail = createEmptyDetalle();
-                form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
-                form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
-                form.setValue(`detalles.${i}.ancho`, emptyDetail.ancho, { shouldDirty: true });
-                form.setValue(`detalles.${i}.alto`, emptyDetail.alto, { shouldDirty: true });
-                form.setValue(`detalles.${i}.largo`, emptyDetail.largo, { shouldDirty: true });
-                form.setValue(`detalles.${i}.precioPorPie`, emptyDetail.precioPorPie, { shouldDirty: true });
-                form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
-            }
-        }
-        
-        form.trigger(); 
-
-        toast({
-          title: "Presupuesto Cargado para Venta",
-          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada.`,
+        // Luego, poblar los detalles con setValue
+        ventaAEditar.detalles.forEach((detalle, index) => {
+          form.setValue(`detalles.${index}.tipoMadera`, detalle.tipoMadera, { shouldDirty: true });
+          form.setValue(`detalles.${index}.unidades`, detalle.unidades, { shouldDirty: true });
+          form.setValue(`detalles.${index}.ancho`, detalle.ancho, { shouldDirty: true });
+          form.setValue(`detalles.${index}.alto`, detalle.alto, { shouldDirty: true });
+          form.setValue(`detalles.${index}.largo`, detalle.largo, { shouldDirty: true });
+          form.setValue(`detalles.${index}.precioPorPie`, detalle.precioPorPie, { shouldDirty: true });
+          form.setValue(`detalles.${index}.cepillado`, detalle.cepillado ?? false, { shouldDirty: true });
         });
-      } catch (error) {
-        console.error("Error al cargar presupuesto desde localStorage:", error);
+        form.trigger();
+
+
+      } else {
         toast({
-          title: "Error al Cargar Presupuesto",
-          description: "No se pudieron cargar los datos. Por favor, ingréselos manualmente.",
+          title: "Error",
+          description: "Venta no encontrada para editar.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) { 
-          form.setValue('fecha', new Date());
-        }
-      } finally {
-        localStorage.removeItem('presupuestoParaVenta');
+        router.push('/ventas');
       }
-    } else if (!form.getValues('fecha')) {
-      form.setValue('fecha', new Date()); 
+      setIsLoadingData(false);
     }
-  }, [form, toast]); 
+  }, [ventaId, form, router, toast]);
 
 
   const { fields, append, remove } = useFieldArray({
@@ -238,12 +220,9 @@ export default function NuevaVentaPage() {
   }
   const calculatedCostoTotalAserrioVenta = totalPiesTablaresVentaParaAserrio * costoAserrioPorPie;
   const costoOperarioActual = Number(watchedCostoOperario) || 0;
-
   const gananciaNetaEstimada = calculatedTotalVentaGeneral - calculatedCostoTotalMaderaVenta - calculatedCostoTotalAserrioVenta - costoOperarioActual;
-
   const valorJavier = calculatedCostoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = calculatedCostoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual; // Costo operario va para Lucas
-
+  const valorLucas = calculatedCostoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual;
   const senaActual = Number(watchedSena) || 0;
   const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
 
@@ -258,6 +237,8 @@ export default function NuevaVentaPage() {
   };
 
   function onSubmit(data: VentaFormValues) {
+    if (!ventaId) return;
+
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number'
     ).map((d_form, idx) => {
@@ -275,21 +256,21 @@ export default function NuevaVentaPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` 
+        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` // Generar nuevo ID para los detalles
       } as VentaDetalleType;
     });
 
     if (processedDetalles.length === 0) {
       toast({
         title: "Error en la Venta",
-        description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
+        description: "No hay artículos válidos para guardar. Asegúrese de completar tipo de madera, unidades y precio.",
         variant: "destructive",
       });
       return;
     }
 
-    const nuevaVenta: Venta = {
-      id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    const ventaActualizada: Venta = {
+      id: ventaId, // Usar el ID original de la venta
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -298,38 +279,28 @@ export default function NuevaVentaPage() {
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
-      idOriginalPresupuesto: data.idOriginalPresupuesto,
+      idOriginalPresupuesto: data.idOriginalPresupuesto, // Mantener si existía
     };
 
     if (typeof window !== 'undefined') {
         const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-        ventasActuales.push(nuevaVenta);
+        let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
+        const index = ventasActuales.findIndex(v => v.id === ventaId);
+        if (index !== -1) {
+          ventasActuales[index] = ventaActualizada;
+        } else {
+          // Podría ser un caso de error si la venta no se encuentra, aunque el useEffect la cargó
+          // Por ahora, la añadimos si no se encuentra, aunque no debería pasar.
+          ventasActuales.push(ventaActualizada);
+        }
         localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
     }
 
     toast({
-      title: "Venta Registrada",
-      description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
+      title: "Venta Actualizada",
+      description: `Se ha actualizado la venta para ${data.nombreComprador}.`,
     });
-
-    if (data.idOriginalPresupuesto) {
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
-      }
-    }
-
-    form.reset({
-      fecha: new Date(),
-      nombreComprador: "",
-      telefonoComprador: "",
-      fechaEntregaEstimada: undefined,
-      sena: undefined,
-      costoOperario: undefined,
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-      idOriginalPresupuesto: undefined,
-    });
-    router.push('/ventas'); // Redirigir a la página de listado
+    router.push('/ventas');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
@@ -337,9 +308,13 @@ export default function NuevaVentaPage() {
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
   };
 
+  if (isLoadingData) {
+    return <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><p>Cargando datos de la venta...</p></div>;
+  }
+
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nueva Venta" description="Registre los detalles de una nueva venta de madera." />
+      <PageTitle title="Editar Venta" description="Modifique los detalles de la venta existente." />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Card className="mb-8">
@@ -441,7 +416,7 @@ export default function NuevaVentaPage() {
           <Card>
             <CardHeader>
               <CardTitle>Detalles de la Venta</CardTitle>
-              <CardDescription>Ingrese los productos vendidos. Las filas con tipo de madera, unidades y precio se considerarán válidas.</CardDescription>
+              <CardDescription>Modifique los productos vendidos.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -594,7 +569,7 @@ export default function NuevaVentaPage() {
                   <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
                   <span>${(Number(valorLucas) || 0).toFixed(2)}</span>
                 </div>
-                {senaActual > 0 && (
+                 {senaActual > 0 && (
                   <>
                     <Separator className="my-1" />
                     <div className="flex justify-between text-sm text-destructive">
@@ -610,7 +585,7 @@ export default function NuevaVentaPage() {
               </div>
               <Button type="submit" size="lg" disabled={form.formState.isSubmitting} className="mt-4">
                 <Save className="mr-2 h-4 w-4" />
-                {form.formState.isSubmitting ? "Registrando..." : "Registrar Venta"}
+                {form.formState.isSubmitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </Card>

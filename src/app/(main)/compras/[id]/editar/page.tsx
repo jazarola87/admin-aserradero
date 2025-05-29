@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -21,11 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, Save } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
-import { useRouter } from "next/navigation"; // Importar useRouter
+import { useRouter, useParams } from "next/navigation";
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
@@ -50,9 +51,14 @@ const compraFormSchema = z.object({
 
 type CompraFormValues = z.infer<typeof compraFormSchema>;
 
-export default function NuevaCompraPage() {
+export default function EditarCompraPage() {
   const { toast } = useToast();
-  const router = useRouter(); // Inicializar useRouter
+  const router = useRouter();
+  const params = useParams();
+  const compraId = params.id as string;
+  
+  const [isLoading, setIsLoading] = useState(true);
+
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
     defaultValues: {
@@ -65,43 +71,73 @@ export default function NuevaCompraPage() {
     },
   });
 
+  useEffect(() => {
+    if (compraId && typeof window !== 'undefined') {
+      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+      const comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
+      const compraAEditar = comprasActuales.find(c => c.id === compraId);
+
+      if (compraAEditar) {
+        form.reset({
+          ...compraAEditar,
+          fecha: compraAEditar.fecha ? parseISO(compraAEditar.fecha) : new Date(),
+          // Asegurarse de que los campos numéricos opcionales se manejen si son undefined
+          volumen: compraAEditar.volumen ?? undefined,
+          costo: compraAEditar.costo ?? undefined,
+          telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "Compra no encontrada.",
+          variant: "destructive",
+        });
+        router.push('/compras');
+      }
+      setIsLoading(false);
+    }
+  }, [compraId, form, router, toast]);
+
   function onSubmit(data: CompraFormValues) {
-    const nuevaCompra: Compra = {
+    if (!compraId) return;
+
+    const compraActualizada: Compra = {
       ...data,
-      id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      id: compraId,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      const comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-      comprasActuales.push(nuevaCompra);
+      let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
+      const index = comprasActuales.findIndex(c => c.id === compraId);
+      if (index !== -1) {
+        comprasActuales[index] = compraActualizada;
+      } else {
+        // Opcional: manejar el caso en que la compra ya no exista, aunque el useEffect ya lo haría.
+        comprasActuales.push(compraActualizada); // O mostrar error
+      }
       localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
     }
     
     toast({
-      title: "Compra Registrada",
-      description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
-      variant: "default"
+      title: "Compra Actualizada",
+      description: `Se ha actualizado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
     });
-    form.reset({ 
-      fecha: new Date(),
-      tipoMadera: "",
-      volumen: undefined, 
-      costo: undefined,
-      proveedor: "",
-      telefonoProveedor: "",
-    });
-    router.push('/compras'); // Redirigir a la página de listado
+    router.push('/compras');
+  }
+
+  if (isLoading) {
+    return <div className="container mx-auto py-6">Cargando datos de la compra...</div>;
   }
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nueva Compra" description="Registre los detalles de una nueva adquisición de madera." />
+      <PageTitle title="Editar Compra" description="Modifique los detalles de la adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Formulario de Compra</CardTitle>
-          <CardDescription>Complete todos los campos para registrar la compra.</CardDescription>
+          <CardTitle>Formulario de Edición de Compra</CardTitle>
+          <CardDescription>Modifique los campos necesarios y guarde los cambios.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -158,7 +194,6 @@ export default function NuevaCompraPage() {
                     <FormControl>
                       <Input placeholder="Ej: Pino, Roble, Cedro" {...field} />
                     </FormControl>
-                    <FormDescription>Especifique el tipo de madera adquirida.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -173,7 +208,6 @@ export default function NuevaCompraPage() {
                     <FormControl>
                       <Input type="number" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
-                    <FormDescription>Cantidad de madera en metros cúbicos.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -188,7 +222,6 @@ export default function NuevaCompraPage() {
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="Ej: 3500.50" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
-                    <FormDescription>Costo total de la compra.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -224,7 +257,7 @@ export default function NuevaCompraPage() {
               <div className="flex justify-end">
                 <Button type="submit">
                   <Save className="mr-2 h-4 w-4" />
-                  Registrar Compra
+                  Guardar Cambios
                 </Button>
               </div>
             </form>

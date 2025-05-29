@@ -9,13 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search } from "lucide-react";
+import { PlusCircle, Trash2, Search, Pencil } from "lucide-react"; // Importar Pencil
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
-// Mock data for initial purchases if localStorage is empty
 const mockComprasData: Compra[] = [
   { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
   { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, costo: 3000, proveedor: "Bosques del Norte Ltda." },
@@ -41,11 +40,9 @@ export default function ComprasPage() {
       if (storedCompras) {
         try {
           const parsedCompras = JSON.parse(storedCompras);
-          // Basic validation to ensure parsed data is an array
           if (Array.isArray(parsedCompras)) {
             setCompras(parsedCompras);
           } else {
-            console.warn("Stored compras data is not an array, falling back to mock data.");
             updateComprasListAndStorage(mockComprasData);
           }
         } catch (e) {
@@ -143,7 +140,13 @@ export default function ComprasPage() {
                     <TableCell>${compra.costo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{compra.proveedor}</TableCell>
                     <TableCell>{compra.telefonoProveedor || "N/A"}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-1">
+                      <Button asChild variant="ghost" size="icon">
+                        <Link href={`/compras/${compra.id}/editar`}>
+                          <Pencil className="h-4 w-4" />
+                          <span className="sr-only">Editar Compra</span>
+                        </Link>
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
