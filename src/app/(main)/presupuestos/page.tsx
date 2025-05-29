@@ -9,98 +9,97 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { PlusCircle, Trash2 } from "lucide-react";
-import type { Venta } from "@/types";
+import { PlusCircle, Trash2, ClipboardList } from "lucide-react";
+import type { Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
-// Mock data for sales
-const mockVentasData: Venta[] = [
+// Mock data for presupuestos
+const mockPresupuestosData: Presupuesto[] = [
   { 
-    id: "venta001", 
-    fecha: "2024-07-20", 
-    nombreComprador: "Juan Pérez", 
-    telefonoComprador: "555-8765",
+    id: "pres001", 
+    fecha: "2024-07-25", 
+    nombreCliente: "Ana Gómez", 
+    telefonoCliente: "555-1122",
     detalles: [
-      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 8, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
-      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 10, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
+      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 10, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 },
+      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 12, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 }, // 144 * 3 + 144 * 0.5 (cepillado)
     ],
-    totalVenta: 720,
+    totalPresupuesto: 754,
   },
   { 
-    id: "venta002", 
-    fecha: "2024-07-22", 
-    nombreComprador: "Constructora Moderna", 
-    telefonoComprador: "555-4321",
+    id: "pres002", 
+    fecha: "2024-07-26", 
+    nombreCliente: "Empresa Constructora XYZ", 
     detalles: [
-      { id: "d003", tipoMadera: "Cedro", unidades: 20, ancho: 4, alto: 1, largo: 12, precioPorPie: 4.00, cepillado: true, piesTablares: 80, subTotal: 360, valorUnitario: 18 },
+      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 16, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 },
     ],
-    totalVenta: 360,
+    totalPresupuesto: 10666.65,
   },
 ];
 
-export default function VentasPage() {
-  const [ventas, setVentas] = useState<Venta[]>(mockVentasData);
+export default function PresupuestosPage() {
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>(mockPresupuestosData);
   const { toast } = useToast();
 
-  const handleDeleteVenta = (idToDelete: string) => {
-    setVentas(prevVentas => prevVentas.filter(venta => venta.id !== idToDelete));
+  const handleDeletePresupuesto = (idToDelete: string) => {
+    setPresupuestos(prevPresupuestos => prevPresupuestos.filter(p => p.id !== idToDelete));
     toast({
-      title: "Venta Eliminada",
-      description: "La venta ha sido eliminada exitosamente.",
+      title: "Presupuesto Eliminado",
+      description: "El presupuesto ha sido eliminado exitosamente.",
       variant: "default",
     });
   };
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Ventas" description="Listado de todas las ventas de madera.">
+      <PageTitle title="Registro de Presupuestos" description="Listado de todos los presupuestos generados.">
         <Button asChild>
-          <Link href="/ventas/nueva">
+          <Link href="/presupuestos/nuevo">
             <PlusCircle className="mr-2 h-4 w-4" />
-            Nueva Venta
+            Nuevo Presupuesto
           </Link>
         </Button>
       </PageTitle>
 
       <Card>
         <CardHeader>
-          <CardTitle>Historial de Ventas</CardTitle>
+          <CardTitle>Historial de Presupuestos</CardTitle>
            <CardDescription>
-            {ventas.length > 0 
-              ? `Mostrando ${ventas.length} venta(s).` 
-              : "Aún no se han registrado ventas."}
+            {presupuestos.length > 0 
+              ? `Mostrando ${presupuestos.length} presupuesto(s).` 
+              : "Aún no se han registrado presupuestos."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {ventas.length > 0 ? (
+          {presupuestos.length > 0 ? (
             <Accordion type="single" collapsible className="w-full">
-              {ventas.map((venta) => (
-                <AccordionItem value={venta.id} key={venta.id}>
+              {presupuestos.map((presupuesto) => (
+                <AccordionItem value={presupuesto.id} key={presupuesto.id}>
                   <AccordionTrigger className="hover:no-underline">
                     <div className="flex justify-between w-full pr-4 items-center">
                       <div className="flex-1">
-                        <span>Venta a: {venta.nombreComprador}</span>
-                        <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(venta.fecha).toLocaleDateString('es-ES')}</span>
+                        <span>Presupuesto para: {presupuesto.nombreCliente}</span>
+                        <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(presupuesto.fecha).toLocaleDateString('es-ES')}</span>
                       </div>
                       <div className="flex items-center">
-                        <span className="mr-4 font-semibold">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                        <span className="mr-4 font-semibold">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                          <AlertDialog>
                             <AlertDialogTrigger asChild>
                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                 <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Eliminar Venta</span>
+                                <span className="sr-only">Eliminar Presupuesto</span>
                                </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
                                 <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                                  Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id)}} className="bg-destructive hover:bg-destructive/90">
+                                <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
                                   Eliminar
                                 </AlertDialogAction>
                               </AlertDialogFooter>
@@ -110,7 +109,7 @@ export default function VentasPage() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="mb-2"><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
+                    <p className="mb-2"><strong>Teléfono Cliente:</strong> {presupuesto.telefonoCliente || "N/A"}</p>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -118,20 +117,20 @@ export default function VentasPage() {
                           <TableHead>Unidades</TableHead>
                           <TableHead>Dimensiones (Ancho x Alto x Largo)</TableHead>
                           <TableHead>Pies Tablares</TableHead>
-                           <TableHead>Valor Unit.</TableHead>
+                          <TableHead>Valor Unit.</TableHead>
                           <TableHead>Precio/Pie</TableHead>
                           <TableHead>Cepillado</TableHead>
                           <TableHead>Subtotal</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {venta.detalles.map((detalle) => (
+                        {presupuesto.detalles.map((detalle) => (
                           <TableRow key={detalle.id}>
                             <TableCell>{detalle.tipoMadera}</TableCell>
                             <TableCell>{detalle.unidades}</TableCell>
                             <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                             <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
                             <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
                             <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
@@ -145,9 +144,10 @@ export default function VentasPage() {
             </Accordion>
           ) : (
              <div className="text-center py-10 text-muted-foreground">
-              <p>No hay ventas registradas.</p>
+              <ClipboardList className="mx-auto h-12 w-12 mb-4" />
+              <p>No hay presupuestos registrados.</p>
               <Button variant="link" asChild className="mt-2">
-                <Link href="/ventas/nueva">Registrar la primera venta</Link>
+                <Link href="/presupuestos/nueva">Registrar el primer presupuesto</Link>
               </Button>
             </div>
           )}

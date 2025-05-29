@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, PlusCircle, DollarSign, BookText, Settings, Lightbulb, Wrench, HardHat, FileText } from 'lucide-react'; // Added FileText for Presupuesto
+import { LayoutDashboard, ShoppingCart, DollarSign, Settings, Lightbulb, HardHat, FileText, BookText, ClipboardList } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -16,29 +16,19 @@ export const NAV_ITEMS: NavItem[] = [
     icon: LayoutDashboard,
   },
   {
-    title: 'Registro de Compras',
+    title: 'Compras', // Parent item
     href: '/compras',
     icon: ShoppingCart,
   },
   {
-    title: 'Ingreso de Compra',
-    href: '/compras/nueva',
-    icon: PlusCircle,
-  },
-  {
-    title: 'Registro de Ventas',
+    title: 'Ventas', // Parent item
     href: '/ventas',
-    icon: BookText,
+    icon: DollarSign, // Changed from BookText for more financial connotation
   },
   {
-    title: 'Ingreso de Venta',
-    href: '/ventas/nueva',
-    icon: DollarSign,
-  },
-  {
-    title: 'Ingresar Presupuesto',
-    href: '/presupuestos/nuevo',
-    icon: FileText,
+    title: 'Presupuestos', // Parent item
+    href: '/presupuestos',
+    icon: ClipboardList, // Icon for quotes/estimates
   },
   {
     title: 'Costos y Precios Base',
@@ -51,4 +41,3 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Lightbulb,
   },
 ];
-

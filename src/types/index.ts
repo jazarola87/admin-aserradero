@@ -1,3 +1,4 @@
+
 export interface Compra {
   id: string;
   fecha: string; // Consider using Date object or ISO string
@@ -9,7 +10,7 @@ export interface Compra {
 }
 
 export interface VentaDetalle {
-  id: string;
+  id: string; // Could be uuid or similar for actual items
   tipoMadera: string;
   unidades: number;
   ancho: number; // pulgadas
@@ -19,6 +20,7 @@ export interface VentaDetalle {
   cepillado: boolean;
   piesTablares?: number; // auto-calculado
   subTotal?: number; // auto-calculado
+  valorUnitario?: number; // auto-calculado
 }
 
 export interface Venta {
@@ -29,6 +31,30 @@ export interface Venta {
   detalles: VentaDetalle[];
   totalVenta?: number; // sum of subTotals
 }
+
+export interface PresupuestoDetalle {
+  id: string;
+  tipoMadera: string;
+  unidades: number;
+  ancho: number;
+  alto: number;
+  largo: number;
+  precioPorPie: number;
+  cepillado: boolean;
+  piesTablares?: number;
+  subTotal?: number;
+  valorUnitario?: number;
+}
+
+export interface Presupuesto {
+  id: string;
+  fecha: string;
+  nombreCliente: string;
+  telefonoCliente?: string;
+  detalles: PresupuestoDetalle[];
+  totalPresupuesto?: number;
+}
+
 
 export interface PrecioMadera {
   tipoMadera: string;
