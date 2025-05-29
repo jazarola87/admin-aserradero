@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Lightbulb, UploadCloud, FileText, ClipboardList, Wrench, CalendarClock, HardHat } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Bot, FileText, ClipboardList, Wrench, CalendarClock, HardHat } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -36,11 +36,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: CalendarClock,
   },
   {
-    title: 'Carga Masiva Compras/Ventas',
-    href: '/carga-masiva',
-    icon: UploadCloud,
-  },
-  {
     title: 'Precios de Venta',
     href: '/precios-venta',
     icon: Tag,
@@ -51,8 +46,9 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wrench,
   },
   {
-    title: 'Asistente de Precios',
-    href: '/asistente-precios',
-    icon: Lightbulb,
+    title: 'Asistente Virtual',
+    href: '/asistente-virtual',
+    icon: Bot,
   },
 ];
+
