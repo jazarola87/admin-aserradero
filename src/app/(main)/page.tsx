@@ -9,7 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { format, parseISO, startOfMonth, endOfMonth, isValid } from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
@@ -58,8 +58,8 @@ export default function DashboardPage() {
   const [ventasList, setVentasList] = useState<Venta[]>([]);
   
   const today = new Date();
-  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(startOfMonth(today));
-  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(today);
+  const [fechaDesde, setFechaDesde] = useState<Date | undefined>(startOfMonth(subMonths(today,1))); // Default to start of previous month
+  const [fechaHasta, setFechaHasta] = useState<Date | undefined>(endOfMonth(subMonths(today,1))); // Default to end of previous month
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -82,13 +82,15 @@ export default function DashboardPage() {
   }, []);
 
   const filteredComprasList = useMemo(() => {
-    if (!fechaDesde || !fechaHasta) return comprasList;
-    const endOfHastaPeriod = endOfMonth(fechaHasta); 
+    if (!fechaDesde || !fechaHasta) return comprasList; // Return all if no dates
+    const startOfDesdePeriod = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), fechaDesde.getDate());
+    const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
+    
     return comprasList.filter(compra => {
       if (!compra.fecha) return false;
       try {
         const fechaCompra = parseISO(compra.fecha);
-        return isValid(fechaCompra) && fechaCompra >= fechaDesde && fechaCompra <= endOfHastaPeriod;
+        return isValid(fechaCompra) && fechaCompra >= startOfDesdePeriod && fechaCompra <= endOfHastaPeriod;
       } catch (e) {
         return false;
       }
@@ -96,13 +98,15 @@ export default function DashboardPage() {
   }, [comprasList, fechaDesde, fechaHasta]);
 
   const filteredVentasList = useMemo(() => {
-    if (!fechaDesde || !fechaHasta) return ventasList;
-    const endOfHastaPeriod = endOfMonth(fechaHasta);
+    if (!fechaDesde || !fechaHasta) return ventasList; // Return all if no dates
+    const startOfDesdePeriod = new Date(fechaDesde.getFullYear(), fechaDesde.getMonth(), fechaDesde.getDate());
+    const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
+
     return ventasList.filter(venta => {
       if (!venta.fecha) return false;
       try {
         const fechaVenta = parseISO(venta.fecha);
-        return isValid(fechaVenta) && fechaVenta >= fechaDesde && fechaVenta <= endOfHastaPeriod;
+        return isValid(fechaVenta) && fechaVenta >= startOfDesdePeriod && fechaVenta <= endOfHastaPeriod;
       } catch (e) {
         return false;
       }
@@ -127,8 +131,17 @@ export default function DashboardPage() {
   }, [filteredVentasList]);
 
   const saldoMaderaRecuperar = useMemo(() => {
-    return valorTotalCompras - costoMaderaRecuperado;
-  }, [valorTotalCompras, costoMaderaRecuperado]);
+    // This should use total historical purchases - total historical wood cost recovered from sales
+    const totalComprasHistoricas = comprasList.reduce((sum, compra) => sum + (Number(compra.costo) || 0), 0);
+    const costoMaderaRecuperadoHistorico = ventasList.reduce((sum, venta) => {
+        const costoMaderaEstaVenta = (venta.detalles || []).reduce((itemSum, detalle) => {
+            return itemSum + getCostoMaderaParaVentaItem(detalle, initialConfigData);
+        },0);
+        return sum + costoMaderaEstaVenta;
+    }, 0);
+    return totalComprasHistoricas - costoMaderaRecuperadoHistorico;
+  }, [comprasList, ventasList]);
+
 
   const gananciaNetaSocios = useMemo(() => {
     let totalGananciaNetaFiltrada = 0;
@@ -147,34 +160,43 @@ export default function DashboardPage() {
   const stockPorTipoMadera = useMemo(() => {
     const stockMap: { [key: string]: { compradosM3: number, vendidosPies: number } } = {};
 
+    // Initialize with all configured wood types
     (initialConfigData.preciosMadera || []).forEach(pm => {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
 
-    filteredComprasList.forEach(compra => {
+    // Sum all historical purchases
+    comprasList.forEach(compra => {
       if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
         stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
+      } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) {
+        // Edge case: purchase for a wood type not in current config (should ideally not happen)
+        stockMap[compra.tipoMadera] = { compradosM3: Number(compra.volumen) || 0, vendidosPies: 0 };
       }
     });
 
-    filteredVentasList.forEach(venta => {
+    // Sum all historical sales
+    ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
           stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
+        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) {
+           // Edge case: sale of a wood type not in current config
+          stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
         }
       });
     });
 
     return Object.entries(stockMap).map(([tipoMadera, data]) => {
-      const vendidosM3 = data.vendidosPies / 200;
+      const vendidosM3 = data.vendidosPies / 200; // 1 m³ = 200 pies tablares
       return {
         tipoMadera,
         compradosM3: data.compradosM3,
         vendidosM3: vendidosM3,
         stockM3: data.compradosM3 - vendidosM3,
       };
-    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Solo mostrar tipos con actividad o stock
-  }, [filteredComprasList, filteredVentasList]);
+    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Only show types with activity or stock
+  }, [comprasList, ventasList, initialConfigData.preciosMadera]);
 
 
   const displayDateRange = useMemo(() => {
@@ -252,7 +274,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${valorTotalVentas.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Ingresos totales en período.</p>
+            <p className="text-xs text-muted-foreground">Ingresos totales en período seleccionado.</p>
           </CardContent>
         </Card>
         <Card>
@@ -262,7 +284,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${valorTotalCompras.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Costos de adquisición en período.</p>
+            <p className="text-xs text-muted-foreground">Costos de adquisición en período seleccionado.</p>
           </CardContent>
         </Card>
         <Card>
@@ -272,7 +294,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${gananciaNetaSocios.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Ganancia neta por socio en período.</p>
+            <p className="text-xs text-muted-foreground">Ganancia neta por socio en período seleccionado.</p>
           </CardContent>
         </Card>
         <Card>
@@ -282,7 +304,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${costoMaderaRecuperado.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Costo de la madera vendida en período.</p>
+            <p className="text-xs text-muted-foreground">Costo de la madera vendida en período seleccionado.</p>
           </CardContent>
         </Card>
         <Card>
@@ -292,7 +314,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${saldoMaderaRecuperar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Costo de madera en inventario (compras - recuperado).</p>
+            <p className="text-xs text-muted-foreground">Costo total de madera en inventario (histórico).</p>
           </CardContent>
         </Card>
       </div>
@@ -301,30 +323,30 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle className="flex items-center">
             <Package className="mr-2 h-5 w-5 text-primary" />
-            Stock Disponible por Tipo de Madera (Estimado para el período)
+            Stock Histórico Total Estimado por Tipo de Madera
           </CardTitle>
-          <CardDescription>Calculado como: Total Comprado (m³) - Total Vendido (m³) para cada tipo de madera en el rango de fechas seleccionado.</CardDescription>
+          <CardDescription>Calculado sobre el total histórico de compras y ventas para cada tipo de madera (ignora filtro de fecha).</CardDescription>
         </CardHeader>
         <CardContent>
           {stockPorTipoMadera.length > 0 ? (
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2">
               {stockPorTipoMadera.map((item) => (
-                <li key={item.tipoMadera} className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-muted/50 rounded-md">
-                  <span className="font-medium">{item.tipoMadera}:</span>
-                  <div className="text-right">
-                    <span className={cn("font-semibold", item.stockM3 < 0 && "text-destructive")}>
+                <li key={item.tipoMadera} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border-b last:border-b-0 hover:bg-muted/50 rounded-md text-sm">
+                  <div>
+                    <span className="font-medium">{item.tipoMadera}: </span>
+                    <span className={cn("font-semibold text-base", item.stockM3 < 0 ? "text-destructive" : "text-primary")}>
                       {item.stockM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
                     </span>
-                    <span className="ml-2 text-xs text-muted-foreground block sm:inline">
-                      (Comprado: {item.compradosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
-                       , Vendido: {item.vendidosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³)
-                    </span>
                   </div>
+                  <span className="text-xs text-muted-foreground mt-1 sm:mt-0 sm:ml-4">
+                    (Comprado: {item.compradosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
+                     , Vendido: {item.vendidosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³)
+                  </span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground">No hay datos de stock para el período seleccionado o no se han configurado tipos de madera con actividad.</p>
+            <p className="text-muted-foreground">No hay datos de stock para mostrar o no se han configurado tipos de madera con actividad.</p>
           )}
         </CardContent>
       </Card>
