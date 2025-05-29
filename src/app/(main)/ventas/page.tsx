@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign } from "lucide-react";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Send, Download } from "lucide-react";
 import type { Venta, VentaDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -21,7 +21,6 @@ import { Separator } from "@/components/ui/separator";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-// Mock data (solo se usa si localStorage está vacío y no hay datos para cargar)
 const mockVentasData: Venta[] = [
   {
     id: "venta001",
@@ -30,9 +29,10 @@ const mockVentasData: Venta[] = [
     telefonoComprador: "555-8765",
     fechaEntregaEstimada: "2024-07-25",
     sena: 50,
+    costoOperario: 100,
     detalles: [
-      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 }, // Asumiendo largo en metros
-      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 }, // Asumiendo largo en metros
+      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
+      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
     ],
     totalVenta: 720,
   },
@@ -42,7 +42,7 @@ const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
     const unidades = Number(detalle.unidades) || 0;
     const alto = Number(detalle.alto) || 0;
     const ancho = Number(detalle.ancho) || 0;
-    const largo = Number(detalle.largo) || 0; // Asumiendo que largo está en metros
+    const largo = Number(detalle.largo) || 0; 
   
     if (!unidades || !alto || !ancho || !largo) return 0;
     return unidades * alto * ancho * largo * 0.2734;
@@ -69,13 +69,13 @@ interface VentaItemProps {
 function VentaItem({ venta, onDelete }: VentaItemProps) {
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
-    venta.detalles.forEach(detalle => {
-      if (detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') {
+    (venta.detalles || []).forEach(detalle => {
+      if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
         const piesTablaresArticulo = calcularPiesTablaresVenta(detalle);
         if (piesTablaresArticulo > 0) {
           const costoMaderaConfig = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          costoTotal += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; // 200 pies = 1 m3
+          costoTotal += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
         }
       }
     });
@@ -88,10 +88,10 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
 
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = costoOperativoAjustado / 600;
+    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado)) ? costoOperativoAjustado / 600 : 0;
 
-    const totalPiesTablaresVenta = venta.detalles.reduce((acc, detalle) => {
-      if (detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') {
+    const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
+      if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
         return acc + calcularPiesTablaresVenta(detalle);
       }
       return acc;
@@ -100,9 +100,30 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
     return totalPiesTablaresVenta * costoAserrioPorPie;
   }, [venta.detalles]);
 
-  const gananciaBrutaEstimada = useMemo(() => {
-    return (venta.totalVenta || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta;
-  }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta]);
+  const costoOperarioActual = Number(venta.costoOperario) || 0;
+  const gananciaNetaEstimada = useMemo(() => {
+    return (venta.totalVenta || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta - costoOperarioActual;
+  }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta, costoOperarioActual]);
+
+  const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada / 2);
+  const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada / 2);
+
+  const senaActual = Number(venta.sena) || 0;
+  let saldoACobrarJavier = valorJavier;
+  let saldoACobrarLucas = valorLucas;
+
+  if (senaActual > 0) {
+    const totalJavierYLucas = valorJavier + valorLucas;
+    if (totalJavierYLucas > 0) {
+      const proporcionJavier = valorJavier / totalJavierYLucas;
+      const proporcionLucas = valorLucas / totalJavierYLucas;
+      const senaParaJavier = senaActual * proporcionJavier;
+      const senaParaLucas = senaActual * proporcionLucas;
+      saldoACobrarJavier = valorJavier - senaParaJavier;
+      saldoACobrarLucas = valorLucas - senaParaLucas;
+    }
+  }
+
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
@@ -150,6 +171,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
           <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
           {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
           {typeof venta.sena === 'number' && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+          {typeof venta.costoOperario === 'number' && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
         </div>
         <Table>
@@ -166,7 +188,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {venta.detalles.map((detalle) => (
+            {(venta.detalles || []).map((detalle) => (
               <TableRow key={detalle.id}>
                 <TableCell>{detalle.tipoMadera}</TableCell>
                 <TableCell>{detalle.unidades}</TableCell>
@@ -180,25 +202,55 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             ))}
           </TableBody>
         </Table>
-        <div className="mt-6 p-4 border rounded-md space-y-2">
+        <div className="mt-6 p-4 border rounded-md space-y-1 text-sm">
             <div className="flex justify-between text-lg font-semibold">
               <span>Total Venta:</span>
               <span className="text-primary">${(venta.totalVenta || 0).toFixed(2)}</span>
             </div>
-            <Separator />
-            <div className="flex justify-between text-sm">
+            <Separator className="my-1" />
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Total Madera:</span>
               <span>${costoTotalMaderaVenta.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Total Aserrío:</span>
               <span>${costoTotalAserrioVenta.toFixed(2)}</span>
             </div>
-             <Separator />
-            <div className="flex justify-between text-md font-semibold">
-              <span>Ganancia Bruta Estimada:</span>
-              <span>${gananciaBrutaEstimada.toFixed(2)}</span>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Costo Operario:</span>
+              <span>${costoOperarioActual.toFixed(2)}</span>
             </div>
+             <Separator className="my-1" />
+            <div className="flex justify-between font-semibold">
+              <span>Ganancia Neta Estimada:</span>
+              <span>${gananciaNetaEstimada.toFixed(2)}</span>
+            </div>
+            <Separator className="my-1" />
+            <div className="flex justify-between">
+                <span>Javier (Madera + 50% Gan.):</span>
+                <span>${(Number(valorJavier) || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+                <span>Lucas (Aserrío + 50% Gan.):</span>
+                <span>${(Number(valorLucas) || 0).toFixed(2)}</span>
+            </div>
+            {senaActual > 0 && (
+                <>
+                <Separator className="my-1" />
+                <div className="flex justify-between text-destructive">
+                    <span>Seña Aplicada:</span>
+                    <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                    <span>Saldo a Cobrar Javier:</span>
+                    <span>${(Number(saldoACobrarJavier) || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                    <span>Saldo a Cobrar Lucas:</span>
+                    <span>${(Number(saldoACobrarLucas) || 0).toFixed(2)}</span>
+                </div>
+                </>
+            )}
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -226,7 +278,12 @@ export default function VentasPage() {
         if (storedVentas) {
           try {
             const parsedVentas = JSON.parse(storedVentas);
-            setVentas(parsedVentas);
+            if(Array.isArray(parsedVentas)) {
+              setVentas(parsedVentas);
+            } else {
+              console.warn("Stored ventas data is not an array, falling back to mock data.");
+              updateVentasListAndStorage(mockVentasData);
+            }
           } catch (e) {
             console.error("Error parsing ventas from localStorage", e);
             updateVentasListAndStorage(mockVentasData);
@@ -318,4 +375,3 @@ export default function VentasPage() {
     </div>
   );
 }
-

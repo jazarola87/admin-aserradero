@@ -17,9 +17,9 @@ const COMPRAS_STORAGE_KEY = 'comprasList';
 
 // Mock data for initial purchases if localStorage is empty
 const mockComprasData: Compra[] = [
-  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 500, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
-  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 200, costo: 3000, proveedor: "Bosques del Norte Ltda." },
-  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 150, costo: 2250, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
+  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
+  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, costo: 3000, proveedor: "Bosques del Norte Ltda." },
+  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, costo: 2250, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
 ];
 
 
@@ -40,13 +40,20 @@ export default function ComprasPage() {
       const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
       if (storedCompras) {
         try {
-          setCompras(JSON.parse(storedCompras));
+          const parsedCompras = JSON.parse(storedCompras);
+          // Basic validation to ensure parsed data is an array
+          if (Array.isArray(parsedCompras)) {
+            setCompras(parsedCompras);
+          } else {
+            console.warn("Stored compras data is not an array, falling back to mock data.");
+            updateComprasListAndStorage(mockComprasData);
+          }
         } catch (e) {
           console.error("Error parsing compras from localStorage", e);
-          updateComprasListAndStorage(mockComprasData); // Fallback and store
+          updateComprasListAndStorage(mockComprasData); 
         }
       } else {
-        updateComprasListAndStorage(mockComprasData); // Initialize if nothing in storage
+        updateComprasListAndStorage(mockComprasData); 
       }
     }
   }, [updateComprasListAndStorage]);
@@ -120,7 +127,7 @@ export default function ComprasPage() {
                 <TableRow>
                   <TableHead>Fecha</TableHead>
                   <TableHead>Tipo de Madera</TableHead>
-                  <TableHead>Volumen</TableHead>
+                  <TableHead>Volumen (m³)</TableHead>
                   <TableHead>Costo Total</TableHead>
                   <TableHead>Proveedor</TableHead>
                   <TableHead>Teléfono</TableHead>
@@ -130,9 +137,9 @@ export default function ComprasPage() {
               <TableBody>
                 {filteredCompras.map((compra) => (
                   <TableRow key={compra.id}>
-                    <TableCell>{new Date(compra.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</TableCell> {/* Ensure correct date parsing */}
+                    <TableCell>{new Date(compra.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</TableCell> 
                     <TableCell>{compra.tipoMadera}</TableCell>
-                    <TableCell>{compra.volumen} pies</TableCell>
+                    <TableCell>{compra.volumen} m³</TableCell>
                     <TableCell>${compra.costo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{compra.proveedor}</TableCell>
                     <TableCell>{compra.telefonoProveedor || "N/A"}</TableCell>

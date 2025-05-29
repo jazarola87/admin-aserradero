@@ -3,7 +3,7 @@ export interface Compra {
   id: string;
   fecha: string; // Consider using Date object or ISO string
   tipoMadera: string;
-  volumen: number; // e.g., in board feet or m^3
+  volumen: number; // e.g., in m^3
   costo: number;
   proveedor: string;
   telefonoProveedor?: string;
@@ -33,6 +33,7 @@ export interface Venta {
   idOriginalPresupuesto?: string; // To track if it came from a budget
   fechaEntregaEstimada?: string; // Fecha estimada de entrega (YYYY-MM-DD)
   sena?: number; // Monto de la seña
+  costoOperario?: number; // Costo adicional por operario
 }
 
 export interface PresupuestoDetalle {
@@ -81,4 +82,3 @@ export interface Configuracion {
   precioAfiladoSierra?: number;
   costosMaderaMetroCubico?: CostoMaderaMetroCubico[];
 }
-

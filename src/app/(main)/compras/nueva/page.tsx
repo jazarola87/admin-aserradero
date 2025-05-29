@@ -81,10 +81,10 @@ export default function NuevaCompraPage() {
       description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
       variant: "default"
     });
-    form.reset({ // Reset form after submission, keeping date as new Date()
+    form.reset({ 
       fecha: new Date(),
       tipoMadera: "",
-      volumen: undefined, // use undefined for react-hook-form to clear number inputs
+      volumen: undefined, 
       costo: undefined,
       proveedor: "",
       telefonoProveedor: "",
@@ -165,11 +165,11 @@ export default function NuevaCompraPage() {
                 name="volumen"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Volumen (pies tablares)</FormLabel>
+                    <FormLabel>Volumen (m³)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 1500" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
-                    <FormDescription>Cantidad de madera en pies tablares.</FormDescription>
+                    <FormDescription>Cantidad de madera en metros cúbicos.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
