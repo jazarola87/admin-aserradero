@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
-import { GenericOrderPDFDocument } from "@/components/shared/presupuesto-pdf-document"; // Corrected import path
+import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { initialConfigData } from "@/lib/config-data";
 
 
@@ -35,7 +35,10 @@ export default function CronogramaEntregasPage() {
         try {
           const parsedVentas = JSON.parse(storedVentas);
           if (Array.isArray(parsedVentas)) {
-            setVentas(parsedVentas);
+            // Ensure dates are valid and sort
+            const validVentas = parsedVentas.filter(v => v.fecha && isValid(parseISO(v.fecha)));
+            validVentas.sort((a,b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
+            setVentas(validVentas);
           }
         } catch (e) {
           console.error("Error parsing ventas from localStorage", e);
@@ -61,18 +64,20 @@ export default function CronogramaEntregasPage() {
 
     toast({ title: "Generando PDF...", description: "Por favor espere." });
 
+    // Delay to allow React to render the hidden PDF component
     setTimeout(async () => {
       const inputElement = document.getElementById(uniqueId);
       if (inputElement) {
         try {
+          // Ensure all images within the element are loaded before capturing
           const images = Array.from(inputElement.getElementsByTagName('img'));
           await Promise.all(images.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); // Already loaded
             return new Promise(resolve => { 
               img.onload = resolve; 
               img.onerror = () => { 
                 console.warn(`Failed to load image for PDF: ${img.src}`);
-                resolve(null); 
+                resolve(null); // Resolve even if an image fails, to not block PDF generation
               };
             });
           }));
@@ -83,7 +88,7 @@ export default function CronogramaEntregasPage() {
           
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
-          const margin = 10;
+          const margin = 10; // 1cm margin
           const availableWidth = pdfWidth - 2 * margin;
           const availableHeight = pdfHeight - 2 * margin;
 
@@ -91,6 +96,7 @@ export default function CronogramaEntregasPage() {
           const imgOriginalHeight = canvas.height;
           const aspectRatio = imgOriginalWidth / imgOriginalHeight;
           
+          // Calculate rendered image size to fit within available space while maintaining aspect ratio
           let imgRenderWidth = availableWidth;
           let imgRenderHeight = availableWidth / aspectRatio;
 
@@ -99,6 +105,7 @@ export default function CronogramaEntregasPage() {
             imgRenderWidth = imgRenderHeight * aspectRatio;
           }
           
+          // Center the image on the page
           const imgX = margin + (availableWidth - imgRenderWidth) / 2;
           const imgY = margin;
 
@@ -112,9 +119,9 @@ export default function CronogramaEntregasPage() {
       } else {
         toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
       }
-      setSelectedVentaForPdf(null);
+      setSelectedVentaForPdf(null); // Clean up state
       setPdfTargetId(null);
-    }, 300);
+    }, 300); // Adjust timeout if needed for complex rendering
   };
 
 
@@ -164,8 +171,10 @@ export default function CronogramaEntregasPage() {
                               className="mr-1 sm:mr-2"
                               onClick={(e) => { e.stopPropagation(); downloadVentaPDF(venta); }}
                             >
-                              <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                              <span className="hidden sm:inline">PDF</span>
+                              <>
+                                <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                                <span className="hidden sm:inline">PDF</span>
+                              </>
                             </Button>
                           <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true"/>
                         </div>
@@ -221,4 +230,3 @@ export default function CronogramaEntregasPage() {
     </div>
   );
 }
-
