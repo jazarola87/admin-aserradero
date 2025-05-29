@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,7 +20,8 @@ import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
 import { Lightbulb, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { sugerirPrecio, type SugerirPrecioInput, type SugerirPrecioOutput } from "@/ai/flows/precio-sugerido"; // Assuming the path is correct
+import { sugerirPrecio, type SugerirPrecioInput, type SugerirPrecioOutput } from "@/ai/flows/precio-sugerido";
+import { cn } from "@/lib/utils"; // Added import for cn
 
 const asistenteFormSchema = z.object({
   tipoMadera: z.string().min(2, {
