@@ -10,12 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown } from "lucide-react";
-import type { Venta } from "@/types";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign } from "lucide-react";
+import type { Venta, VentaDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { initialConfigData } from "@/lib/config-data";
+import { Separator } from "@/components/ui/separator";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
@@ -45,7 +47,168 @@ const mockVentasData: Venta[] = [
   },
 ];
 
-export default function VentasPage(): JSX.Element {
+const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
+    if (!detalle || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return 0;
+    return (detalle.alto * detalle.ancho * detalle.largo * detalle.unidades) / 12;
+};
+
+const calcularSubtotalVenta = (detalle: VentaDetalle, piesTablares: number): number => {
+    if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
+    let subtotal = piesTablares * detalle.precioPorPie;
+    if (detalle.cepillado) {
+      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
+    }
+    return subtotal;
+};
+
+
+interface VentaItemProps {
+  venta: Venta;
+  onDelete: (id: string) => void;
+}
+
+function VentaItem({ venta, onDelete }: VentaItemProps) {
+  const costoTotalMaderaVenta = useMemo(() => {
+    let costoTotal = 0;
+    venta.detalles.forEach(detalle => {
+      if (detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+        const piesTablaresArticulo = calcularPiesTablaresVenta(detalle);
+        if (piesTablaresArticulo > 0) {
+          const costoMaderaConfig = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoPorMetroCubicoDelTipo = costoMaderaConfig?.costoPorMetroCubico || 0;
+          const metrosCubicosArticulo = piesTablaresArticulo / 200; // 200 pies = 1 m3
+          costoTotal += metrosCubicosArticulo * costoPorMetroCubicoDelTipo;
+        }
+      }
+    });
+    return costoTotal;
+  }, [venta.detalles]);
+
+  const costoTotalAserrioVenta = useMemo(() => {
+    const precioNafta = initialConfigData.precioLitroNafta || 0;
+    const precioAfilado = initialConfigData.precioAfiladoSierra || 0;
+
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoOperativoAjustado = costoOperativoBase * 1.38;
+    const costoAserrioPorPie = costoOperativoAjustado / 600;
+
+    const totalPiesTablaresVenta = venta.detalles.reduce((acc, detalle) => {
+      if (detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+        return acc + calcularPiesTablaresVenta(detalle);
+      }
+      return acc;
+    }, 0);
+
+    return totalPiesTablaresVenta * costoAserrioPorPie;
+  }, [venta.detalles]);
+
+  const gananciaBrutaEstimada = useMemo(() => {
+    return (venta.totalVenta || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta;
+  }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta]);
+
+  return (
+    <AccordionItem value={venta.id} key={venta.id}>
+      <AccordionTrigger asChild className="hover:no-underline">
+        <div className={cn(
+          "flex w-full items-center py-4 px-2 font-medium text-left group",
+          "hover:bg-muted/50 rounded-md"
+        )}>
+          <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <div>
+              <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
+              <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
+            </div>
+            <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
+              <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Eliminar Venta</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={(e) => { e.stopPropagation(); onDelete(venta.id); }} className="bg-destructive hover:bg-destructive/90">
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" />
+            </div>
+          </div>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 mb-4 text-sm p-4 border rounded-md bg-muted/30">
+          <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
+          {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
+          {typeof venta.sena === 'number' && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+          {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
+        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tipo Madera</TableHead>
+              <TableHead>Unid.</TableHead>
+              <TableHead>Dimensiones</TableHead>
+              <TableHead>Cepillado</TableHead>
+              <TableHead className="text-right">P.Tabl.</TableHead>
+              <TableHead className="text-right">$/Pie</TableHead>
+              <TableHead className="text-right">Val.Unit.</TableHead>
+              <TableHead className="text-right">Subtotal</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {venta.detalles.map((detalle) => (
+              <TableRow key={detalle.id}>
+                <TableCell>{detalle.tipoMadera}</TableCell>
+                <TableCell>{detalle.unidades}</TableCell>
+                <TableCell>{detalle.alto}" x {detalle.ancho}" x {detalle.largo}'</TableCell>
+                <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
+                <TableCell className="text-right">{detalle.piesTablares?.toFixed(2)}</TableCell>
+                <TableCell className="text-right">${detalle.precioPorPie?.toFixed(2)}</TableCell>
+                <TableCell className="text-right">${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                <TableCell className="text-right">${detalle.subTotal?.toFixed(2)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div className="mt-6 p-4 border rounded-md space-y-2">
+            <div className="flex justify-between text-lg font-semibold">
+              <span>Total Venta:</span>
+              <span className="text-primary">${(venta.totalVenta || 0).toFixed(2)}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Costo Total Madera:</span>
+              <span>${costoTotalMaderaVenta.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Costo Total Aserrío:</span>
+              <span>${costoTotalAserrioVenta.toFixed(2)}</span>
+            </div>
+             <Separator />
+            <div className="flex justify-between text-md font-semibold">
+              <span>Ganancia Bruta Estimada:</span>
+              <span>${gananciaBrutaEstimada.toFixed(2)}</span>
+            </div>
+        </div>
+      </AccordionContent>
+    </AccordionItem>
+  );
+}
+
+
+export default function VentasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const { toast } = useToast();
@@ -64,7 +227,8 @@ export default function VentasPage(): JSX.Element {
       if (isMounted) {
         if (storedVentas) {
           try {
-            setVentas(JSON.parse(storedVentas));
+            const parsedVentas = JSON.parse(storedVentas);
+            setVentas(parsedVentas);
           } catch (e) {
             console.error("Error parsing ventas from localStorage", e);
             updateVentasListAndStorage(mockVentasData);
@@ -134,6 +298,7 @@ export default function VentasPage(): JSX.Element {
         <CardContent>
           {ventas.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
+              <DollarSign className="mx-auto h-12 w-12 mb-4" />
               <p>No hay ventas registradas.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/ventas/nueva">Registrar la primera venta</Link>
@@ -146,83 +311,7 @@ export default function VentasPage(): JSX.Element {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
-                <AccordionItem value={venta.id} key={venta.id}>
-                  <AccordionTrigger asChild className="hover:no-underline">
-                    <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left group",
-                        "hover:bg-muted/50 rounded-md" 
-                      )}>
-                      <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <div>
-                            <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
-                        </div>
-                        <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                      <Trash2 className="h-4 w-4" />
-                                      <span className="sr-only">Eliminar Venta</span>
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeleteVenta(venta.id);}} className="bg-destructive hover:bg-destructive/90">
-                                    Eliminar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" />
-                        </div>
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-2 text-sm">
-                        <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
-                        {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
-                        {typeof venta.sena === 'number' && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
-                        {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original:</strong> {venta.idOriginalPresupuesto}</p>}
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tipo Madera</TableHead>
-                          <TableHead>Unidades</TableHead>
-                          <TableHead>Dimensiones (Ancho x Alto x Largo)</TableHead>
-                          <TableHead>Pies Tablares</TableHead>
-                           <TableHead>Valor Unit.</TableHead>
-                          <TableHead>Precio/Pie</TableHead>
-                          <TableHead>Cepillado</TableHead>
-                          <TableHead>Subtotal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {venta.detalles.map((detalle) => (
-                          <TableRow key={detalle.id}>
-                            <TableCell>{detalle.tipoMadera}</TableCell>
-                            <TableCell>{detalle.unidades}</TableCell>
-                            <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
-                            <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.precioPorPie?.toFixed(2)}</TableCell>
-                            <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
-                            <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
+                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} />
               ))}
             </Accordion>
           )}
@@ -231,4 +320,3 @@ export default function VentasPage(): JSX.Element {
     </div>
   );
 }
-
