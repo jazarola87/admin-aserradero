@@ -31,6 +31,8 @@ export interface Venta {
   detalles: VentaDetalle[];
   totalVenta?: number; // sum of subTotals
   idOriginalPresupuesto?: string; // To track if it came from a budget
+  fechaEntregaEstimada?: string; // Nueva: Fecha estimada de entrega (YYYY-MM-DD)
+  sena?: number; // Nueva: Monto de la seña
 }
 
 export interface PresupuestoDetalle {

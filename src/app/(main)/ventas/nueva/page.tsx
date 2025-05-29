@@ -31,9 +31,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
 
-// Usar directamente desde initialConfigData
-// const { preciosMadera: tiposDeMaderaDisponiblesOriginal, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
-
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
@@ -48,6 +45,8 @@ const ventaFormSchema = z.object({
   fecha: z.date({ required_error: "La fecha es obligatoria." }),
   nombreComprador: z.string().min(2, "Mínimo 2 caracteres."),
   telefonoComprador: z.string().optional(),
+  fechaEntregaEstimada: z.date().optional(),
+  sena: z.coerce.number().nonnegative("La seña no puede ser negativa.").optional().or(z.literal(NaN)),
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
@@ -61,7 +60,7 @@ const ventaFormSchema = z.object({
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
 
-const createEmptyDetalle = (): z.infer<typeof ventaDetalleSchema> => ({
+const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
   tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
@@ -72,14 +71,10 @@ const createEmptyDetalle = (): z.infer<typeof ventaDetalleSchema> => ({
 });
 
 const initialDetallesCount = 15;
-// No inicializar con createEmptyDetalle aquí, se hará en defaultValues
-// const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
 
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  // Eliminar estados locales para tiposDeMaderaDisponibles y precioCepilladoGlobal
-  // Se leerán directamente de initialConfigData
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -87,6 +82,8 @@ export default function NuevaVentaPage() {
       fecha: undefined, 
       nombreComprador: "",
       telefonoComprador: "",
+      fechaEntregaEstimada: undefined,
+      sena: undefined,
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
     },
@@ -98,28 +95,38 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const mappedSaleDetails = Array(initialDetallesCount).fill(null).map((_, i) => {
-          if (i < presupuesto.detalles.length) {
-            const budgetDetail = presupuesto.detalles[i];
-            return {
-              tipoMadera: budgetDetail.tipoMadera,
-              unidades: budgetDetail.unidades,
-              ancho: budgetDetail.ancho,
-              alto: budgetDetail.alto,
-              largo: budgetDetail.largo,
-              precioPorPie: budgetDetail.precioPorPie,
-              cepillado: budgetDetail.cepillado ?? false,
-            };
-          }
-          return createEmptyDetalle();
-        });
+        const budgetDetailsToMap = presupuesto.detalles || [];
+        // Prepare details for reset, ensuring the array has at least initialDetallesCount items
+        const mappedSaleDetailsForReset = Array(Math.max(initialDetallesCount, budgetDetailsToMap.length))
+          .fill(null)
+          .map((_, i) => {
+            if (i < budgetDetailsToMap.length) {
+              const { id, ...restOfDetail } = budgetDetailsToMap[i]; // Omit original detail id
+              return { ...createEmptyDetalle(), ...restOfDetail };
+            }
+            return createEmptyDetalle();
+          });
 
         form.reset({
           fecha: new Date(), // Set fecha to current date when converting from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
-          detalles: mappedSaleDetails,
+          detalles: mappedSaleDetailsForReset, // Use the correctly mapped details
           idOriginalPresupuesto: presupuesto.id,
+          fechaEntregaEstimada: undefined, 
+          sena: undefined,
+        });
+
+        // Explicitly set values for each detail item and its fields after reset
+        // This is to ensure Select components pick up the values correctly.
+        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
+          form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
+          form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
+          form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
+          form.setValue(`detalles.${index}.alto`, d_presupuesto_item.alto, { shouldDirty: true });
+          form.setValue(`detalles.${index}.largo`, d_presupuesto_item.largo, { shouldDirty: true });
+          form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
+          form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
         
         form.trigger(); 
@@ -163,7 +170,6 @@ export default function NuevaVentaPage() {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
-      // Leer directamente de initialConfigData
       subtotal += piesTablares * initialConfigData.precioCepilladoPorPie;
     }
     return subtotal;
@@ -179,7 +185,6 @@ export default function NuevaVentaPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
-    // Leer directamente de initialConfigData
     const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
@@ -192,7 +197,7 @@ export default function NuevaVentaPage() {
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && d_form.unidades && d_form.unidades > 0 && typeof d_form.precioPorPie === 'number'
     ).map((d_form, idx) => {
-      const d = d_form as Required<typeof d_form>; // Assert non-optional for calculation
+      const d = d_form as Required<typeof d_form>; 
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0;
@@ -213,6 +218,8 @@ export default function NuevaVentaPage() {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
+      fechaEntregaEstimada: data.fechaEntregaEstimada ? format(data.fechaEntregaEstimada, "yyyy-MM-dd") : undefined,
+      sena: data.sena,
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
       idOriginalPresupuesto: data.idOriginalPresupuesto,
@@ -240,6 +247,8 @@ export default function NuevaVentaPage() {
       fecha: new Date(), 
       nombreComprador: "",
       telefonoComprador: "",
+      fechaEntregaEstimada: undefined,
+      sena: undefined,
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
     });
@@ -257,7 +266,7 @@ export default function NuevaVentaPage() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Información del Comprador y Fecha</CardTitle>
+              <CardTitle>Información del Comprador y Venta</CardTitle>
             </CardHeader>
             <CardContent className="grid md:grid-cols-3 gap-6">
               <FormField
@@ -295,6 +304,42 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Teléfono (Opcional)</FormLabel>
                     <FormControl><Input placeholder="Número de teléfono" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="fechaEntregaEstimada"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Fecha de Entrega Estimada (Opcional)</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sena"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Seña ($) (Opcional)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Ej: 50.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -441,3 +486,4 @@ export default function NuevaVentaPage() {
   );
 }
 
+    

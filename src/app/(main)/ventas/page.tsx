@@ -15,6 +15,8 @@ import { PlusCircle, Trash2, Search, ChevronDown } from "lucide-react";
 import type { Venta } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
@@ -25,6 +27,8 @@ const mockVentasData: Venta[] = [
     fecha: "2024-07-20", 
     nombreComprador: "Juan Pérez", 
     telefonoComprador: "555-8765",
+    fechaEntregaEstimada: "2024-07-25",
+    sena: 50,
     detalles: [
       { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 8, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
       { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 10, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
@@ -106,7 +110,7 @@ export default function VentasPage() {
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
                 {filteredVentas.length > 0 
-                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).` 
+                ? \`Mostrando \${filteredVentas.length} de \${ventas.length} venta(s).\` 
                 : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -138,17 +142,17 @@ export default function VentasPage() {
               {filteredVentas.map((venta) => (
                 <AccordionItem value={venta.id} key={venta.id}>
                   <AccordionTrigger asChild className="hover:no-underline">
-                     <div className={cn(
+                    <div className={cn(
                         "flex w-full items-center py-4 px-2 font-medium text-left group", 
                         "hover:bg-muted/50 rounded-md"
                       )}>
                       <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
                             <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span> {/* Ensure correct date parsing */}
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
                         </div>
                         <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: $\${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                 <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
@@ -171,13 +175,18 @@ export default function VentasPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" />
                         </div>
                       </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="mb-2 text-sm"><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2 mb-2 text-sm">
+                        <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
+                        {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
+                        {typeof venta.sena === 'number' && <p><strong>Seña:</strong> $\${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+                        {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original:</strong> {venta.idOriginalPresupuesto}</p>}
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -198,10 +207,10 @@ export default function VentasPage() {
                             <TableCell>{detalle.unidades}</TableCell>
                             <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>
+                            <TableCell>$\${detalle.valorUnitario?.toFixed(2)}</TableCell>
+                            <TableCell>$\${detalle.precioPorPie.toFixed(2)}</TableCell>
                             <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
-                            <TableCell>${detalle.subTotal?.toFixed(2)}</TableCell>
+                            <TableCell>$\${detalle.subTotal?.toFixed(2)}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
