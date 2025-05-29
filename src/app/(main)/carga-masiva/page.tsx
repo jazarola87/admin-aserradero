@@ -29,16 +29,16 @@ const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number =
 };
 
 const calcularSubtotalVentaItem = (
-    detalle: Partial<VentaDetalle>,
+    detalle: Partial<Omit<VentaDetalle, 'subTotal' | 'piesTablares' | 'valorUnitario' | 'id'>>,
     piesTablares: number,
-    precioCepilladoConfigValue: number
+    precioCepilladoAplicable: number // Precio de cepillado específico para este ítem
   ): number => {
     const precioPorPie = Number(detalle?.precioPorPie) || 0;
     const cepillado = detalle?.cepillado || false;
     if (piesTablares === 0) return 0;
     let subtotal = piesTablares * precioPorPie;
     if (cepillado) {
-      subtotal += piesTablares * precioCepilladoConfigValue;
+      subtotal += piesTablares * precioCepilladoAplicable;
     }
     return subtotal;
   };
@@ -108,7 +108,7 @@ export default function CargaMasivaPage() {
 
       data.push(headers);
       data.push(exampleRow);
-      data.push([]); 
+      data.push([]);
       data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo de Madera'):"]);
       validTimberTypes.forEach(timber => {
         data.push([timber]);
@@ -130,38 +130,35 @@ export default function CargaMasivaPage() {
         "Largo (m, Artículo)",
         "Precio Por Pie ($) (Artículo)",
         "Cepillado (Si/No, Artículo)",
-        "Subtotal ($) (Artículo, Informativo)",
+        "Precio Cepillado Por Pie ($) (Artículo, Opcional)", // Nueva columna
         "Costo Madera Estimado ($) (Artículo, Informativo)",
         "Costo Aserrío Estimado ($) (Artículo, Informativo)"
       ];
 
-      const exampleItem1: Partial<VentaDetalle> = {
-        tipoMadera: 'Roble', unidades: 20, ancho: 6, alto: 2, largo: 3.05, precioPorPie: 5.50, cepillado: true
+      const exampleItem1: Partial<VentaDetalle> & {precioCepilladoEspecifico?: number} = {
+        tipoMadera: 'Roble', unidades: 20, ancho: 6, alto: 2, largo: 3.05, precioPorPie: 5.50, cepillado: true, precioCepilladoEspecifico: 0.60
       };
-      const piesExample1 = calcularPiesTablaresVentaItem(exampleItem1);
-      const subtotalExample1 = calcularSubtotalVentaItem(exampleItem1, piesExample1, initialConfigData.precioCepilladoPorPie);
 
-      const exampleItem2: Partial<VentaDetalle> = {
+      const exampleItem2: Partial<VentaDetalle> & {precioCepilladoEspecifico?: number} = {
         tipoMadera: 'Pino', unidades: 30, ancho: 4, alto: 1, largo: 2.44, precioPorPie: 2.75, cepillado: false
       };
-      const piesExample2 = calcularPiesTablaresVentaItem(exampleItem2);
-      const subtotalExample2 = calcularSubtotalVentaItem(exampleItem2, piesExample2, initialConfigData.precioCepilladoPorPie);
-
 
       const exampleRow1 = [
         'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', 50.00, 25.00,
         exampleItem1.tipoMadera, exampleItem1.unidades, exampleItem1.ancho, exampleItem1.alto, exampleItem1.largo, exampleItem1.precioPorPie, 'Si',
-        subtotalExample1.toFixed(2), 150.25, 30.70 
+        exampleItem1.precioCepilladoEspecifico?.toFixed(2) || "", // Precio cepillado ejemplo
+        150.25, 30.70
       ];
       const exampleRow2 = [
-        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', "", "", 
+        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', "", "",
         exampleItem2.tipoMadera, exampleItem2.unidades, exampleItem2.ancho, exampleItem2.alto, exampleItem2.largo, exampleItem2.precioPorPie, 'No',
-        subtotalExample2.toFixed(2), 80.50, 15.30 
+        "", // Sin precio cepillado si no está cepillado
+        80.50, 15.30
       ];
       data.push(headers);
       data.push(exampleRow1);
       data.push(exampleRow2);
-      data.push([]); 
+      data.push([]);
       data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo Madera (Artículo)'):"]);
       validTimberTypes.forEach(timber => {
         data.push([timber]);
@@ -275,21 +272,19 @@ export default function CargaMasivaPage() {
             jsonData.forEach((row, index) => {
                 const idVenta = String(row["ID Venta (Agrupar filas con mismo ID para una sola venta)"] || "").trim();
                 if (!idVenta) {
-                    // Skip rows without a Sale ID, as they cannot be grouped or processed as a sale.
-                    return; 
+                    return;
                 }
                 if (!ventasAgrupadas[idVenta]) {
                     ventasAgrupadas[idVenta] = [];
                 }
-                ventasAgrupadas[idVenta].push({ ...row, originalRowIndex: index + 2 }); // +2 for header and 0-based index
+                ventasAgrupadas[idVenta].push({ ...row, originalRowIndex: index + 2 });
             });
 
             const nuevasVentas: Venta[] = [];
             for (const idVenta in ventasAgrupadas) {
                 const group = ventasAgrupadas[idVenta];
-                const firstRow = group[0]; // General sale info from the first row of the group
+                const firstRow = group[0];
                 try {
-                    // Validate general sale info
                     const fechaRaw = firstRow["Fecha (YYYY-MM-DD)"];
                     let fechaVenta: string;
                     if (fechaRaw instanceof Date && isValid(fechaRaw)) {
@@ -314,7 +309,6 @@ export default function CargaMasivaPage() {
                         } else if (typeof fechaEntregaRaw === 'number') {
                             const d = XLSX.SSF.parse_date_code(fechaEntregaRaw);
                             if (d) fechaEntregaEstimada = format(new Date(d.y, d.m-1,d.d,d.H,d.M,d.S), "yyyy-MM-dd");
-                            // No error thrown if invalid, just remains undefined
                         }
                     }
 
@@ -325,11 +319,9 @@ export default function CargaMasivaPage() {
                     const sena = senaStr ? parseFloat(senaStr) : undefined;
                     if (senaStr && isNaN(sena!)) throw new Error("Valor de Seña inválido.");
 
-
                     const costoOperarioStr = String(firstRow["Costo Operario ($) (Opcional, ingresar una vez por ID Venta)"] || "0");
                     const costoOperario = costoOperarioStr ? parseFloat(costoOperarioStr) : undefined;
                     if (costoOperarioStr && isNaN(costoOperario!)) throw new Error("Valor de Costo Operario inválido.");
-
 
                     let acumuladoCostoMaderaExcel = 0;
                     let acumuladoCostoAserrioExcel = 0;
@@ -346,19 +338,31 @@ export default function CargaMasivaPage() {
                         const ancho = parseFloat(String(itemRow["Ancho (pulg, Artículo)"] || "0"));
                         const alto = parseFloat(String(itemRow["Alto (pulg, Artículo)"] || "0"));
                         const largo = parseFloat(String(itemRow["Largo (m, Artículo)"] || "0"));
-                        const precioPorPie = parseFloat(String(itemRow["Precio Por Pie ($) (Artículo)"] || "0"));
+                        const precioPorPieItem = parseFloat(String(itemRow["Precio Por Pie ($) (Artículo)"] || "0"));
                         const cepilladoStr = String(itemRow["Cepillado (Si/No, Artículo)"] || "No").trim().toLowerCase();
 
                         if (isNaN(unidades) || unidades <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Unidades inválidas.`);
                         if (isNaN(ancho) || ancho <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Ancho inválido.`);
                         if (isNaN(alto) || alto <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Alto inválido.`);
                         if (isNaN(largo) || largo <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Largo inválido.`);
-                        if (isNaN(precioPorPie) || precioPorPie <0) throw new Error(`Fila ${itemRow.originalRowIndex}: Precio por pie inválido.`);
+                        if (isNaN(precioPorPieItem) || precioPorPieItem <0) throw new Error(`Fila ${itemRow.originalRowIndex}: Precio por pie inválido.`);
                         if (!['si', 'no'].includes(cepilladoStr)) throw new Error(`Fila ${itemRow.originalRowIndex}: Valor de Cepillado debe ser 'Si' o 'No'.`);
 
                         const cepillado = cepilladoStr === 'si';
                         const piesTablares = calcularPiesTablaresVentaItem({ unidades, ancho, alto, largo });
-                        const subTotal = calcularSubtotalVentaItem({ precioPorPie, cepillado }, piesTablares, initialConfigData.precioCepilladoPorPie);
+
+                        let precioCepilladoAplicable = 0;
+                        if (cepillado) {
+                            const precioCepilladoItemExcelStr = String(itemRow["Precio Cepillado Por Pie ($) (Artículo, Opcional)"] || "").trim();
+                            const precioCepilladoItemExcel = parseFloat(precioCepilladoItemExcelStr);
+                            if (precioCepilladoItemExcelStr && !isNaN(precioCepilladoItemExcel) && precioCepilladoItemExcel >= 0) {
+                                precioCepilladoAplicable = precioCepilladoItemExcel;
+                            } else {
+                                precioCepilladoAplicable = initialConfigData.precioCepilladoPorPie; // Fallback al global
+                            }
+                        }
+                        
+                        const subTotal = calcularSubtotalVentaItem({ precioPorPie: precioPorPieItem, cepillado }, piesTablares, precioCepilladoAplicable);
 
                         const costoMaderaItemExcelStr = String(itemRow["Costo Madera Estimado ($) (Artículo, Informativo)"] || "").trim();
                         const costoMaderaItemExcel = parseFloat(costoMaderaItemExcelStr);
@@ -366,10 +370,8 @@ export default function CargaMasivaPage() {
                             acumuladoCostoMaderaExcel += costoMaderaItemExcel;
                             seEncontroCostoMaderaEnExcel = true;
                         } else if (costoMaderaItemExcelStr && (isNaN(costoMaderaItemExcel) || costoMaderaItemExcel < 0)) {
-                            // Optional: throw error or log warning if value is present but invalid
                             console.warn(`Fila ${itemRow.originalRowIndex}: Costo Madera Estimado inválido, se recalculará. Valor: '${costoMaderaItemExcelStr}'`);
                         }
-
 
                         const costoAserrioItemExcelStr = String(itemRow["Costo Aserrío Estimado ($) (Artículo, Informativo)"] || "").trim();
                         const costoAserrioItemExcel = parseFloat(costoAserrioItemExcelStr);
@@ -380,18 +382,17 @@ export default function CargaMasivaPage() {
                             console.warn(`Fila ${itemRow.originalRowIndex}: Costo Aserrío Estimado inválido, se recalculará. Valor: '${costoAserrioItemExcelStr}'`);
                         }
 
-
                         return {
                             id: `vd-bulk-${Date.now()}-${itemIndex}-${Math.random().toString(36).substring(2,7)}`,
                             tipoMadera: tipoMaderaItem,
-                            unidades, ancho, alto, largo, precioPorPie, cepillado,
+                            unidades, ancho, alto, largo, precioPorPie: precioPorPieItem, cepillado,
                             piesTablares,
                             subTotal,
                             valorUnitario: unidades > 0 ? subTotal / unidades : 0,
                         };
                     });
-                    
-                    const configActual = initialConfigData; // Use the current config data
+
+                    const configActual = initialConfigData;
                     const costoMaderaSnapshot = seEncontroCostoMaderaEnExcel
                         ? acumuladoCostoMaderaExcel
                         : calcularCostoMaderaTotalParaVenta(detallesVenta, configActual);
@@ -417,7 +418,6 @@ export default function CargaMasivaPage() {
                     processedCount++;
                 } catch (e: any) {
                     errorCount++;
-                    // Use firstRow.originalRowIndex or a specific itemRow.originalRowIndex if error is item-specific
                     errorRows.push({ row: firstRow.originalRowIndex, message: `Error procesando Venta ID ${idVenta}: ${e.message || "Error desconocido"}`, data: firstRow });
                 }
             }
@@ -439,8 +439,6 @@ export default function CargaMasivaPage() {
 
           if (errorCount > 0) {
             console.error("Errores durante la carga masiva:", errorRows);
-            // Optionally, you could try to generate a more user-friendly error report for download
-            // For now, console log is the primary way to see detailed errors.
             toast({
                 title: "Detalle de Errores",
                 description: "Algunos registros no pudieron ser procesados. Revise la consola del navegador (F12) para más detalles.",
@@ -451,10 +449,9 @@ export default function CargaMasivaPage() {
 
         } catch (parseError: any) {
           toast({ title: "Error de Procesamiento", description: `No se pudo procesar el archivo: ${parseError.message}`, variant: "destructive" });
-          errorCount = jsonData?.length || 1; // If jsonData is not even parsed, assume all rows failed
+          errorCount = jsonData?.length || 1;
         } finally {
           setIsProcessing(false);
-          // Clear file input after processing
           if (type === 'compras' && document.getElementById('compras-file-upload')) {
             setComprasFile(null);
             (document.getElementById('compras-file-upload') as HTMLInputElement).value = "";
@@ -501,7 +498,7 @@ export default function CargaMasivaPage() {
               <Input
                 id="compras-file-upload"
                 type="file"
-                accept=".xlsx"
+                accept=".xlsx,.csv"
                 onChange={(e) => handleFileChange(e, 'compras')}
                 disabled={isProcessing}
               />
@@ -534,7 +531,7 @@ export default function CargaMasivaPage() {
               <Input
                 id="ventas-file-upload"
                 type="file"
-                accept=".xlsx"
+                accept=".xlsx,.csv"
                 onChange={(e) => handleFileChange(e, 'ventas')}
                 disabled={isProcessing}
               />
@@ -547,7 +544,8 @@ export default function CargaMasivaPage() {
             <p className="text-xs text-muted-foreground pt-2">
               Asegúrese de que los 'Tipos de Madera (Artículo)' coincidan con los nombres exactos de la plantilla.
               Para ventas con múltiples artículos, use el mismo 'ID Venta' para todas las filas correspondientes. Las filas sin 'ID Venta' serán omitidas.
-              Si completa las columnas "Costo Madera Estimado" y "Costo Aserrío Estimado", esos valores se usarán; de lo contrario, el sistema los calculará.
+              Si completa "Precio Cepillado Por Pie ($) (Artículo, Opcional)", ese valor se usará para ese artículo; de lo contrario, se usará el precio de cepillado global del sistema.
+              Si completa "Costo Madera Estimado" y "Costo Aserrío Estimado", esos valores se usarán; de lo contrario, el sistema los calculará.
             </p>
           </CardContent>
         </Card>
@@ -555,3 +553,5 @@ export default function CargaMasivaPage() {
     </div>
   );
 }
+
+    
