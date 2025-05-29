@@ -2,7 +2,7 @@
 import type { Configuracion } from '@/types';
 
 // Mock initial config data that can be imported by multiple pages
-export const initialConfigData: Configuracion = {
+export let initialConfigData: Configuracion = {
   nombreAserradero: "Aserradero El Roble",
   logoUrl: "https://placehold.co/150x150.png?text=Logo",
   preciosMadera: [
@@ -13,3 +13,14 @@ export const initialConfigData: Configuracion = {
   ],
   precioCepilladoPorPie: 0.50,
 };
+
+export function updateConfigData(newConfig: Partial<Configuracion>) {
+  initialConfigData = {
+    ...initialConfigData,
+    ...newConfig,
+    // Ensure preciosMadera is completely replaced if provided, not merged deeply
+    preciosMadera: newConfig.preciosMadera !== undefined ? newConfig.preciosMadera : initialConfigData.preciosMadera,
+  };
+  // This console log helps confirm the update in a development environment
+  console.log("ConfigData updated:", initialConfigData);
+}

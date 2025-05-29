@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Save, PlusCircle, Trash2, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
-import { initialConfigData } from "@/lib/config-data"; // Import shared config data
+import { initialConfigData, updateConfigData } from "@/lib/config-data"; // Import shared config data and update function
 import type { Configuracion as ConfiguracionFormValues } from "@/types"; // Use the type directly
 
 const precioMaderaSchema = z.object({
@@ -54,11 +54,8 @@ export default function CostosPage() {
   });
 
   function onSubmit(data: ConfiguracionFormValues) {
+    updateConfigData(data); // Update the shared configuration object
     console.log("Configuración de Costos Guardada:", data);
-    // In a real app, save this data to a backend or persistent storage
-    // For now, this updates a global mock or would require a state management solution
-    // to reflect in other parts of the app like the sales form.
-    // For this prototype, we'll assume initialConfigData could be updated elsewhere if needed.
     toast({
       title: "Costos Guardados",
       description: "Los cambios en la configuración de costos han sido guardados exitosamente.",
@@ -67,6 +64,12 @@ export default function CostosPage() {
   }
 
   const logoPreview = form.watch("logoUrl");
+
+  // Reset form if initialConfigData changes (e.g., due to external update, though not typical in this setup)
+  // This is more to ensure the form reflects the 'source of truth' if it were to change.
+  // React.useEffect(() => {
+  //   form.reset(initialConfigData);
+  // }, [initialConfigData, form]);
 
   return (
     <div className="container mx-auto py-6">
