@@ -9,16 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, Pencil } from "lucide-react"; // Importar Pencil
+import { PlusCircle, Trash2, Search, Pencil } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
 const mockComprasData: Compra[] = [
-  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
-  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, costo: 3000, proveedor: "Bosques del Norte Ltda." },
-  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, costo: 2250, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
+  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, precioPorMetroCubico: 500, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
+  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, precioPorMetroCubico: 1500, costo: 3000, proveedor: "Bosques del Norte Ltda." },
+  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, precioPorMetroCubico: 1500, costo: 2250, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
 ];
 
 
@@ -125,6 +125,7 @@ export default function ComprasPage() {
                   <TableHead>Fecha</TableHead>
                   <TableHead>Tipo de Madera</TableHead>
                   <TableHead>Volumen (m³)</TableHead>
+                  <TableHead>Precio/m³</TableHead>
                   <TableHead>Costo Total</TableHead>
                   <TableHead>Proveedor</TableHead>
                   <TableHead>Teléfono</TableHead>
@@ -137,6 +138,7 @@ export default function ComprasPage() {
                     <TableCell>{new Date(compra.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</TableCell> 
                     <TableCell>{compra.tipoMadera}</TableCell>
                     <TableCell>{compra.volumen} m³</TableCell>
+                    <TableCell>${(compra.precioPorMetroCubico ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>${compra.costo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{compra.proveedor}</TableCell>
                     <TableCell>{compra.telefonoProveedor || "N/A"}</TableCell>

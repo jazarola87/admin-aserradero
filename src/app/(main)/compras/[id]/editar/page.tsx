@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react"; // Added React import
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -42,9 +42,12 @@ const compraFormSchema = z.object({
   volumen: z.coerce.number().positive({
     message: "El volumen debe ser un número positivo.",
   }),
-  costo: z.coerce.number().positive({
-    message: "El costo debe ser un número positivo.",
+  precioPorMetroCubico: z.coerce.number().positive({
+    message: "El precio por m³ debe ser un número positivo.",
   }),
+  costo: z.coerce.number().nonnegative({
+    message: "El costo total no puede ser negativo."
+  }), // Se calculará
   proveedor: z.string().min(2, {
     message: "El nombre del proveedor debe tener al menos 2 caracteres.",
   }),
@@ -69,9 +72,22 @@ export default function EditarCompraPage() {
       proveedor: "",
       telefonoProveedor: "",
       volumen: undefined,
-      costo: undefined,
+      precioPorMetroCubico: undefined,
+      costo: 0,
     },
   });
+
+  const watchedVolumen = form.watch("volumen");
+  const watchedPrecioPorMetroCubico = form.watch("precioPorMetroCubico");
+
+  useEffect(() => {
+    const vol = Number(watchedVolumen) || 0;
+    const precioM3 = Number(watchedPrecioPorMetroCubico) || 0;
+    const total = vol * precioM3;
+    if (form.getValues("costo") !== total) { // Evitar bucle si el valor ya es correcto
+      form.setValue("costo", total, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [watchedVolumen, watchedPrecioPorMetroCubico, form]);
 
   useEffect(() => {
     if (compraId && typeof window !== 'undefined') {
@@ -80,11 +96,17 @@ export default function EditarCompraPage() {
       const compraAEditar = comprasActuales.find(c => c.id === compraId);
 
       if (compraAEditar) {
+        let precioM3Calculado = compraAEditar.precioPorMetroCubico;
+        if (precioM3Calculado === undefined && compraAEditar.volumen > 0) {
+            precioM3Calculado = compraAEditar.costo / compraAEditar.volumen;
+        }
+
         form.reset({
           ...compraAEditar,
           fecha: compraAEditar.fecha ? parseISO(compraAEditar.fecha) : new Date(),
           volumen: compraAEditar.volumen ?? undefined,
-          costo: compraAEditar.costo ?? undefined,
+          precioPorMetroCubico: precioM3Calculado ?? undefined,
+          costo: compraAEditar.costo ?? 0, // El costo total original
           telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
         });
       } else {
@@ -103,7 +125,7 @@ export default function EditarCompraPage() {
     if (!compraId) return;
 
     const compraActualizada: Compra = {
-      ...data,
+      ...data, // incluye el costo calculado
       id: compraId,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
@@ -115,6 +137,7 @@ export default function EditarCompraPage() {
       if (index !== -1) {
         comprasActuales[index] = compraActualizada;
       } else {
+        // Esto no debería pasar si la carga inicial fue exitosa
         comprasActuales.push(compraActualizada);
       }
       localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
@@ -218,7 +241,21 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Volumen (m³)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="precioPorMetroCubico"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Precio por Metro Cúbico ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -230,9 +267,9 @@ export default function EditarCompraPage() {
                 name="costo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Costo Total ($)</FormLabel>
+                    <FormLabel>Costo Total Calculado ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 3500.50" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                       <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none"/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -279,5 +316,3 @@ export default function EditarCompraPage() {
     </div>
   );
 }
-
-    

@@ -4,36 +4,37 @@ export interface Compra {
   fecha: string; // Consider using Date object or ISO string
   tipoMadera: string;
   volumen: number; // e.g., in m^3
-  costo: number;
+  precioPorMetroCubico?: number; // NUEVO CAMPO
+  costo: number; // Este será el total: volumen * precioPorMetroCubico
   proveedor: string;
   telefonoProveedor?: string;
 }
 
 export interface VentaDetalle {
-  id: string; // Could be uuid or similar for actual items
-  tipoMadera?: string; // Made optional to align with form state
+  id: string;
+  tipoMadera?: string;
   unidades?: number;
   ancho?: number; // pulgadas
   alto?: number; // pulgadas (espesor)
   largo?: number; // metros
   precioPorPie?: number;
   cepillado?: boolean;
-  piesTablares?: number; // auto-calculado
-  subTotal?: number; // auto-calculado
-  valorUnitario?: number; // auto-calculado
+  piesTablares?: number;
+  subTotal?: number;
+  valorUnitario?: number;
 }
 
 export interface Venta {
   id: string;
-  fecha: string; // Consider using Date object or ISO string
+  fecha: string;
   nombreComprador: string;
   telefonoComprador?: string;
   detalles: VentaDetalle[];
-  totalVenta?: number; // sum of subTotals
-  idOriginalPresupuesto?: string; // To track if it came from a budget
-  fechaEntregaEstimada?: string; // Fecha estimada de entrega (YYYY-MM-DD)
-  sena?: number; // Monto de la seña
-  costoOperario?: number; // Costo adicional por operario
+  totalVenta?: number;
+  idOriginalPresupuesto?: string;
+  fechaEntregaEstimada?: string;
+  sena?: number;
+  costoOperario?: number;
 }
 
 export interface PresupuestoDetalle {
@@ -60,24 +61,22 @@ export interface Presupuesto {
 }
 
 
-export interface PrecioMadera { // Selling price per board foot
+export interface PrecioMadera {
   tipoMadera: string;
   precioPorPie: number;
 }
 
-export interface CostoMaderaMetroCubico { // Cost price per cubic meter
-  tipoMadera: string; // Should match a tipoMadera from PrecioMadera
+export interface CostoMaderaMetroCubico {
+  tipoMadera: string;
   costoPorMetroCubico: number;
 }
 
 export interface Configuracion {
   nombreAserradero: string;
-  logoUrl?: string; // Can be a URL or a Data URI
+  logoUrl?: string;
   lemaEmpresa?: string;
-  preciosMadera: PrecioMadera[]; // Selling prices per board foot
+  preciosMadera: PrecioMadera[];
   precioCepilladoPorPie: number;
-
-  // New fields for operational costs
   precioLitroNafta?: number;
   precioAfiladoSierra?: number;
   costosMaderaMetroCubico?: CostoMaderaMetroCubico[];

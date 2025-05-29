@@ -1,6 +1,7 @@
 
 "use client";
 
+import React, { useEffect } from "react"; // Added React import
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -41,9 +42,12 @@ const compraFormSchema = z.object({
   volumen: z.coerce.number().positive({
     message: "El volumen debe ser un número positivo.",
   }),
-  costo: z.coerce.number().positive({
-    message: "El costo debe ser un número positivo.",
+  precioPorMetroCubico: z.coerce.number().positive({
+    message: "El precio por m³ debe ser un número positivo.",
   }),
+  costo: z.coerce.number().nonnegative({
+    message: "El costo total no puede ser negativo."
+  }), // Se calculará, pero es bueno tenerlo en el schema
   proveedor: z.string().min(2, {
     message: "El nombre del proveedor debe tener al menos 2 caracteres.",
   }),
@@ -63,13 +67,24 @@ export default function NuevaCompraPage() {
       proveedor: "",
       telefonoProveedor: "",
       volumen: undefined,
-      costo: undefined,
+      precioPorMetroCubico: undefined,
+      costo: 0,
     },
   });
 
+  const watchedVolumen = form.watch("volumen");
+  const watchedPrecioPorMetroCubico = form.watch("precioPorMetroCubico");
+
+  useEffect(() => {
+    const vol = Number(watchedVolumen) || 0;
+    const precioM3 = Number(watchedPrecioPorMetroCubico) || 0;
+    const total = vol * precioM3;
+    form.setValue("costo", total, { shouldValidate: true, shouldDirty: true });
+  }, [watchedVolumen, watchedPrecioPorMetroCubico, form]);
+
   function onSubmit(data: CompraFormValues) {
     const nuevaCompra: Compra = {
-      ...data,
+      ...data, // Incluye el costo calculado
       id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
@@ -90,7 +105,8 @@ export default function NuevaCompraPage() {
       fecha: new Date(),
       tipoMadera: "",
       volumen: undefined, 
-      costo: undefined,
+      precioPorMetroCubico: undefined,
+      costo: 0,
       proveedor: "",
       telefonoProveedor: "",
     });
@@ -185,7 +201,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Volumen (m³)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormDescription>Cantidad de madera en metros cúbicos.</FormDescription>
                     <FormMessage />
@@ -195,14 +211,29 @@ export default function NuevaCompraPage() {
 
               <FormField
                 control={form.control}
+                name="precioPorMetroCubico"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Precio por Metro Cúbico ($)</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                    </FormControl>
+                    <FormDescription>Costo de la madera por cada metro cúbico.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
                 name="costo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Costo Total ($)</FormLabel>
+                    <FormLabel>Costo Total Calculado ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 3500.50" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none"/>
                     </FormControl>
-                    <FormDescription>Costo total de la compra.</FormDescription>
+                    <FormDescription>Costo total de la compra (volumen x precio/m³).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -248,5 +279,3 @@ export default function NuevaCompraPage() {
     </div>
   );
 }
-
-    
