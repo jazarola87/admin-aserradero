@@ -81,7 +81,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, // Will be set by useEffect
+      fecha: undefined, 
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
@@ -95,18 +95,19 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const detallesVenta = presupuesto.detalles.map(d_presupuesto_item => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { id, ...restOfPresupuestoDetail } = d_presupuesto_item; // Omit 'id' from budget detail
-          return {
-            ...createEmptyDetalle(),    // Start with schema-defined defaults (e.g., tipoMadera: undefined)
-            ...restOfPresupuestoDetail, // Spread actual values from budget (this will set tipoMadera, precioPorPie, etc.)
-          };
+        const detallesVenta = Array(initialDetallesCount).fill(null).map((_, i) => {
+            const budgetDetail = presupuesto.detalles[i];
+            if (budgetDetail) {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { id, piesTablares, subTotal, valorUnitario, ...restOfPresupuestoDetail } = budgetDetail;
+                return {
+                    ...createEmptyDetalle(),
+                    ...restOfPresupuestoDetail, // Spreads tipoMadera, precioPorPie, etc.
+                };
+            }
+            return createEmptyDetalle();
         });
 
-        while(detallesVenta.length < initialDetallesCount) {
-            detallesVenta.push(createEmptyDetalle());
-        }
 
         form.reset({
           fecha: new Date(), // Set fecha to current date when converting from budget
@@ -115,6 +116,7 @@ export default function NuevaVentaPage() {
           detalles: detallesVenta,
           idOriginalPresupuesto: presupuesto.id,
         });
+        form.trigger(); // Trigger validation and re-render for all fields
         
         toast({
           title: "Presupuesto Cargado para Venta",
@@ -127,13 +129,13 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) {
+        if (!form.getValues('fecha')) { // Ensure date is set if budget load fails but form was empty
           form.setValue('fecha', new Date());
         }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
-    } else if (!form.getValues('fecha')) {
+    } else if (!form.getValues('fecha')) { // If no budget to load and date is not set, set it
       form.setValue('fecha', new Date());
     }
   }, [form, toast]);
@@ -184,8 +186,8 @@ export default function NuevaVentaPage() {
     ).map(d => {
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
-      const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0; // Added check for sub > 0
-      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit } as VentaDetalleType;
+      const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0;
+      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit, id: `vd-${Date.now()}-${Math.random()}` } as VentaDetalleType;
     });
 
     if (processedDetalles.length === 0) {
@@ -197,18 +199,25 @@ export default function NuevaVentaPage() {
       return;
     }
 
-    const processedData = {
+    const nuevaVenta = {
       ...data,
+      id: `venta-${Date.now()}`,
+      fecha: format(data.fecha, "yyyy-MM-dd"),
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
     };
 
-    console.log("Nueva Venta Data:", processedData);
-    // TODO: Actually save the sale data (e.g., to mock data array, API, etc.)
+    if (typeof window !== 'undefined') {
+        const storedVentas = localStorage.getItem('ventasList');
+        const ventasActuales: typeof nuevaVenta[] = storedVentas ? JSON.parse(storedVentas) : [];
+        ventasActuales.push(nuevaVenta);
+        localStorage.setItem('ventasList', JSON.stringify(ventasActuales));
+    }
+    
+    console.log("Nueva Venta Data:", nuevaVenta);
     toast({
       title: "Venta Registrada",
-      description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${processedData.totalVenta.toFixed(2)}`,
-      variant: "default"
+      description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
     });
 
     if (data.idOriginalPresupuesto) {
@@ -305,7 +314,7 @@ export default function NuevaVentaPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {fields.map((field, index) => {
+                    {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
@@ -313,14 +322,17 @@ export default function NuevaVentaPage() {
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
                       return (
-                        <TableRow key={field.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
+                        <TableRow key={item.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
                           <TableCell className="p-1">
                             <FormField
                               control={form.control}
                               name={`detalles.${index}.tipoMadera`}
                               render={({ field: maderaField }) => (
                                 <FormItem>
-                                  <Select onValueChange={(value) => handleTipoMaderaChange(value, index)} value={maderaField.value || ""}>
+                                  <Select
+                                    onValueChange={(value) => handleTipoMaderaChange(value, index)}
+                                    value={maderaField.value}
+                                  >
                                     <FormControl>
                                       <SelectTrigger>
                                         <SelectValue placeholder="Seleccione tipo" />
