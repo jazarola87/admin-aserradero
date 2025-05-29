@@ -27,6 +27,8 @@ import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
 import { useRouter, useParams } from "next/navigation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { initialConfigData } from "@/lib/config-data";
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
@@ -34,8 +36,8 @@ const compraFormSchema = z.object({
   fecha: z.date({
     required_error: "La fecha de compra es obligatoria.",
   }),
-  tipoMadera: z.string().min(2, {
-    message: "El tipo de madera debe tener al menos 2 caracteres.",
+  tipoMadera: z.string().min(1, {
+    message: "Debe seleccionar un tipo de madera.",
   }),
   volumen: z.coerce.number().positive({
     message: "El volumen debe ser un número positivo.",
@@ -81,7 +83,6 @@ export default function EditarCompraPage() {
         form.reset({
           ...compraAEditar,
           fecha: compraAEditar.fecha ? parseISO(compraAEditar.fecha) : new Date(),
-          // Asegurarse de que los campos numéricos opcionales se manejen si son undefined
           volumen: compraAEditar.volumen ?? undefined,
           costo: compraAEditar.costo ?? undefined,
           telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
@@ -114,8 +115,7 @@ export default function EditarCompraPage() {
       if (index !== -1) {
         comprasActuales[index] = compraActualizada;
       } else {
-        // Opcional: manejar el caso en que la compra ya no exista, aunque el useEffect ya lo haría.
-        comprasActuales.push(compraActualizada); // O mostrar error
+        comprasActuales.push(compraActualizada);
       }
       localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
     }
@@ -191,9 +191,21 @@ export default function EditarCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: Pino, Roble, Cedro" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione un tipo de madera" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {initialConfigData.preciosMadera.map((madera) => (
+                          <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                            {madera.tipoMadera}
+                          </SelectItem>
+                        ))}
+                        {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -267,3 +279,5 @@ export default function EditarCompraPage() {
     </div>
   );
 }
+
+    

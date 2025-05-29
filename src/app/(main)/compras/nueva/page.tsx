@@ -25,7 +25,9 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
-import { useRouter } from "next/navigation"; // Importar useRouter
+import { useRouter } from "next/navigation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { initialConfigData } from "@/lib/config-data";
 
 const COMPRAS_STORAGE_KEY = 'comprasList';
 
@@ -33,8 +35,8 @@ const compraFormSchema = z.object({
   fecha: z.date({
     required_error: "La fecha de compra es obligatoria.",
   }),
-  tipoMadera: z.string().min(2, {
-    message: "El tipo de madera debe tener al menos 2 caracteres.",
+  tipoMadera: z.string().min(1, {
+    message: "Debe seleccionar un tipo de madera.",
   }),
   volumen: z.coerce.number().positive({
     message: "El volumen debe ser un número positivo.",
@@ -52,7 +54,7 @@ type CompraFormValues = z.infer<typeof compraFormSchema>;
 
 export default function NuevaCompraPage() {
   const { toast } = useToast();
-  const router = useRouter(); // Inicializar useRouter
+  const router = useRouter();
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
     defaultValues: {
@@ -92,7 +94,7 @@ export default function NuevaCompraPage() {
       proveedor: "",
       telefonoProveedor: "",
     });
-    router.push('/compras'); // Redirigir a la página de listado
+    router.push('/compras');
   }
 
   return (
@@ -155,9 +157,21 @@ export default function NuevaCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej: Pino, Roble, Cedro" {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccione un tipo de madera" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {initialConfigData.preciosMadera.map((madera) => (
+                          <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                            {madera.tipoMadera}
+                          </SelectItem>
+                        ))}
+                         {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                      </SelectContent>
+                    </Select>
                     <FormDescription>Especifique el tipo de madera adquirida.</FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -234,3 +248,5 @@ export default function NuevaCompraPage() {
     </div>
   );
 }
+
+    

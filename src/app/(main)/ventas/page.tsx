@@ -22,11 +22,12 @@ import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
-    const unidades = Number(detalle.unidades) || 0;
-    const alto = Number(detalle.alto) || 0;
-    const ancho = Number(detalle.ancho) || 0;
-    const largo = Number(detalle.largo) || 0; 
+// Helper function to calculate board feet for a single sale item
+const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
+    const unidades = Number(detalle?.unidades) || 0;
+    const alto = Number(detalle?.alto) || 0;
+    const ancho = Number(detalle?.ancho) || 0;
+    const largo = Number(detalle?.largo) || 0; 
   
     if (!unidades || !alto || !ancho || !largo) return 0;
     return unidades * alto * ancho * largo * 0.2734;
@@ -34,18 +35,19 @@ const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
 
 interface VentaItemProps {
   venta: Venta;
+  config: Configuracion;
   onDelete: (id: string) => void;
-  onMarkAsPaid: (id: string) => void; // Nueva prop
+  onMarkAsPaid: (id: string) => void;
 }
 
-function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
+function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
   
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
-    const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
+    const currentCostosMaderaMetroCubico = Array.isArray(config.costosMaderaMetroCubico) ? config.costosMaderaMetroCubico : [];
     (venta.detalles || []).forEach(detalle => {
       if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
-        const piesTablaresArticulo = calcularPiesTablaresVenta(detalle);
+        const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
         if (piesTablaresArticulo > 0) {
           const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
@@ -54,26 +56,25 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
       }
     });
     return costoTotal;
-  }, [venta.detalles]);
+  }, [venta.detalles, config.costosMaderaMetroCubico]);
 
   const costoTotalAserrioVenta = useMemo(() => {
-    const precioNafta = Number(initialConfigData.precioLitroNafta) || 0;
-    const precioAfilado = Number(initialConfigData.precioAfiladoSierra) || 0;
+    const precioNafta = Number(config.precioLitroNafta) || 0;
+    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
 
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
-    // Asegurar que costoAserrioPorPie no sea NaN si costoOperativoAjustado es 0
     const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
 
     const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
       if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
-        return acc + calcularPiesTablaresVenta(detalle);
+        return acc + calcularPiesTablaresVentaItem(detalle);
       }
       return acc;
     }, 0);
 
     return totalPiesTablaresVenta * costoAserrioPorPie;
-  }, [venta.detalles]);
+  }, [venta.detalles, config.precioLitroNafta, config.precioAfiladoSierra]);
 
   const costoOperarioActual = Number(venta.costoOperario) || 0;
 
@@ -84,7 +85,6 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
   const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const valorLucas = costoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
 
-
   const senaActual = Number(venta.sena) || 0;
   const saldoPendiente = (Number(venta.totalVenta) || 0) - senaActual;
 
@@ -92,12 +92,13 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
     const totalVentaNum = Number(venta.totalVenta) || 0;
     const senaNum = Number(venta.sena) || 0;
 
-    if (totalVentaNum <= 0) return { texto: "N/A", variant: "outline" }; // Si no hay total, no se puede determinar estado
+    if (totalVentaNum <= 0) return { texto: "N/A", variant: "outline" };
 
     if (senaNum >= totalVentaNum) {
       return { texto: "Cobrado", variant: "default" };
     } else if (senaNum > 0 && senaNum < totalVentaNum) {
-      return { texto: "Parcialmente Cobrado", variant: "secondary" };
+      const saldo = totalVentaNum - senaNum;
+      return { texto: `Parcialmente Cobrado (Resta: $${saldo.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, variant: "secondary" };
     } else {
       return { texto: "Pendiente", variant: "destructive" };
     }
@@ -114,10 +115,12 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
             "hover:bg-muted/50 rounded-md"
           )}>
           <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-x-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
                 <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
-                <Badge variant={estadoCobro.variant} className="w-fit mt-1 sm:mt-0">{estadoCobro.texto}</Badge>
-                <span className="text-sm text-muted-foreground block sm:inline mt-1 sm:mt-0">
+                <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto">
+                  {estadoCobro.texto}
+                </Badge>
+                <span className="text-sm text-muted-foreground block sm:inline">
                   Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}
                 </span>
             </div>
@@ -130,7 +133,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
                     size="sm" 
                     className="text-xs h-8 px-2"
                     onClick={(e) => { e.stopPropagation(); onMarkAsPaid(venta.id); }}
-                    title="Marcar como Cobrado"
+                    title="Marcar como Cobrado Totalmente"
                   >
                     <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
                     <span className="hidden sm:inline">Cobrado</span>
@@ -206,15 +209,15 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
             ))}
           </TableBody>
         </Table>
-        <div className="mt-6 p-4 border rounded-md space-y-1 text-sm text-right">
-            <div className="flex justify-between text-lg">
+        <div className="mt-6 p-4 border rounded-md space-y-1 text-sm">
+            <div className="flex justify-between text-lg font-semibold">
               <span>Total Venta:</span>
-              <span className="font-semibold text-primary">${(venta.totalVenta || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
+              <span className="text-primary">${(venta.totalVenta || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             {senaActual > 0 && (
               <>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Seña Aplicada:</span>
+                <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Seña Aplicada:</span>
                     <span className="text-destructive">-${(Number(senaActual) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold">
@@ -223,7 +226,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
                 </div>
               </>
             )}
-            <Separator className="my-1" />
+            <Separator className="my-2" />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Total Madera:</span>
               <span>${costoTotalMaderaVenta.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
@@ -236,12 +239,12 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
               <span className="text-muted-foreground">Costo Operario:</span>
               <span>${costoOperarioActual.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
-             <Separator className="my-1" />
+             <Separator className="my-2" />
             <div className="flex justify-between font-semibold">
               <span>Ganancia Neta Estimada:</span>
               <span>${gananciaNetaEstimada.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
-            <Separator className="my-1" />
+            <Separator className="my-2" />
             <div className="flex justify-between">
                 <span>Javier (Madera + 50% Gan. Neta):</span>
                 <span>${(Number(valorJavier) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
@@ -282,13 +285,15 @@ export default function VentasPage() {
             if(Array.isArray(parsedVentas)) {
               setVentas(parsedVentas);
             } else {
-              updateVentasListAndStorage(mockVentasData);
+              // Fallback if localStorage data is not an array
+              updateVentasListAndStorage(mockVentasData); 
             }
           } catch (e) {
             console.error("Error parsing ventas from localStorage", e);
             updateVentasListAndStorage(mockVentasData);
           }
         } else {
+          // No data in localStorage, initialize with mock or empty
           updateVentasListAndStorage(mockVentasData);
         }
       }
@@ -380,7 +385,7 @@ export default function VentasPage() {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
-                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
+                <VentaItem key={venta.id} venta={venta} config={initialConfigData} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
               ))}
             </Accordion>
           )}
@@ -389,3 +394,5 @@ export default function VentasPage() {
     </div>
   );
 }
+
+    
