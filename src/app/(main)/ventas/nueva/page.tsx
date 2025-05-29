@@ -80,7 +80,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined,
+      fecha: undefined, // Will be set by useEffect
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -95,22 +95,19 @@ export default function NuevaVentaPage() {
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        const budgetDetailsToMap = presupuesto.detalles || [];
-        const defaultDetailsArray = Array(Math.max(initialDetallesCount, budgetDetailsToMap.length)).fill(null).map(() => createEmptyDetalle());
-
+        
         form.reset({
-          fecha: new Date(), // Use current date for new sale from budget
+          fecha: new Date(), // Set to current date for new sale
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           idOriginalPresupuesto: presupuesto.id,
-          fechaEntregaEstimada: undefined,
-          sena: undefined,
-          detalles: defaultDetailsArray,
+          fechaEntregaEstimada: undefined, // Or map from budget if it exists there
+          sena: undefined, // Or map from budget if it exists there
+          // Initialize details with enough empty rows, then populate
+          detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
         });
 
-        // Explicitly set values for each detail item using form.setValue
-        // This is to ensure Select components pick up the values correctly.
-        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
+        presupuesto.detalles.forEach((d_presupuesto_item, index) => {
           form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
           form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
           form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
@@ -119,10 +116,10 @@ export default function NuevaVentaPage() {
           form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
           form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
-
-        // Fill remaining form detail lines with empty values if budget had fewer items
-        if (budgetDetailsToMap.length < initialDetallesCount) {
-            for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
+        
+        // Fill remaining form detail lines if budget had fewer items
+        if (presupuesto.detalles.length < initialDetallesCount) {
+            for (let i = presupuesto.detalles.length; i < initialDetallesCount; i++) {
                 const emptyDetail = createEmptyDetalle();
                 form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
                 form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
@@ -134,7 +131,7 @@ export default function NuevaVentaPage() {
             }
         }
 
-        form.trigger();
+        form.trigger(); // Trigger validation and UI update
 
         toast({
           title: "Presupuesto Cargado para Venta",
