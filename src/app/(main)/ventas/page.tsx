@@ -22,9 +22,8 @@ import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-const mockVentasData: Venta[] = []; // Start with empty if localStorage is preferred source
+const mockVentasData: Venta[] = []; 
 
-// Helper function to calculate board feet for a single sale item
 const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
     const unidades = Number(detalle?.unidades) || 0;
     const alto = Number(detalle?.alto) || 0;
@@ -48,22 +47,29 @@ const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracio
 
 interface VentaItemProps {
   venta: Venta;
-  config: Configuracion;
   onDelete: (id: string) => void;
   onMarkAsPaid: (id: string) => void;
 }
 
-function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
+function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
   
+  const config = initialConfigData; // Usar la configuración global
+
   const costoTotalMaderaVenta = useMemo(() => {
+    if (typeof venta.costoMaderaVentaSnapshot === 'number') {
+      return venta.costoMaderaVentaSnapshot;
+    }
     let costoTotal = 0;
     (venta.detalles || []).forEach(detalle => {
        costoTotal += getCostoMaderaParaVentaItem(detalle, config);
     });
     return costoTotal;
-  }, [venta.detalles, config]);
+  }, [venta.detalles, config, venta.costoMaderaVentaSnapshot]);
 
   const costoTotalAserrioVenta = useMemo(() => {
+     if (typeof venta.costoAserrioVentaSnapshot === 'number') {
+      return venta.costoAserrioVentaSnapshot;
+    }
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
 
@@ -76,7 +82,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
     }, 0);
 
     return totalPiesTablaresVenta * costoAserrioPorPie;
-  }, [venta.detalles, config.precioLitroNafta, config.precioAfiladoSierra]);
+  }, [venta.detalles, config.precioLitroNafta, config.precioAfiladoSierra, venta.costoAserrioVentaSnapshot]);
 
   const costoOperarioActual = Number(venta.costoOperario) || 0;
 
@@ -94,7 +100,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
     const totalVentaNum = Number(venta.totalVenta) || 0;
     const senaNum = Number(venta.sena) || 0;
 
-    if (totalVentaNum <= 0) return { texto: "N/A", variant: "outline" };
+    if (totalVentaNum <= 0 && senaNum <=0) return { texto: "N/A", variant: "outline" }; // Considerar 0 como N/A si no hay seña tampoco
 
     if (senaNum >= totalVentaNum) {
       return { texto: "Cobrado", variant: "default" };
@@ -119,7 +125,7 @@ function VentaItem({ venta, config, onDelete, onMarkAsPaid }: VentaItemProps) {
           <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
                 <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
-                <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto">
+                <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto max-w-[250px] sm:max-w-xs text-left">
                   {estadoCobro.texto}
                 </Badge>
                 <span className="text-sm text-muted-foreground block sm:inline">
@@ -268,7 +274,10 @@ export default function VentasPage() {
   const { toast } = useToast();
 
   const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
-    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    const sortedList = newList.sort((a, b) => {
+      if (!a.fecha || !b.fecha) return 0; // handle cases where date might be missing
+      return parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime();
+    });
     setVentas(sortedList);
     if (typeof window !== 'undefined') {
       localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedList));
@@ -279,7 +288,7 @@ export default function VentasPage() {
     let isMounted = true;
     if (typeof window !== 'undefined') {
       const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      let dataToLoad = mockVentasData; 
+      let dataToLoad: Venta[] = []; 
 
       if (storedVentas) {
         try {
@@ -292,11 +301,12 @@ export default function VentasPage() {
         }
       }
       if (isMounted) {
-        const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        const sortedData = dataToLoad.sort((a, b) => {
+             if (!a.fecha || !b.fecha) return 0;
+            return parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime();
+        });
         setVentas(sortedData);
-        if (!storedVentas && dataToLoad.length > 0) { // Only save mockData if localStorage was empty and mockData was used
-          localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedData));
-        } else if (!storedVentas && dataToLoad.length === 0) { // If localStorage is empty and mockData is empty
+        if (!storedVentas && dataToLoad.length === 0) { 
           localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify([]));
         }
       }
@@ -304,7 +314,7 @@ export default function VentasPage() {
     return () => {
       isMounted = false;
     };
-  }, []); // updateVentasListAndStorage removed as it causes re-runs if not stable
+  }, []); 
 
   const handleDeleteVenta = (idToDelete: string) => {
     const newList = ventas.filter(venta => venta.id !== idToDelete);
@@ -332,7 +342,7 @@ export default function VentasPage() {
 
   const filteredVentas = useMemo(() => {
     if (!searchTerm) {
-      return ventas; // ventas is already sorted
+      return ventas; 
     }
     return ventas.filter(venta =>
       venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -388,7 +398,7 @@ export default function VentasPage() {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
-                <VentaItem key={venta.id} venta={venta} config={initialConfigData} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
+                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
               ))}
             </Accordion>
           )}

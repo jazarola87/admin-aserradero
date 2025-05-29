@@ -1,11 +1,11 @@
 
 export interface Compra {
   id: string;
-  fecha: string; // Consider using Date object or ISO string
+  fecha: string; 
   tipoMadera: string;
-  volumen: number; // e.g., in m^3
-  precioPorMetroCubico?: number; // NUEVO CAMPO
-  costo: number; // Este será el total: volumen * precioPorMetroCubico
+  volumen: number; // en m^3
+  precioPorMetroCubico?: number; 
+  costo: number; 
   proveedor: string;
   telefonoProveedor?: string;
 }
@@ -35,6 +35,8 @@ export interface Venta {
   fechaEntregaEstimada?: string;
   sena?: number;
   costoOperario?: number;
+  costoMaderaVentaSnapshot?: number; // Costo de madera calculado al momento de la venta/última edición
+  costoAserrioVentaSnapshot?: number; // Costo de aserrío calculado al momento de la venta/última edición
 }
 
 export interface PresupuestoDetalle {

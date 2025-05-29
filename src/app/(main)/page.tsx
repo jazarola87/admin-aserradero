@@ -14,8 +14,7 @@ import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
 
-// Helper functions for calculations
-const calcularPiesTablaresItem = (detalle: VentaDetalle): number => {
+const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
   const unidades = Number(detalle?.unidades) || 0;
   const alto = Number(detalle?.alto) || 0;
   const ancho = Number(detalle?.ancho) || 0;
@@ -24,14 +23,16 @@ const calcularPiesTablaresItem = (detalle: VentaDetalle): number => {
   return unidades * alto * ancho * largo * 0.2734;
 };
 
-const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracion): number => {
-  if (!detalle.tipoMadera) return 0;
-  const piesTablaresArticulo = calcularPiesTablaresItem(detalle);
-  if (piesTablaresArticulo <= 0) return 0;
+const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number => {
+  return (venta.detalles || []).reduce((itemSum, detalle) => {
+    if (!detalle.tipoMadera) return itemSum;
+    const piesTablaresArticulo = calcularPiesTablaresItem(detalle);
+    if (piesTablaresArticulo <= 0) return itemSum;
 
-  const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
-  const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-  return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+    const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+    const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+    return itemSum + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+  }, 0);
 };
 
 const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number => {
@@ -65,7 +66,7 @@ export default function DashboardPage() {
       if (storedCompras) {
         try {
             const parsed = JSON.parse(storedCompras);
-            if (Array.isArray(parsed)) loadedCompras = parsed;
+            if (Array.isArray(parsed)) loadedCompras = parsed.filter(c => c.fecha && isValid(parseISO(c.fecha)));
         } catch (e) { console.error("Error parsing compras from localStorage", e); }
       }
       setComprasList(loadedCompras);
@@ -75,7 +76,7 @@ export default function DashboardPage() {
       if (storedVentas) {
         try {
             const parsed = JSON.parse(storedVentas);
-            if (Array.isArray(parsed)) loadedVentas = parsed;
+            if (Array.isArray(parsed)) loadedVentas = parsed.filter(v => v.fecha && isValid(parseISO(v.fecha)));
         } catch (e) { console.error("Error parsing ventas from localStorage", e); }
       }
       setVentasList(loadedVentas);
@@ -85,21 +86,20 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!initialDatesSet && (comprasList.length > 0 || ventasList.length > 0)) {
       const allRecordDates: Date[] = [];
-      comprasList.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha)); });
-      ventasList.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha)); });
+      comprasList.forEach(c => allRecordDates.push(parseISO(c.fecha)));
+      ventasList.forEach(v => allRecordDates.push(parseISO(v.fecha)));
 
       if (allRecordDates.length > 0) {
         allRecordDates.sort((a, b) => a.getTime() - b.getTime());
         setFechaDesde(allRecordDates[0]);
         setFechaHasta(allRecordDates[allRecordDates.length - 1]);
-      } else {
+      } else { // Should not happen if comprasList or ventasList have items, but as fallback
         const today = new Date();
         setFechaDesde(startOfMonth(today));
         setFechaHasta(endOfMonth(today));
       }
       setInitialDatesSet(true);
     } else if (!initialDatesSet && comprasList.length === 0 && ventasList.length === 0) {
-      // Default if no records at all
       const today = new Date();
       setFechaDesde(startOfMonth(today));
       setFechaHasta(endOfMonth(today));
@@ -114,13 +114,8 @@ export default function DashboardPage() {
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
     
     return comprasList.filter(compra => {
-      if (!compra.fecha) return false;
-      try {
-        const fechaCompra = parseISO(compra.fecha);
-        return isValid(fechaCompra) && fechaCompra >= startOfDesdePeriod && fechaCompra <= endOfHastaPeriod;
-      } catch (e) {
-        return false;
-      }
+        const fechaCompra = parseISO(compra.fecha); // Assumes valid date string from useEffect load
+        return fechaCompra >= startOfDesdePeriod && fechaCompra <= endOfHastaPeriod;
     });
   }, [comprasList, fechaDesde, fechaHasta]);
 
@@ -130,13 +125,8 @@ export default function DashboardPage() {
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
 
     return ventasList.filter(venta => {
-      if (!venta.fecha) return false;
-      try {
-        const fechaVenta = parseISO(venta.fecha);
-        return isValid(fechaVenta) && fechaVenta >= startOfDesdePeriod && fechaVenta <= endOfHastaPeriod;
-      } catch (e) {
-        return false;
-      }
+        const fechaVenta = parseISO(venta.fecha); // Assumes valid date string
+        return fechaVenta >= startOfDesdePeriod && fechaVenta <= endOfHastaPeriod;
     });
   }, [ventasList, fechaDesde, fechaHasta]);
 
@@ -150,14 +140,12 @@ export default function DashboardPage() {
 
   const costoMaderaRecuperado = useMemo(() => {
     return filteredVentasList.reduce((sum, venta) => {
-      const costoMaderaEstaVenta = (venta.detalles || []).reduce((itemSum, detalle) => {
-        return itemSum + getCostoMaderaParaVentaItem(detalle, initialConfigData);
-      }, 0);
-      return sum + costoMaderaEstaVenta;
+      const costoMaderaEstaVenta = venta.costoMaderaVentaSnapshot ?? getCostoMaderaParaVenta(venta, initialConfigData);
+      return sum + (Number(costoMaderaEstaVenta) || 0);
     }, 0);
   }, [filteredVentasList]);
   
-  const saldoMaderaARecuperarFiltrado = useMemo(() => {
+  const saldoMaderaARecuperar = useMemo(() => { // Renamed for clarity
     return valorTotalCompras - costoMaderaRecuperado;
   }, [valorTotalCompras, costoMaderaRecuperado]);
 
@@ -165,41 +153,38 @@ export default function DashboardPage() {
   const gananciaNetaSocios = useMemo(() => {
     let totalGananciaNetaFiltrada = 0;
     filteredVentasList.forEach(venta => {
-      const costoMaderaEstaVenta = (venta.detalles || []).reduce((itemSum, detalle) => {
-        return itemSum + getCostoMaderaParaVentaItem(detalle, initialConfigData);
-      }, 0);
-      const costoAserrioEstaVenta = getCostoAserrioParaVenta(venta, initialConfigData);
+      const costoMaderaEstaVenta = venta.costoMaderaVentaSnapshot ?? getCostoMaderaParaVenta(venta, initialConfigData);
+      const costoAserrioEstaVenta = venta.costoAserrioVentaSnapshot ?? getCostoAserrioParaVenta(venta, initialConfigData);
       const costoOperarioEstaVenta = Number(venta.costoOperario) || 0;
-      const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - costoMaderaEstaVenta - costoAserrioEstaVenta - costoOperarioEstaVenta;
+      const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - (Number(costoMaderaEstaVenta) || 0) - (Number(costoAserrioEstaVenta) || 0) - costoOperarioEstaVenta;
       totalGananciaNetaFiltrada += gananciaNetaEstaVenta;
     });
-    return totalGananciaNetaFiltrada / 2;
+    return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0; // Ensure non-negative for display if loss
   }, [filteredVentasList]);
 
   const stockPorTipoMadera = useMemo(() => {
-    const stockMap: { [key: string]: { compradosM3: number, vendidosPies: number } } = {};
+    const stockMap: { [key: string]: { compradosM3: number; vendidosPies: number } } = {};
 
-    // Initialize with all configured wood types
     (initialConfigData.preciosMadera || []).forEach(pm => {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
 
-    // Sum all HISTORICAL purchases
+    // Use ALL comprasList for historical stock, not filtered
     comprasList.forEach(compra => {
       if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
         stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
-      } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) {
+      } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) { // For types not in config but in old data
         stockMap[compra.tipoMadera] = { compradosM3: Number(compra.volumen) || 0, vendidosPies: 0 };
       }
     });
 
-    // Sum all HISTORICAL sales
+    // Use ALL ventasList for historical stock
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
           stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
-        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) {
-          stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
+        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) { // For types not in config but in old data
+           stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
         }
       });
     });
@@ -212,7 +197,7 @@ export default function DashboardPage() {
         vendidosM3: vendidosM3,
         stockM3: data.compradosM3 - vendidosM3,
       };
-    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0);
+    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Filter out types with no activity
   }, [comprasList, ventasList, initialConfigData.preciosMadera]);
 
 
@@ -330,8 +315,8 @@ export default function DashboardPage() {
             <ArchiveX className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${saldoMaderaARecuperarFiltrado.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-            <p className="text-xs text-muted-foreground">Costo de madera en inventario (según compras del período menos recupero del período).</p>
+            <div className="text-2xl font-bold">${saldoMaderaARecuperar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">Costo de madera comprada en período que aún no se recuperó con ventas del período.</p>
           </CardContent>
         </Card>
       </div>
@@ -351,7 +336,7 @@ export default function DashboardPage() {
                 <li key={item.tipoMadera} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border-b last:border-b-0 hover:bg-muted/50 rounded-md text-sm">
                   <div>
                     <span className="font-medium">{item.tipoMadera}: </span>
-                    <span className={cn("font-semibold text-base", item.stockM3 < 0 ? "text-destructive" : "text-primary")}>
+                    <span className={cn("font-semibold", item.stockM3 < 0 ? "text-destructive" : "text-primary")}>
                       {item.stockM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
                     </span>
                   </div>

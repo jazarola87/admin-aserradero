@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -34,7 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
-const initialDetallesCount = 15; // Consistent with nuevaVentaPage
+const initialDetallesCount = 15; 
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -61,7 +60,7 @@ const ventaFormSchema = z.object({
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
     ),
-  idOriginalPresupuesto: z.string().optional(), // Aunque no se usa directamente en la lógica de edición, lo mantenemos por consistencia
+  idOriginalPresupuesto: z.string().optional(), 
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -97,6 +96,11 @@ export default function EditarVentaPage() {
     },
   });
 
+  const { fields, append, remove, replace } = useFieldArray({
+    control: form.control,
+    name: "detalles",
+  });
+
   useEffect(() => {
     if (ventaId && typeof window !== 'undefined') {
       setIsLoadingData(true);
@@ -105,8 +109,6 @@ export default function EditarVentaPage() {
       const ventaAEditar = ventasActuales.find(v => v.id === ventaId);
 
       if (ventaAEditar) {
-        const detallesParaForm = Array(Math.max(initialDetallesCount, ventaAEditar.detalles.length)).fill(null).map(() => createEmptyDetalle());
-
         form.reset({
           fecha: ventaAEditar.fecha ? parseISO(ventaAEditar.fecha) : new Date(),
           nombreComprador: ventaAEditar.nombreComprador,
@@ -115,19 +117,27 @@ export default function EditarVentaPage() {
           sena: ventaAEditar.sena ?? undefined,
           costoOperario: ventaAEditar.costoOperario ?? undefined,
           idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
-          detalles: detallesParaForm, // Reset con la estructura correcta primero
+          detalles: [], // Reset with empty details first
         });
+
+        const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
+            tipoMadera: d.tipoMadera,
+            unidades: d.unidades,
+            ancho: d.ancho,
+            alto: d.alto,
+            largo: d.largo,
+            precioPorPie: d.precioPorPie,
+            cepillado: d.cepillado ?? false,
+        }));
         
-        // Luego, poblar los detalles con setValue
-        ventaAEditar.detalles.forEach((detalle, index) => {
-          form.setValue(`detalles.${index}.tipoMadera`, detalle.tipoMadera, { shouldDirty: true });
-          form.setValue(`detalles.${index}.unidades`, detalle.unidades, { shouldDirty: true });
-          form.setValue(`detalles.${index}.ancho`, detalle.ancho, { shouldDirty: true });
-          form.setValue(`detalles.${index}.alto`, detalle.alto, { shouldDirty: true });
-          form.setValue(`detalles.${index}.largo`, detalle.largo, { shouldDirty: true });
-          form.setValue(`detalles.${index}.precioPorPie`, detalle.precioPorPie, { shouldDirty: true });
-          form.setValue(`detalles.${index}.cepillado`, detalle.cepillado ?? false, { shouldDirty: true });
-        });
+        replace(loadedDetails); // Replace with loaded details
+
+        let currentLength = loadedDetails.length;
+        while (currentLength < initialDetallesCount) {
+          append(createEmptyDetalle(), { shouldFocus: false });
+          currentLength++;
+        }
+        
         form.trigger();
 
 
@@ -141,13 +151,9 @@ export default function EditarVentaPage() {
       }
       setIsLoadingData(false);
     }
-  }, [ventaId, form, router, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ventaId, form, router, toast, replace, append]);
 
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "detalles",
-  });
 
   const watchedDetalles = form.watch("detalles");
   const watchedSena = form.watch("sena");
@@ -162,7 +168,7 @@ export default function EditarVentaPage() {
     return unidades * alto * ancho * largo * 0.2734;
   };
 
-  const calcularSubtotal = (
+  const calcularSubtotalDetalle = (
     detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
     piesTablares: number,
     precioCepilladoConfigValue: number
@@ -187,7 +193,7 @@ export default function EditarVentaPage() {
     watchedDetalles.forEach(detalle => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number') {
         const pies = calcularPiesTablares(detalle);
-        calculatedTotalVentaGeneral += calcularSubtotal(detalle, pies, currentPrecioCepilladoPorPie);
+        calculatedTotalVentaGeneral += calcularSubtotalDetalle(detalle, pies, currentPrecioCepilladoPorPie);
       }
     });
   }
@@ -222,18 +228,19 @@ export default function EditarVentaPage() {
   const costoOperarioActual = Number(watchedCostoOperario) || 0;
   const gananciaNetaEstimada = calculatedTotalVentaGeneral - calculatedCostoTotalMaderaVenta - calculatedCostoTotalAserrioVenta - costoOperarioActual;
   const valorJavier = calculatedCostoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = calculatedCostoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual;
+  const valorLucas = calculatedCostoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const senaActual = Number(watchedSena) || 0;
   const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
 
   const handleTipoMaderaChange = (value: string, index: number) => {
-    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
+    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
     const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
-      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true, shouldDirty: true });
     } else {
-      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true, shouldDirty: true });
     }
+    form.trigger(`detalles.${index}`);
   };
 
   function onSubmit(data: VentaFormValues) {
@@ -244,7 +251,7 @@ export default function EditarVentaPage() {
     ).map((d_form, idx) => {
       const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotal(d, pies, currentPrecioCepilladoPorPie);
+      const sub = calcularSubtotalDetalle(d, pies, currentPrecioCepilladoPorPie);
       const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
       return { 
         ...d,
@@ -256,7 +263,7 @@ export default function EditarVentaPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` // Generar nuevo ID para los detalles
+        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` 
       } as VentaDetalleType;
     });
 
@@ -269,8 +276,23 @@ export default function EditarVentaPage() {
       return;
     }
 
+    // Recalcular costos en el momento de guardar para el snapshot
+    let costoMaderaSnapshot = 0;
+    processedDetalles.forEach(detalle => {
+        const piesTablaresArticulo = detalle.piesTablares || 0;
+        if (piesTablaresArticulo > 0 && detalle.tipoMadera) {
+          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+          costoMaderaSnapshot += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+        }
+    });
+
+    let totalPiesParaSnapshot = 0;
+    processedDetalles.forEach(detalle => { totalPiesParaSnapshot += (detalle.piesTablares || 0); });
+    const costoAserrioSnapshot = totalPiesParaSnapshot * costoAserrioPorPie;
+
     const ventaActualizada: Venta = {
-      id: ventaId, // Usar el ID original de la venta
+      id: ventaId, 
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -279,7 +301,9 @@ export default function EditarVentaPage() {
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
-      idOriginalPresupuesto: data.idOriginalPresupuesto, // Mantener si existía
+      idOriginalPresupuesto: data.idOriginalPresupuesto, 
+      costoMaderaVentaSnapshot: costoMaderaSnapshot,
+      costoAserrioVentaSnapshot: costoAserrioSnapshot,
     };
 
     if (typeof window !== 'undefined') {
@@ -289,10 +313,9 @@ export default function EditarVentaPage() {
         if (index !== -1) {
           ventasActuales[index] = ventaActualizada;
         } else {
-          // Podría ser un caso de error si la venta no se encuentra, aunque el useEffect la cargó
-          // Por ahora, la añadimos si no se encuentra, aunque no debería pasar.
           ventasActuales.push(ventaActualizada);
         }
+        ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
         localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
     }
 
@@ -440,7 +463,7 @@ export default function EditarVentaPage() {
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
-                      const subTotal = calcularSubtotal(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
+                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
                       const valorUnitario = ((Number(currentDetalle?.unidades) || 0) > 0 && subTotal > 0) ? subTotal / (Number(currentDetalle.unidades)) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 

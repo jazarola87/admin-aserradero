@@ -37,9 +37,9 @@ const VENTAS_STORAGE_KEY = 'ventasList';
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
   cepillado: z.boolean().default(false).optional(),
 });
@@ -83,7 +83,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: new Date(),
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -104,42 +104,39 @@ export default function NuevaVentaPage() {
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        const { id: idOriginalPresupuesto, detalles: detallesPresupuesto, ...clienteData } = presupuesto;
-
-        // 1. Reset form with general data and empty details for useFieldArray to manage
+        
         form.reset({
-          ...form.getValues(), // Preserve other form values if any were set before this effect
-          fecha: new Date(), // Set sale date to current date
-          nombreComprador: clienteData.nombreCliente,
-          telefonoComprador: clienteData.telefonoComprador || "",
-          idOriginalPresupuesto: idOriginalPresupuesto,
-          fechaEntregaEstimada: undefined, 
-          sena: undefined,                 
-          costoOperario: undefined,        
-          detalles: [], // Start with an empty array for details
+          fecha: new Date(), // Fecha actual para la venta
+          nombreComprador: presupuesto.nombreCliente,
+          telefonoComprador: presupuesto.telefonoCliente || "",
+          idOriginalPresupuesto: presupuesto.id,
+          fechaEntregaEstimada: undefined,
+          sena: undefined,
+          costoOperario: undefined,
+          detalles: [], // Inicia con detalles vacíos, los poblaremos con setValue o replace
         });
 
-        // 2. Explicitly append each detail from the budget
-        const budgetItemsToAppend = (detallesPresupuesto || []).map(d => ({
-            tipoMadera: d.tipoMadera,
-            unidades: d.unidades,
-            ancho: d.ancho,
-            alto: d.alto,
-            largo: d.largo,
-            precioPorPie: d.precioPorPie,
-            cepillado: d.cepillado ?? false,
+        const budgetDetailsToMap = presupuesto.detalles || [];
+        const newFormDetails = budgetDetailsToMap.map(d_presupuesto_item => ({
+            tipoMadera: d_presupuesto_item.tipoMadera,
+            unidades: d_presupuesto_item.unidades,
+            ancho: d_presupuesto_item.ancho,
+            alto: d_presupuesto_item.alto,
+            largo: d_presupuesto_item.largo,
+            precioPorPie: d_presupuesto_item.precioPorPie,
+            cepillado: d_presupuesto_item.cepillado ?? false,
         }));
-        
-        replace(budgetItemsToAppend); // Use replace to set the field array state completely
 
-        // 3. Pad with empty rows if needed, up to initialDetallesCount
-        let currentLength = budgetItemsToAppend.length;
+        replace(newFormDetails); // Reemplaza los detalles con los del presupuesto
+
+        // Rellenar con filas vacías si es necesario
+        let currentLength = newFormDetails.length;
         while (currentLength < initialDetallesCount) {
           append(createEmptyDetalle(), { shouldFocus: false });
           currentLength++;
         }
         
-        form.trigger(); // Trigger validation and UI update
+        form.trigger();
 
         toast({
           title: "Presupuesto Cargado para Venta",
@@ -152,17 +149,12 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) { 
-          form.setValue('fecha', new Date());
-        }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
-    } else if (!form.getValues('fecha')) {
-      form.setValue('fecha', new Date()); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, toast, append, replace]); // Added append and replace to dependencies
+  }, [form, toast, replace, append]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -171,15 +163,14 @@ export default function NuevaVentaPage() {
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
     const unidades = Number(detalle?.unidades) || 0;
-    const alto = Number(detalle?.alto) || 0; 
-    const ancho = Number(detalle?.ancho) || 0; 
+    const alto = Number(detalle?.alto) || 0;
+    const ancho = Number(detalle?.ancho) || 0;
     const largo = Number(detalle?.largo) || 0;
     if (!unidades || !alto || !ancho || !largo) return 0;
-    // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
     return unidades * alto * ancho * largo * 0.2734;
   };
 
-  const calcularSubtotal = (
+  const calcularSubtotalDetalle = (
     detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
     piesTablares: number,
     precioCepilladoConfigValue: number
@@ -194,7 +185,6 @@ export default function NuevaVentaPage() {
     return subtotal;
   };
   
-  // Get current config values directly for calculations
   const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
   const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
   const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
@@ -205,7 +195,7 @@ export default function NuevaVentaPage() {
     watchedDetalles.forEach(detalle => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number') {
         const pies = calcularPiesTablares(detalle);
-        calculatedTotalVentaGeneral += calcularSubtotal(detalle, pies, currentPrecioCepilladoPorPie);
+        calculatedTotalVentaGeneral += calcularSubtotalDetalle(detalle, pies, currentPrecioCepilladoPorPie);
       }
     });
   }
@@ -218,7 +208,7 @@ export default function NuevaVentaPage() {
         if (piesTablaresArticulo > 0) {
           const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          calculatedCostoTotalMaderaVenta += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
+          calculatedCostoTotalMaderaVenta += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
         }
       }
     });
@@ -248,34 +238,35 @@ export default function NuevaVentaPage() {
   const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
 
   const handleTipoMaderaChange = (value: string, index: number) => {
-    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
+    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
     const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
-      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true, shouldDirty: true });
     } else {
-      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true, shouldDirty: true });
     }
+    form.trigger(`detalles.${index}`);
   };
 
   function onSubmit(data: VentaFormValues) {
     const processedDetalles = (data.detalles || []).filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number'
     ).map((d_form, idx) => {
-      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>; // Type assertion
+      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotal(d, pies, currentPrecioCepilladoPorPie);
+      const sub = calcularSubtotalDetalle(d, pies, currentPrecioCepilladoPorPie);
       const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
-      return { 
+      return {
         ...d,
         unidades: Number(d.unidades),
         ancho: Number(d.ancho),
         alto: Number(d.alto),
         largo: Number(d.largo),
         precioPorPie: Number(d.precioPorPie),
-        piesTablares: pies, 
-        subTotal: sub, 
-        valorUnitario: valorUnit, 
-        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` 
+        piesTablares: pies,
+        subTotal: sub,
+        valorUnitario: valorUnit,
+        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`
       } as VentaDetalleType;
     });
 
@@ -288,6 +279,22 @@ export default function NuevaVentaPage() {
       return;
     }
 
+    // Recalcular costos en el momento de guardar para el snapshot
+    let costoMaderaSnapshot = 0;
+    processedDetalles.forEach(detalle => {
+        const piesTablaresArticulo = detalle.piesTablares || 0;
+        if (piesTablaresArticulo > 0 && detalle.tipoMadera) {
+          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+          costoMaderaSnapshot += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+        }
+    });
+
+    let totalPiesParaSnapshot = 0;
+    processedDetalles.forEach(detalle => { totalPiesParaSnapshot += (detalle.piesTablares || 0); });
+    const costoAserrioSnapshot = totalPiesParaSnapshot * costoAserrioPorPie;
+
+
     const nuevaVenta: Venta = {
       id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
@@ -299,12 +306,15 @@ export default function NuevaVentaPage() {
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
       idOriginalPresupuesto: data.idOriginalPresupuesto,
+      costoMaderaVentaSnapshot: costoMaderaSnapshot,
+      costoAserrioVentaSnapshot: costoAserrioSnapshot,
     };
 
     if (typeof window !== 'undefined') {
         const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
+        let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
         ventasActuales.push(nuevaVenta);
+        ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
         localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
     }
 
@@ -465,7 +475,7 @@ export default function NuevaVentaPage() {
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
-                      const subTotal = calcularSubtotal(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
+                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
                       const valorUnitario = ((Number(currentDetalle?.unidades) || 0) > 0 && subTotal > 0) ? subTotal / (Number(currentDetalle.unidades)) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
@@ -618,6 +628,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-
-
-    
