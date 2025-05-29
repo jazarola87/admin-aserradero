@@ -49,9 +49,9 @@ const ventaFormSchema = z.object({
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0), 
+      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && d.precioPorPie !== undefined),
       {
-        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera y unidades mayores a 0).",
+        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
     ),
 });
@@ -60,7 +60,7 @@ type VentaFormValues = z.infer<typeof ventaFormSchema>;
 
 const createEmptyDetalle = (): z.infer<typeof ventaDetalleSchema> => ({
   tipoMadera: "",
-  unidades: undefined, // Use undefined for react-hook-form to treat as empty initially
+  unidades: undefined,
   ancho: undefined,
   alto: undefined,
   largo: undefined,
@@ -78,12 +78,17 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: new Date(),
+      fecha: undefined, // Initialize as undefined to avoid server/client mismatch
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
     },
   });
+
+  // Set initial date on client-side to avoid hydration mismatch
+  useEffect(() => {
+    form.setValue('fecha', new Date());
+  }, [form.setValue]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -107,7 +112,7 @@ export default function NuevaVentaPage() {
   };
   
   const totalVentaGeneral = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && detalle.precioPorPie !== undefined) { // Ensure precioPorPie is also defined
+    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && detalle.precioPorPie !== undefined) { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -116,8 +121,6 @@ export default function NuevaVentaPage() {
 
 
   function onSubmit(data: VentaFormValues) {
-    // Filter out details that are considered "empty" or "invalid" by the user's definition
-    // The Zod schema already ensures at least one truly valid item.
     const processedDetalles = data.detalles.filter(
       d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && d.precioPorPie !== undefined
     ).map(d => {
@@ -126,7 +129,6 @@ export default function NuevaVentaPage() {
     });
 
     if (processedDetalles.length === 0) {
-       // This case should ideally be caught by Zod's refine, but as a safeguard:
       toast({
         title: "Error en la Venta",
         description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
@@ -148,14 +150,13 @@ export default function NuevaVentaPage() {
       variant: "default"
     });
     form.reset({
-      fecha: new Date(),
+      fecha: new Date(), // Reset with new Date on client side is fine
       nombreComprador: "",
       telefonoComprador: "",
       detalles: Array(15).fill(null).map(() => createEmptyDetalle()),
     });
   }
 
-  // Function to check if a row is mostly empty (useful for conditional styling or logic)
   const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && !detalle.precioPorPie;
@@ -217,7 +218,7 @@ export default function NuevaVentaPage() {
           <Card>
             <CardHeader>
               <CardTitle>Detalles de la Venta</CardTitle>
-              <CardDescription>Ingrese los productos vendidos. Las filas con tipo de madera y unidades se considerarán válidas.</CardDescription>
+              <CardDescription>Ingrese los productos vendidos. Las filas con tipo de madera, unidades y precio se considerarán válidas.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -323,3 +324,5 @@ export default function NuevaVentaPage() {
   );
 }
 
+
+    
