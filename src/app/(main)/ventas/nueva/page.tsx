@@ -29,9 +29,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data"; 
-import type { Presupuesto, VentaDetalle as VentaDetalleType } from "@/types";
+import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
 
-const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
+const { preciosMadera: tiposDeMaderaDisponiblesOriginal, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -77,6 +77,13 @@ const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createE
 export default function NuevaVentaPage() {
   const { toast } = useToast();
   const [precioCepilladoGlobal, setPrecioCepilladoGlobal] = useState(PRECIO_CEPILLADO_POR_PIE_CONFIG);
+  const [tiposDeMaderaDisponibles, setTiposDeMaderaDisponibles] = useState(initialConfigData.preciosMadera);
+
+  useEffect(() => {
+    // Sync with global config if it changes
+    setTiposDeMaderaDisponibles(initialConfigData.preciosMadera);
+    setPrecioCepilladoGlobal(initialConfigData.precioCepilladoPorPie);
+  }, []); // Runs once on mount, could be expanded if global config becomes reactive
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -95,47 +102,50 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const detallesVenta = Array(initialDetallesCount).fill(null).map((_, i) => {
-            const budgetDetail = presupuesto.detalles[i];
-            if (budgetDetail) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { id, piesTablares, subTotal, valorUnitario, ...restOfPresupuestoDetail } = budgetDetail;
-                return {
-                    ...createEmptyDetalle(),
-                    ...restOfPresupuestoDetail, // Spreads tipoMadera, precioPorPie, etc.
-                };
-            }
-            return createEmptyDetalle();
-        });
-
+        // Prepare an array of empty details first
+        const baseDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
 
         form.reset({
           fecha: new Date(), // Set fecha to current date when converting from budget
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
-          detalles: detallesVenta,
+          detalles: baseDetalles, // Reset with empty details structure
           idOriginalPresupuesto: presupuesto.id,
         });
-        form.trigger(); // Trigger validation and re-render for all fields
+
+        // Now, iterate and setValue for each field from the budget
+        presupuesto.detalles.forEach((budgetDetailItem, index) => {
+          if (index < initialDetallesCount) { // Ensure we don't go out of bounds
+            form.setValue(`detalles.${index}.tipoMadera`, budgetDetailItem.tipoMadera, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.unidades`, budgetDetailItem.unidades, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.ancho`, budgetDetailItem.ancho, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.alto`, budgetDetailItem.alto, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.largo`, budgetDetailItem.largo, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.precioPorPie`, budgetDetailItem.precioPorPie, { shouldValidate: true, shouldDirty: true });
+            form.setValue(`detalles.${index}.cepillado`, budgetDetailItem.cepillado ?? false, { shouldValidate: true, shouldDirty: true });
+          }
+        });
+        
+        form.trigger(); 
         
         toast({
           title: "Presupuesto Cargado para Venta",
           description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada al día de hoy.`,
         });
       } catch (error) {
-        console.error("Error parsing presupuesto from localStorage", error);
+        console.error("Error parsing presupuesto from localStorage or resetting form", error);
         toast({
           title: "Error al Cargar Presupuesto",
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) { // Ensure date is set if budget load fails but form was empty
+        if (!form.getValues('fecha')) { 
           form.setValue('fecha', new Date());
         }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
-    } else if (!form.getValues('fecha')) { // If no budget to load and date is not set, set it
+    } else if (!form.getValues('fecha')) { 
       form.setValue('fecha', new Date());
     }
   }, [form, toast]);
@@ -183,11 +193,11 @@ export default function NuevaVentaPage() {
   function onSubmit(data: VentaFormValues) {
     const processedDetalles = data.detalles.filter(
       d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'
-    ).map(d => {
+    ).map((d, idx) => {
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0;
-      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit, id: `vd-${Date.now()}-${Math.random()}` } as VentaDetalleType;
+      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit, id: `vd-${Date.now()}-${idx}` } as VentaDetalleType;
     });
 
     if (processedDetalles.length === 0) {
@@ -199,22 +209,23 @@ export default function NuevaVentaPage() {
       return;
     }
 
-    const nuevaVenta = {
-      ...data,
+    const nuevaVenta: Venta = {
       id: `venta-${Date.now()}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
+      nombreComprador: data.nombreComprador,
+      telefonoComprador: data.telefonoComprador,
       detalles: processedDetalles,
-      totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
+      totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
+      idOriginalPresupuesto: data.idOriginalPresupuesto,
     };
 
     if (typeof window !== 'undefined') {
         const storedVentas = localStorage.getItem('ventasList');
-        const ventasActuales: typeof nuevaVenta[] = storedVentas ? JSON.parse(storedVentas) : [];
+        const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
         ventasActuales.push(nuevaVenta);
         localStorage.setItem('ventasList', JSON.stringify(ventasActuales));
     }
     
-    console.log("Nueva Venta Data:", nuevaVenta);
     toast({
       title: "Venta Registrada",
       description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
@@ -327,6 +338,7 @@ export default function NuevaVentaPage() {
                             <FormField
                               control={form.control}
                               name={`detalles.${index}.tipoMadera`}
+                              key={`${item.id}-tipoMadera`} // Add specific key here as well
                               render={({ field: maderaField }) => (
                                 <FormItem>
                                   <Select
@@ -385,7 +397,7 @@ export default function NuevaVentaPage() {
                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={piesTablares > 0 ? piesTablares.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
-                          <TableCell className="p-1 text-right align-middle">
+                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={valorUnitario > 0 ? valorUnitario.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
