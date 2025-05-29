@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +24,9 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
+import type { Compra } from "@/types";
+
+const COMPRAS_STORAGE_KEY = 'comprasList';
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -50,6 +54,7 @@ export default function NuevaCompraPage() {
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
     defaultValues: {
+      fecha: new Date(),
       tipoMadera: "",
       proveedor: "",
       telefonoProveedor: "",
@@ -57,13 +62,33 @@ export default function NuevaCompraPage() {
   });
 
   function onSubmit(data: CompraFormValues) {
-    console.log("Nueva Compra Data:", data);
+    const nuevaCompra: Compra = {
+      ...data,
+      id: `compra-${Date.now()}`,
+      fecha: format(data.fecha, "yyyy-MM-dd"),
+    };
+
+    if (typeof window !== 'undefined') {
+      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+      const comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
+      comprasActuales.push(nuevaCompra);
+      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
+    }
+    
+    console.log("Nueva Compra Data:", nuevaCompra);
     toast({
       title: "Compra Registrada",
       description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
       variant: "default"
     });
-    form.reset(); // Reset form after submission
+    form.reset({ // Reset form after submission, keeping date as new Date()
+      fecha: new Date(),
+      tipoMadera: "",
+      volumen: undefined, // use undefined for react-hook-form to clear number inputs
+      costo: undefined,
+      proveedor: "",
+      telefonoProveedor: "",
+    });
   }
 
   return (
@@ -142,7 +167,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Volumen (pies tablares)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 1500" {...field} />
+                      <Input type="number" placeholder="Ej: 1500" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormDescription>Cantidad de madera en pies tablares.</FormDescription>
                     <FormMessage />
@@ -157,7 +182,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Costo Total ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 3500.50" {...field} />
+                      <Input type="number" step="0.01" placeholder="Ej: 3500.50" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormDescription>Costo total de la compra.</FormDescription>
                     <FormMessage />

@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from 'next/navigation';
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,9 @@ import type { Venta } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-// Mock data for sales
+const VENTAS_STORAGE_KEY = 'ventasList';
+
+// Mock data for initial sales if localStorage is empty
 const mockVentasData: Venta[] = [
   { 
     id: "venta001", 
@@ -42,13 +44,36 @@ const mockVentasData: Venta[] = [
 ];
 
 export default function VentasPage() {
-  const [ventas, setVentas] = useState<Venta[]>(mockVentasData);
+  const [ventas, setVentas] = useState<Venta[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
-  const router = useRouter();
+
+  const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
+    setVentas(newList);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(newList));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+      if (storedVentas) {
+        try {
+          setVentas(JSON.parse(storedVentas));
+        } catch (e) {
+          console.error("Error parsing ventas from localStorage", e);
+          updateVentasListAndStorage(mockVentasData); 
+        }
+      } else {
+        updateVentasListAndStorage(mockVentasData); 
+      }
+    }
+  }, [updateVentasListAndStorage]);
 
   const handleDeleteVenta = (idToDelete: string) => {
-    setVentas(prevVentas => prevVentas.filter(venta => venta.id !== idToDelete));
+    const newList = ventas.filter(venta => venta.id !== idToDelete);
+    updateVentasListAndStorage(newList);
     toast({
       title: "Venta Eliminada",
       description: "La venta ha sido eliminada exitosamente.",
@@ -82,8 +107,7 @@ export default function VentasPage() {
             <CardDescription>
                 {filteredVentas.length > 0 
                 ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).` 
-                : "No se encontraron ventas con los criterios de búsqueda."}
-                {ventas.length === 0 && " Aún no se han registrado ventas."}
+                : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -98,7 +122,7 @@ export default function VentasPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {ventas.length === 0 ? (
+          {ventas.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <p>No hay ventas registradas.</p>
               <Button variant="link" asChild className="mt-2">
@@ -114,20 +138,20 @@ export default function VentasPage() {
               {filteredVentas.map((venta) => (
                 <AccordionItem value={venta.id} key={venta.id}>
                   <AccordionTrigger asChild className="hover:no-underline">
-                    <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left",
-                        "hover:bg-muted/50 rounded-md" 
+                     <div className={cn(
+                        "flex w-full items-center py-4 px-2 font-medium text-left group", 
+                        "hover:bg-muted/50 rounded-md"
                       )}>
-                      <div className="flex-1 flex justify-between items-center">
+                      <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
-                            <span>Venta a: {venta.nombreComprador}</span>
-                            <span className="ml-4 text-sm text-muted-foreground">Fecha: {new Date(venta.fecha).toLocaleDateString('es-ES')}</span>
+                            <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span> {/* Ensure correct date parsing */}
                         </div>
-                        <div className="flex items-center">
-                            <span className="mr-4 font-semibold">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                        <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
+                            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                             <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-2" onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
                                     <Trash2 className="h-4 w-4" />
                                     <span className="sr-only">Eliminar Venta</span>
                                 </Button>
@@ -147,13 +171,13 @@ export default function VentasPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                             <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                         </div>
                       </div>
                     </div>
                   </AccordionTrigger>
                   <AccordionContent>
-                    <p className="mb-2"><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
+                    <p className="mb-2 text-sm"><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
                     <Table>
                       <TableHeader>
                         <TableRow>

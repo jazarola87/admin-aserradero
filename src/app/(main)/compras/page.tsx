@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,9 @@ import { PlusCircle, Trash2, Search } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
-// Mock data for purchases
+const COMPRAS_STORAGE_KEY = 'comprasList';
+
+// Mock data for initial purchases if localStorage is empty
 const mockComprasData: Compra[] = [
   { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 500, costo: 2500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
   { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 200, costo: 3000, proveedor: "Bosques del Norte Ltda." },
@@ -22,12 +24,36 @@ const mockComprasData: Compra[] = [
 
 
 export default function ComprasPage() {
-  const [compras, setCompras] = useState<Compra[]>(mockComprasData);
+  const [compras, setCompras] = useState<Compra[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
 
+  const updateComprasListAndStorage = useCallback((newList: Compra[]) => {
+    setCompras(newList);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(newList));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+      if (storedCompras) {
+        try {
+          setCompras(JSON.parse(storedCompras));
+        } catch (e) {
+          console.error("Error parsing compras from localStorage", e);
+          updateComprasListAndStorage(mockComprasData); // Fallback and store
+        }
+      } else {
+        updateComprasListAndStorage(mockComprasData); // Initialize if nothing in storage
+      }
+    }
+  }, [updateComprasListAndStorage]);
+
   const handleDeleteCompra = (idToDelete: string) => {
-    setCompras(prevCompras => prevCompras.filter(compra => compra.id !== idToDelete));
+    const newList = compras.filter(compra => compra.id !== idToDelete);
+    updateComprasListAndStorage(newList);
     toast({
       title: "Compra Eliminada",
       description: "La compra ha sido eliminada exitosamente.",
@@ -62,8 +88,7 @@ export default function ComprasPage() {
             <CardDescription>
               {filteredCompras.length > 0 
                 ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s).` 
-                : "No se encontraron compras con los criterios de búsqueda."}
-              {compras.length === 0 && " Aún no se han registrado compras."}
+                : compras.length === 0 ? "Aún no se han registrado compras." : "No se encontraron compras con los criterios de búsqueda."}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -105,7 +130,7 @@ export default function ComprasPage() {
               <TableBody>
                 {filteredCompras.map((compra) => (
                   <TableRow key={compra.id}>
-                    <TableCell>{new Date(compra.fecha).toLocaleDateString('es-ES')}</TableCell>
+                    <TableCell>{new Date(compra.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</TableCell> {/* Ensure correct date parsing */}
                     <TableCell>{compra.tipoMadera}</TableCell>
                     <TableCell>{compra.volumen} pies</TableCell>
                     <TableCell>${compra.costo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
