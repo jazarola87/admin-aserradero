@@ -6,16 +6,21 @@ import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarClock, ChevronDown } from "lucide-react";
+import { CalendarClock, ChevronDown, Download } from "lucide-react";
 import type { Venta, VentaDetalle } from "@/types";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { useToast } from "@/hooks/use-toast";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
 export default function CronogramaEntregasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -39,12 +44,80 @@ export default function CronogramaEntregasPage() {
       .sort((a, b) => new Date(a.fechaEntregaEstimada!).getTime() - new Date(b.fechaEntregaEstimada!).getTime()); // Soonest first
   }, [ventas]);
 
+  const downloadSchedulePDF = async () => {
+    const scheduleElement = document.getElementById('schedule-content-for-pdf');
+    if (!scheduleElement || ventasConEntregaEstimada.length === 0) {
+      toast({
+        title: "No hay cronograma para exportar",
+        description: "No hay ventas con fecha de entrega estimada para generar el PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Generando PDF...",
+      description: "Por favor espere.",
+    });
+
+    try {
+      const canvas = await html2canvas(scheduleElement, { 
+          scale: 2, 
+          useCORS: true,
+          logging: false,
+          // Ensure all images within the element are loaded before capture
+          // This is typically handled by ensuring images have dimensions or using window.onload
+          // For complex scenarios, specific image loading promises might be needed.
+      });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const availableWidth = pdfWidth - 2 * margin;
+      const availableHeight = pdfHeight - 2 * margin;
+
+      const imgOriginalWidth = canvas.width;
+      const imgOriginalHeight = canvas.height;
+      const aspectRatio = imgOriginalWidth / imgOriginalHeight;
+      
+      let imgRenderWidth = availableWidth;
+      let imgRenderHeight = availableWidth / aspectRatio;
+
+      if (imgRenderHeight > availableHeight) {
+        imgRenderHeight = availableHeight;
+        imgRenderWidth = imgRenderHeight * aspectRatio;
+      }
+      
+      const imgX = margin + (availableWidth - imgRenderWidth) / 2;
+      const imgY = margin;
+
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgRenderWidth, imgRenderHeight);
+      pdf.save(`cronograma_entregas_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({ title: "PDF Descargado", description: "El cronograma de entregas se ha descargado como PDF."});
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
+    }
+  };
+
+
   return (
     <div className="container mx-auto py-6">
       <PageTitle 
         title="Cronograma de Entregas" 
         description="Listado de ventas con fecha de entrega estimada, ordenadas por proximidad."
-      />
+      >
+        <Button onClick={downloadSchedulePDF} disabled={ventasConEntregaEstimada.length === 0}>
+            <Download className="mr-2 h-4 w-4" /> Descargar PDF
+        </Button>
+      </PageTitle>
 
       <Card>
         <CardHeader>
@@ -55,7 +128,7 @@ export default function CronogramaEntregasPage() {
               : "No hay ventas con fecha de entrega estimada."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent id="schedule-content-for-pdf"> {/* ID for html2canvas */}
           {ventasConEntregaEstimada.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <CalendarClock className="mx-auto h-12 w-12 mb-4" />
@@ -66,7 +139,7 @@ export default function CronogramaEntregasPage() {
               {ventasConEntregaEstimada.map((venta) => (
                 <AccordionItem value={venta.id} key={venta.id}>
                   <AccordionTrigger asChild className="hover:no-underline">
-                    <div className={cn(
+                     <div className={cn(
                         "flex w-full items-center py-4 px-2 font-medium text-left group", 
                         "hover:bg-muted/50 rounded-md"
                       )}>
