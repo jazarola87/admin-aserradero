@@ -27,31 +27,6 @@ const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number =
     return unidades * alto * ancho * largo * 0.2734;
 };
 
-const getCostoMaderaParaVentaItem = (detalle: Partial<VentaDetalle>, config: Configuracion): number => {
-  if (!detalle.tipoMadera) return 0;
-  const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
-  if (piesTablaresArticulo <= 0) return 0;
-
-  const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
-  const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-  return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
-};
-
-const getCostoAserrioParaVentaItem = (detalle: Partial<VentaDetalle>, config: Configuracion): number => {
-    const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
-    if (piesTablaresArticulo <= 0) return 0;
-
-    const precioNafta = Number(config.precioLitroNafta) || 0;
-    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
-
-    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
-    const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPieUnicoArticulo = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
-    
-    return piesTablaresArticulo * costoAserrioPorPieUnicoArticulo;
-};
-
-
 const calcularSubtotalVentaItem = (
     detalle: Partial<VentaDetalle>,
     piesTablares: number,
@@ -66,6 +41,37 @@ const calcularSubtotalVentaItem = (
     }
     return subtotal;
   };
+
+// Helper function to calculate total wood cost for a sale, used as fallback
+const calcularCostoMaderaTotalParaVenta = (detalles: VentaDetalle[], config: Configuracion): number => {
+  let costoTotal = 0;
+  (detalles || []).forEach(detalle => {
+    if (!detalle.tipoMadera || !detalle.piesTablares) return; // Ensure piesTablares is calculated
+    const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+    const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+    costoTotal += (detalle.piesTablares / 200) * costoPorMetroCubicoDelTipo;
+  });
+  return costoTotal;
+};
+
+// Helper function to calculate total sawmill cost for a sale, used as fallback
+const calcularCostoAserrioTotalParaVenta = (detalles: VentaDetalle[], config: Configuracion): number => {
+  const precioNafta = Number(config.precioLitroNafta) || 0;
+  const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+
+  const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+  const costoOperativoAjustado = costoOperativoBase * 1.38;
+  // Asegurarse de que el costoAserrioPorPie no sea Infinity si costoOperativoAjustado es 0 y se divide por 0 (aunque 600 no es 0)
+  // O si costoOperativoAjustado es muy pequeño y da un valor muy pequeño.
+  const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+
+
+  const totalPiesTablaresVenta = (detalles || []).reduce((acc, detalle) => {
+    return acc + (detalle.piesTablares || 0);
+  }, 0);
+
+  return totalPiesTablaresVenta * costoAserrioPorPie;
+};
 
 
 export default function CargaMasivaPage() {
@@ -103,7 +109,7 @@ export default function CargaMasivaPage() {
 
       data.push(headers);
       data.push(exampleRow);
-      data.push([]); // Empty row for spacing
+      data.push([]); 
       data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo de Madera'):"]);
       validTimberTypes.forEach(timber => {
         data.push([timber]);
@@ -125,23 +131,23 @@ export default function CargaMasivaPage() {
         "Largo (m, Artículo)",
         "Precio Por Pie ($) (Artículo)",
         "Cepillado (Si/No, Artículo)",
-        "Costo Madera Estimado ($) (Artículo, Informativo)", // Nueva columna
-        "Costo Aserrío Estimado ($) (Artículo, Informativo)"  // Nueva columna
+        "Costo Madera Estimado ($) (Artículo, Informativo)",
+        "Costo Aserrío Estimado ($) (Artículo, Informativo)"
       ];
       const exampleRow1 = [
         'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', 50.00, 25.00,
         'Roble', 20, 6, 2, 3.05, 5.50, 'Si',
-        150.25, 30.70 // Valores de ejemplo para nuevas columnas
+        150.25, 30.70 
       ];
       const exampleRow2 = [
-        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', "", "", // Seña y costo operario solo en la primera línea del ID Venta
+        'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', "", "", 
         'Pino', 30, 4, 1, 2.44, 2.75, 'No',
-        80.50, 15.30 // Valores de ejemplo para nuevas columnas
+        80.50, 15.30 
       ];
       data.push(headers);
       data.push(exampleRow1);
       data.push(exampleRow2);
-      data.push([]); // Empty row for spacing
+      data.push([]); 
       data.push(["Tipos de Madera Válidos (Usar estos nombres exactos para la columna 'Tipo Madera (Artículo)'):"]);
       validTimberTypes.forEach(timber => {
         data.push([timber]);
@@ -304,6 +310,10 @@ export default function CargaMasivaPage() {
                     const costoOperarioStr = String(firstRow["Costo Operario ($) (Opcional, ingresar una vez por ID Venta)"] || "0");
                     const costoOperario = costoOperarioStr ? parseFloat(costoOperarioStr) : undefined;
 
+                    let acumuladoCostoMaderaExcel = 0;
+                    let acumuladoCostoAserrioExcel = 0;
+                    let seEncontroCostoMaderaEnExcel = false;
+                    let seEncontroCostoAserrioEnExcel = false;
 
                     const detallesVenta: VentaDetalle[] = group.map((itemRow, itemIndex) => {
                         const tipoMaderaItem = String(itemRow["Tipo Madera (Artículo)"] || "").trim();
@@ -329,6 +339,20 @@ export default function CargaMasivaPage() {
                         const piesTablares = calcularPiesTablaresVentaItem({ unidades, ancho, alto, largo });
                         const subTotal = calcularSubtotalVentaItem({ precioPorPie, cepillado }, piesTablares, initialConfigData.precioCepilladoPorPie);
 
+                        const costoMaderaItemExcelStr = String(itemRow["Costo Madera Estimado ($) (Artículo, Informativo)"] || "").trim();
+                        const costoMaderaItemExcel = parseFloat(costoMaderaItemExcelStr);
+                        if (!isNaN(costoMaderaItemExcel) && costoMaderaItemExcel >= 0) {
+                            acumuladoCostoMaderaExcel += costoMaderaItemExcel;
+                            seEncontroCostoMaderaEnExcel = true;
+                        }
+
+                        const costoAserrioItemExcelStr = String(itemRow["Costo Aserrío Estimado ($) (Artículo, Informativo)"] || "").trim();
+                        const costoAserrioItemExcel = parseFloat(costoAserrioItemExcelStr);
+                        if (!isNaN(costoAserrioItemExcel) && costoAserrioItemExcel >= 0) {
+                            acumuladoCostoAserrioExcel += costoAserrioItemExcel;
+                            seEncontroCostoAserrioEnExcel = true;
+                        }
+
                         return {
                             id: `vd-bulk-${Date.now()}-${itemIndex}-${Math.random().toString(36).substring(2,7)}`,
                             tipoMadera: tipoMaderaItem,
@@ -338,6 +362,15 @@ export default function CargaMasivaPage() {
                             valorUnitario: unidades > 0 ? subTotal / unidades : 0,
                         };
                     });
+                    
+                    const configActual = initialConfigData;
+                    const costoMaderaSnapshot = seEncontroCostoMaderaEnExcel
+                        ? acumuladoCostoMaderaExcel
+                        : calcularCostoMaderaTotalParaVenta(detallesVenta, configActual);
+
+                    const costoAserrioSnapshot = seEncontroCostoAserrioEnExcel
+                        ? acumuladoCostoAserrioExcel
+                        : calcularCostoAserrioTotalParaVenta(detallesVenta, configActual);
 
                     const nuevaVenta: Venta = {
                         id: `venta-bulk-${Date.now()}-${idVenta}`,
@@ -349,6 +382,8 @@ export default function CargaMasivaPage() {
                         costoOperario: (costoOperario !== undefined && !isNaN(costoOperario)) ? costoOperario : undefined,
                         detalles: detallesVenta,
                         totalVenta: detallesVenta.reduce((sum, d) => sum + (d.subTotal || 0), 0),
+                        costoMaderaVentaSnapshot: costoMaderaSnapshot,
+                        costoAserrioVentaSnapshot: costoAserrioSnapshot,
                     };
                     nuevasVentas.push(nuevaVenta);
                     processedCount++;
@@ -480,7 +515,7 @@ export default function CargaMasivaPage() {
             <p className="text-xs text-muted-foreground pt-2">
               Asegúrese de que los 'Tipos de Madera (Artículo)' coincidan con los nombres exactos de la plantilla.
               Para ventas con múltiples artículos, use el mismo 'ID Venta' para todas las filas correspondientes. Las filas sin 'ID Venta' serán omitidas.
-              Las columnas "Costo Madera Estimado" y "Costo Aserrío Estimado" son para su referencia; el sistema los recalculará.
+              Si completa las columnas "Costo Madera Estimado" y "Costo Aserrío Estimado", esos valores se usarán; de lo contrario, el sistema los calculará.
             </p>
           </CardContent>
         </Card>
@@ -488,3 +523,6 @@ export default function CargaMasivaPage() {
     </div>
   );
 }
+
+
+    
