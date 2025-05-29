@@ -27,8 +27,8 @@ const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
     nombreCliente: "Ana Gómez", 
     telefonoCliente: "555-1122",
     detalles: [
-      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 10, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 },
-      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 12, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 },
+      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 3.05, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 }, // Largo en metros
+      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 }, // Largo en metros
     ],
     totalPresupuesto: 754,
   },
@@ -37,7 +37,7 @@ const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
     fecha: "2024-07-26", 
     nombreCliente: "Empresa Constructora XYZ", 
     detalles: [
-      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 16, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 },
+      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 4.88, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 }, // Largo en metros
     ],
     totalPresupuesto: 10666.65,
   },
@@ -69,10 +69,10 @@ export default function PresupuestosPage() {
           setPresupuestos(JSON.parse(storedPresupuestos));
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage", e);
-          updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); // Fallback and store
+          updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); 
         }
       } else {
-        updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); // Initialize if nothing in storage
+        updatePresupuestosListAndStorage(PREDEFINED_MOCK_PRESUPUESTOS); 
       }
     }
   }, [updatePresupuestosListAndStorage]);
@@ -81,7 +81,6 @@ export default function PresupuestosPage() {
   useEffect(() => {
     const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
     if (budgetToDeleteId && typeof window !== 'undefined') {
-      // Re-fetch from localStorage to ensure we have the most current list
       const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
       let currentList: Presupuesto[] = [];
       if (currentListFromStorage) {
@@ -89,12 +88,9 @@ export default function PresupuestosPage() {
           currentList = JSON.parse(currentListFromStorage);
         } catch (e) {
           console.error("Error parsing presupuestos from localStorage for delete operation", e);
-          // If parsing fails, we might rely on current state or re-initialize,
-          // for simplicity, we'll use the current state as a base if storage fails.
           currentList = presupuestos;
         }
       } else {
-         // This case should ideally not happen if initialized correctly
         currentList = presupuestos;
       }
 
@@ -106,7 +102,8 @@ export default function PresupuestosPage() {
         description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
       });
     }
-  }, [toast, updatePresupuestosListAndStorage, presupuestos]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps 
+  }, [toast, updatePresupuestosListAndStorage]); // presupuestos quitado para evitar bucle
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
@@ -137,12 +134,12 @@ export default function PresupuestosPage() {
         try {
           const images = Array.from(inputElement.getElementsByTagName('img'));
           await Promise.all(images.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); // Check if already loaded and valid
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); 
             return new Promise(resolve => { 
               img.onload = resolve; 
-              img.onerror = () => { // Handle image load errors
+              img.onerror = () => { 
                 console.warn(`Failed to load image for PDF: ${img.src}`);
-                resolve(null); // Resolve anyway to not block PDF generation
+                resolve(null); 
               };
             });
           }));
@@ -188,7 +185,7 @@ export default function PresupuestosPage() {
       }
       setSelectedPresupuestoForPdf(null);
       setPdfTargetId(null);
-    }, 300); // Increased timeout slightly
+    }, 300); 
   };
 
 
@@ -258,7 +255,7 @@ export default function PresupuestosPage() {
                       <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div>
                             <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(presupuesto.fecha).toLocaleDateString('es-ES')}</span>
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(presupuesto.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
                         </div>
                         <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
                             <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
@@ -292,7 +289,7 @@ export default function PresupuestosPage() {
                                 </AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>
-                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
                         </div>
                       </div>
                     </div>
@@ -317,7 +314,7 @@ export default function PresupuestosPage() {
                           <TableRow key={detalle.id}>
                             <TableCell>{detalle.tipoMadera}</TableCell>
                             <TableCell>{detalle.unidades}</TableCell>
-                            <TableCell>{detalle.ancho}" x {detalle.alto}" x {detalle.largo}'</TableCell>
+                            <TableCell>{detalle.alto}" x {detalle.ancho}" x {detalle.largo}m</TableCell>
                             <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
                             <TableCell>${detalle.valorUnitario?.toFixed(2)}</TableCell>
                             <TableCell>${detalle.precioPorPie.toFixed(2)}</TableCell>

@@ -31,15 +31,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialConfigData } from "@/lib/config-data"; 
 import type { Presupuesto, PresupuestoDetalle } from "@/types";
 
-// Usar directamente desde initialConfigData
-// const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
-
 const itemDetalleSchema = z.object({
   tipoMadera: z.string().optional().or(z.literal("")),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas (espesor)
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pies
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // metros
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
   cepillado: z.boolean().default(false).optional(),
 });
@@ -71,13 +68,10 @@ const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
 });
 
 const initialDetallesCount = 15;
-// No inicializar con createEmptyDetalle aquí, se hará en defaultValues
-// const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle());
 
 
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
-  // Eliminar estados locales, se usarán directamente de initialConfigData
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -103,22 +97,30 @@ export default function NuevoPresupuestoPage() {
   const watchedDetalles = form.watch("detalles");
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
-    if (!detalle || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return 0;
-    return (detalle.alto * detalle.ancho * detalle.largo * detalle.unidades) / 12;
+    const unidades = Number(detalle.unidades) || 0;
+    const alto = Number(detalle.alto) || 0; // pulgadas
+    const ancho = Number(detalle.ancho) || 0; // pulgadas
+    const largo = Number(detalle.largo) || 0; // metros
+  
+    if (!unidades || !alto || !ancho || !largo) return 0;
+    // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
+    return unidades * alto * ancho * largo * 0.2734;
   };
-
+  
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
-    if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
-    let subtotal = piesTablares * detalle.precioPorPie;
+    const precioPorPie = Number(detalle.precioPorPie) || 0;
+    if (!precioPorPie && piesTablares > 0) return 0;
+    if (piesTablares === 0) return 0;
+
+    let subtotal = piesTablares * precioPorPie;
     if (detalle.cepillado) {
-      // Leer directamente de initialConfigData
-      subtotal += piesTablares * initialConfigData.precioCepilladoPorPie;
+      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') { 
+    if (detalle && detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -127,7 +129,6 @@ export default function NuevoPresupuestoPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
-    // Leer directamente de initialConfigData
     const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
@@ -138,13 +139,24 @@ export default function NuevoPresupuestoPage() {
 
   function onSubmit(data: PresupuestoFormValues) {
     const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && d_form.unidades && d_form.unidades > 0 && typeof d_form.precioPorPie === 'number'
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number'
     ).map((d_form, index) => {
-      const d = d_form as Required<typeof d_form>; // Assert non-optional
+      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
-      const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
-      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit, id: `pd-${Date.now()}-${index}` } as PresupuestoDetalle;
+      const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
+      return { 
+        ...d, 
+        unidades: Number(d.unidades),
+        ancho: Number(d.ancho),
+        alto: Number(d.alto),
+        largo: Number(d.largo),
+        precioPorPie: Number(d.precioPorPie),
+        piesTablares: pies, 
+        subTotal: sub, 
+        valorUnitario: valorUnit, 
+        id: `pd-${Date.now()}-${index}` 
+      } as PresupuestoDetalle;
     });
 
     if (processedDetalles.length === 0) {
@@ -256,7 +268,7 @@ export default function NuevoPresupuestoPage() {
                       <TableHead className="min-w-[100px]">Unid.</TableHead>
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
-                      <TableHead className="min-w-[90px]">Largo (pies)</TableHead>
+                      <TableHead className="min-w-[100px]">Largo (m)</TableHead>
                       <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
@@ -321,7 +333,7 @@ export default function NuevoPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.1" placeholder="Ej: 8" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">

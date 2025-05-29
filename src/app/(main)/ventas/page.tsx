@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
+// Mock data (solo se usa si localStorage está vacío y no hay datos para cargar)
 const mockVentasData: Venta[] = [
   {
     id: "venta001",
@@ -30,31 +31,29 @@ const mockVentasData: Venta[] = [
     fechaEntregaEstimada: "2024-07-25",
     sena: 50,
     detalles: [
-      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 8, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
-      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 10, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
+      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 }, // Asumiendo largo en metros
+      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 }, // Asumiendo largo en metros
     ],
     totalVenta: 720,
-  },
-  {
-    id: "venta002",
-    fecha: "2024-07-22",
-    nombreComprador: "Constructora Moderna",
-    telefonoComprador: "555-4321",
-    detalles: [
-      { id: "d003", tipoMadera: "Cedro", unidades: 20, ancho: 4, alto: 1, largo: 12, precioPorPie: 4.00, cepillado: true, piesTablares: 80, subTotal: 360, valorUnitario: 18 },
-    ],
-    totalVenta: 360,
   },
 ];
 
 const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
-    if (!detalle || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return 0;
-    return (detalle.alto * detalle.ancho * detalle.largo * detalle.unidades) / 12;
+    const unidades = Number(detalle.unidades) || 0;
+    const alto = Number(detalle.alto) || 0;
+    const ancho = Number(detalle.ancho) || 0;
+    const largo = Number(detalle.largo) || 0; // Asumiendo que largo está en metros
+  
+    if (!unidades || !alto || !ancho || !largo) return 0;
+    return unidades * alto * ancho * largo * 0.2734;
 };
 
 const calcularSubtotalVenta = (detalle: VentaDetalle, piesTablares: number): number => {
-    if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
-    let subtotal = piesTablares * detalle.precioPorPie;
+    const precioPorPie = Number(detalle.precioPorPie) || 0;
+    if (!precioPorPie && piesTablares > 0) return 0;
+    if (piesTablares === 0) return 0;
+
+    let subtotal = piesTablares * precioPorPie;
     if (detalle.cepillado) {
       subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
     }
@@ -71,13 +70,12 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
     venta.detalles.forEach(detalle => {
-      if (detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+      if (detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') {
         const piesTablaresArticulo = calcularPiesTablaresVenta(detalle);
         if (piesTablaresArticulo > 0) {
           const costoMaderaConfig = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
-          const costoPorMetroCubicoDelTipo = costoMaderaConfig?.costoPorMetroCubico || 0;
-          const metrosCubicosArticulo = piesTablaresArticulo / 200; // 200 pies = 1 m3
-          costoTotal += metrosCubicosArticulo * costoPorMetroCubicoDelTipo;
+          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+          costoTotal += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; // 200 pies = 1 m3
         }
       }
     });
@@ -85,15 +83,15 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   }, [venta.detalles]);
 
   const costoTotalAserrioVenta = useMemo(() => {
-    const precioNafta = initialConfigData.precioLitroNafta || 0;
-    const precioAfilado = initialConfigData.precioAfiladoSierra || 0;
+    const precioNafta = Number(initialConfigData.precioLitroNafta) || 0;
+    const precioAfilado = Number(initialConfigData.precioAfiladoSierra) || 0;
 
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
     const costoAserrioPorPie = costoOperativoAjustado / 600;
 
     const totalPiesTablaresVenta = venta.detalles.reduce((acc, detalle) => {
-      if (detalle.tipoMadera && detalle.unidades && detalle.unidades > 0 && typeof detalle.precioPorPie === 'number') {
+      if (detalle.tipoMadera && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') {
         return acc + calcularPiesTablaresVenta(detalle);
       }
       return acc;
@@ -109,40 +107,40 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   return (
     <AccordionItem value={venta.id} key={venta.id}>
       <AccordionTrigger asChild className="hover:no-underline">
-        <div className={cn(
-          "flex w-full items-center py-4 px-2 font-medium text-left group",
-          "hover:bg-muted/50 rounded-md"
-        )}>
+         <div className={cn(
+            "flex w-full items-center py-4 px-2 font-medium text-left group", 
+            "hover:bg-muted/50 rounded-md"
+          )}>
           <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div>
-              <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
-              <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
+                <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
+                <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
             </div>
             <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-              <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Eliminar Venta</span>
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={(e) => { e.stopPropagation(); onDelete(venta.id); }} className="bg-destructive hover:bg-destructive/90">
-                      Eliminar
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" />
+                <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Eliminar Venta</span>
+                    </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                        Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={(e) => { e.stopPropagation(); onDelete(venta.id); }} className="bg-destructive hover:bg-destructive/90">
+                        Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
             </div>
           </div>
         </div>
@@ -172,7 +170,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
               <TableRow key={detalle.id}>
                 <TableCell>{detalle.tipoMadera}</TableCell>
                 <TableCell>{detalle.unidades}</TableCell>
-                <TableCell>{detalle.alto}" x {detalle.ancho}" x {detalle.largo}'</TableCell>
+                <TableCell>{detalle.alto}" x {detalle.ancho}" x {detalle.largo}m</TableCell>
                 <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
                 <TableCell className="text-right">{detalle.piesTablares?.toFixed(2)}</TableCell>
                 <TableCell className="text-right">${detalle.precioPorPie?.toFixed(2)}</TableCell>
@@ -320,3 +318,4 @@ export default function VentasPage() {
     </div>
   );
 }
+

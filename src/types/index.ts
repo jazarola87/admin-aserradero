@@ -15,7 +15,7 @@ export interface VentaDetalle {
   unidades?: number;
   ancho?: number; // pulgadas
   alto?: number; // pulgadas (espesor)
-  largo?: number; // pies
+  largo?: number; // metros
   precioPorPie?: number;
   cepillado?: boolean;
   piesTablares?: number; // auto-calculado
@@ -31,17 +31,17 @@ export interface Venta {
   detalles: VentaDetalle[];
   totalVenta?: number; // sum of subTotals
   idOriginalPresupuesto?: string; // To track if it came from a budget
-  fechaEntregaEstimada?: string; // Nueva: Fecha estimada de entrega (YYYY-MM-DD)
-  sena?: number; // Nueva: Monto de la seña
+  fechaEntregaEstimada?: string; // Fecha estimada de entrega (YYYY-MM-DD)
+  sena?: number; // Monto de la seña
 }
 
 export interface PresupuestoDetalle {
   id: string;
   tipoMadera: string;
   unidades: number;
-  ancho: number;
-  alto: number;
-  largo: number;
+  ancho: number; // pulgadas
+  alto: number; // pulgadas (espesor)
+  largo: number; // metros
   precioPorPie: number;
   cepillado: boolean;
   piesTablares?: number;
