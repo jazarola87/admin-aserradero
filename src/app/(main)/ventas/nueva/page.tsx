@@ -99,12 +99,22 @@ export default function NuevaVentaPage() {
     name: "detalles",
   });
 
- useEffect(() => {
+  useEffect(() => {
     const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
+        const budgetItemsToAppend = (presupuesto.detalles || []).map(d_presupuesto_item => ({
+            tipoMadera: d_presupuesto_item.tipoMadera,
+            unidades: Number(d_presupuesto_item.unidades) || undefined,
+            ancho: Number(d_presupuesto_item.ancho) || undefined,
+            alto: Number(d_presupuesto_item.alto) || undefined,
+            largo: Number(d_presupuesto_item.largo) || undefined,
+            precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
+            cepillado: d_presupuesto_item.cepillado ?? false,
+        }));
+
         form.reset({
           fecha: new Date(), // Fecha actual para la venta
           nombreComprador: presupuesto.nombreCliente,
@@ -113,30 +123,18 @@ export default function NuevaVentaPage() {
           fechaEntregaEstimada: undefined,
           sena: undefined,
           costoOperario: undefined,
-          detalles: [], // Inicia con detalles vacíos, los poblaremos con setValue o replace
+          detalles: [], // Start with empty details, will be populated by replace/append
         });
 
-        const budgetDetailsToMap = presupuesto.detalles || [];
-        const newFormDetails = budgetDetailsToMap.map(d_presupuesto_item => ({
-            tipoMadera: d_presupuesto_item.tipoMadera,
-            unidades: d_presupuesto_item.unidades,
-            ancho: d_presupuesto_item.ancho,
-            alto: d_presupuesto_item.alto,
-            largo: d_presupuesto_item.largo,
-            precioPorPie: d_presupuesto_item.precioPorPie,
-            cepillado: d_presupuesto_item.cepillado ?? false,
-        }));
+        replace(budgetItemsToAppend);
 
-        replace(newFormDetails); // Reemplaza los detalles con los del presupuesto
-
-        // Rellenar con filas vacías si es necesario
-        let currentLength = newFormDetails.length;
+        let currentLength = budgetItemsToAppend.length;
         while (currentLength < initialDetallesCount) {
           append(createEmptyDetalle(), { shouldFocus: false });
           currentLength++;
         }
         
-        form.trigger();
+        form.trigger(); // Trigger validation and re-render for all fields
 
         toast({
           title: "Presupuesto Cargado para Venta",
@@ -153,8 +151,7 @@ export default function NuevaVentaPage() {
         localStorage.removeItem('presupuestoParaVenta');
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, toast, replace, append]);
+  }, [form, replace, append, toast]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -279,22 +276,6 @@ export default function NuevaVentaPage() {
       return;
     }
 
-    // Recalcular costos en el momento de guardar para el snapshot
-    let costoMaderaSnapshot = 0;
-    processedDetalles.forEach(detalle => {
-        const piesTablaresArticulo = detalle.piesTablares || 0;
-        if (piesTablaresArticulo > 0 && detalle.tipoMadera) {
-          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
-          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          costoMaderaSnapshot += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
-        }
-    });
-
-    let totalPiesParaSnapshot = 0;
-    processedDetalles.forEach(detalle => { totalPiesParaSnapshot += (detalle.piesTablares || 0); });
-    const costoAserrioSnapshot = totalPiesParaSnapshot * costoAserrioPorPie;
-
-
     const nuevaVenta: Venta = {
       id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
@@ -306,8 +287,8 @@ export default function NuevaVentaPage() {
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
       idOriginalPresupuesto: data.idOriginalPresupuesto,
-      costoMaderaVentaSnapshot: costoMaderaSnapshot,
-      costoAserrioVentaSnapshot: costoAserrioSnapshot,
+      costoMaderaVentaSnapshot: calculatedCostoTotalMaderaVenta, // Guardar snapshot
+      costoAserrioVentaSnapshot: calculatedCostoTotalAserrioVenta, // Guardar snapshot
     };
 
     if (typeof window !== 'undefined') {
@@ -628,3 +609,4 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
+

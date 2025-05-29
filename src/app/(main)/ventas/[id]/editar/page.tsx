@@ -109,6 +109,16 @@ export default function EditarVentaPage() {
       const ventaAEditar = ventasActuales.find(v => v.id === ventaId);
 
       if (ventaAEditar) {
+        const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
+            tipoMadera: d.tipoMadera,
+            unidades: Number(d.unidades) || undefined,
+            ancho: Number(d.ancho) || undefined,
+            alto: Number(d.alto) || undefined,
+            largo: Number(d.largo) || undefined,
+            precioPorPie: Number(d.precioPorPie) || undefined,
+            cepillado: d.cepillado ?? false,
+        }));
+        
         form.reset({
           fecha: ventaAEditar.fecha ? parseISO(ventaAEditar.fecha) : new Date(),
           nombreComprador: ventaAEditar.nombreComprador,
@@ -117,20 +127,10 @@ export default function EditarVentaPage() {
           sena: ventaAEditar.sena ?? undefined,
           costoOperario: ventaAEditar.costoOperario ?? undefined,
           idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
-          detalles: [], // Reset with empty details first
+          detalles: [], 
         });
-
-        const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
-            tipoMadera: d.tipoMadera,
-            unidades: d.unidades,
-            ancho: d.ancho,
-            alto: d.alto,
-            largo: d.largo,
-            precioPorPie: d.precioPorPie,
-            cepillado: d.cepillado ?? false,
-        }));
         
-        replace(loadedDetails); // Replace with loaded details
+        replace(loadedDetails); 
 
         let currentLength = loadedDetails.length;
         while (currentLength < initialDetallesCount) {
@@ -152,7 +152,7 @@ export default function EditarVentaPage() {
       setIsLoadingData(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ventaId, form, router, toast, replace, append]);
+  }, [ventaId, form, router, toast, replace, append]); // Added replace and append
 
 
   const watchedDetalles = form.watch("detalles");
@@ -275,21 +275,10 @@ export default function EditarVentaPage() {
       });
       return;
     }
+    
+    const costoMaderaSnapshot = calculatedCostoTotalMaderaVenta;
+    const costoAserrioSnapshot = calculatedCostoTotalAserrioVenta;
 
-    // Recalcular costos en el momento de guardar para el snapshot
-    let costoMaderaSnapshot = 0;
-    processedDetalles.forEach(detalle => {
-        const piesTablaresArticulo = detalle.piesTablares || 0;
-        if (piesTablaresArticulo > 0 && detalle.tipoMadera) {
-          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
-          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          costoMaderaSnapshot += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
-        }
-    });
-
-    let totalPiesParaSnapshot = 0;
-    processedDetalles.forEach(detalle => { totalPiesParaSnapshot += (detalle.piesTablares || 0); });
-    const costoAserrioSnapshot = totalPiesParaSnapshot * costoAserrioPorPie;
 
     const ventaActualizada: Venta = {
       id: ventaId, 
@@ -302,8 +291,8 @@ export default function EditarVentaPage() {
       detalles: processedDetalles,
       totalVenta: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0),
       idOriginalPresupuesto: data.idOriginalPresupuesto, 
-      costoMaderaVentaSnapshot: costoMaderaSnapshot,
-      costoAserrioVentaSnapshot: costoAserrioSnapshot,
+      costoMaderaVentaSnapshot: costoMaderaSnapshot, // Actualizar snapshot
+      costoAserrioVentaSnapshot: costoAserrioSnapshot, // Actualizar snapshot
     };
 
     if (typeof window !== 'undefined') {
@@ -313,6 +302,7 @@ export default function EditarVentaPage() {
         if (index !== -1) {
           ventasActuales[index] = ventaActualizada;
         } else {
+          // Should not happen in edit mode, but as a fallback
           ventasActuales.push(ventaActualizada);
         }
         ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
@@ -617,3 +607,4 @@ export default function EditarVentaPage() {
     </div>
   );
 }
+

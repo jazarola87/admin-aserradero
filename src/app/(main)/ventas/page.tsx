@@ -22,9 +22,8 @@ import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-const mockVentasData: Venta[] = []; 
-
-const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
+// Helper function to calculate board feet for a single sale item
+const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
     const alto = Number(detalle?.alto) || 0;
     const ancho = Number(detalle?.ancho) || 0;
@@ -34,7 +33,8 @@ const calcularPiesTablaresVentaItem = (detalle: VentaDetalle): number => {
     return unidades * alto * ancho * largo * 0.2734;
 };
 
-const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracion): number => {
+// Helper function to get wood cost for a single sale item
+const getCostoMaderaParaVentaItem = (detalle: Partial<VentaDetalle>, config: Configuracion): number => {
   if (!detalle.tipoMadera) return 0;
   const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
   if (piesTablaresArticulo <= 0) return 0;
@@ -53,7 +53,7 @@ interface VentaItemProps {
 
 function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
   
-  const config = initialConfigData; // Usar la configuración global
+  const config = initialConfigData; 
 
   const costoTotalMaderaVenta = useMemo(() => {
     if (typeof venta.costoMaderaVentaSnapshot === 'number') {
@@ -64,7 +64,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
        costoTotal += getCostoMaderaParaVentaItem(detalle, config);
     });
     return costoTotal;
-  }, [venta.detalles, config, venta.costoMaderaVentaSnapshot]);
+  }, [venta.detalles, venta.costoMaderaVentaSnapshot, config]);
 
   const costoTotalAserrioVenta = useMemo(() => {
      if (typeof venta.costoAserrioVentaSnapshot === 'number') {
@@ -82,7 +82,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
     }, 0);
 
     return totalPiesTablaresVenta * costoAserrioPorPie;
-  }, [venta.detalles, config.precioLitroNafta, config.precioAfiladoSierra, venta.costoAserrioVentaSnapshot]);
+  }, [venta.detalles, venta.costoAserrioVentaSnapshot, config.precioLitroNafta, config.precioAfiladoSierra]);
 
   const costoOperarioActual = Number(venta.costoOperario) || 0;
 
@@ -100,7 +100,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
     const totalVentaNum = Number(venta.totalVenta) || 0;
     const senaNum = Number(venta.sena) || 0;
 
-    if (totalVentaNum <= 0 && senaNum <=0) return { texto: "N/A", variant: "outline" }; // Considerar 0 como N/A si no hay seña tampoco
+    if (totalVentaNum <= 0 && senaNum <=0) return { texto: "N/A", variant: "outline" }; 
 
     if (senaNum >= totalVentaNum) {
       return { texto: "Cobrado", variant: "default" };
@@ -224,9 +224,9 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
             </div>
             {senaActual > 0 && (
               <>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm text-destructive">
                     <span className="text-muted-foreground">Seña Aplicada:</span>
-                    <span className="text-destructive">-${(Number(senaActual) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
+                    <span>-${(Number(senaActual) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
                 </div>
                 <div className="flex justify-between text-lg font-semibold">
                     <span>Saldo Pendiente:</span>
@@ -253,11 +253,11 @@ function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
               <span>${gananciaNetaEstimada.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             <Separator className="my-2" />
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
                 <span>Javier (Madera + 50% Gan. Neta):</span>
                 <span>${(Number(valorJavier) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
                 <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
                 <span>${(Number(valorLucas) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
@@ -275,8 +275,10 @@ export default function VentasPage() {
 
   const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
     const sortedList = newList.sort((a, b) => {
-      if (!a.fecha || !b.fecha) return 0; // handle cases where date might be missing
-      return parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime();
+      if (!a.fecha || !b.fecha) return 0; 
+      const dateA = parseISO(a.fecha);
+      const dateB = parseISO(b.fecha);
+      return dateB.getTime() - dateA.getTime();
     });
     setVentas(sortedList);
     if (typeof window !== 'undefined') {
@@ -294,7 +296,7 @@ export default function VentasPage() {
         try {
           const parsedVentas = JSON.parse(storedVentas);
           if(Array.isArray(parsedVentas)) {
-            dataToLoad = parsedVentas;
+            dataToLoad = parsedVentas.filter(v => v.fecha && isValid(parseISO(v.fecha)));
           }
         } catch (e) {
           console.error("Error parsing ventas from localStorage", e);
@@ -302,8 +304,10 @@ export default function VentasPage() {
       }
       if (isMounted) {
         const sortedData = dataToLoad.sort((a, b) => {
-             if (!a.fecha || !b.fecha) return 0;
-            return parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime();
+            if (!a.fecha || !b.fecha) return 0;
+            const dateA = parseISO(a.fecha);
+            const dateB = parseISO(b.fecha);
+            return dateB.getTime() - dateA.getTime();
         });
         setVentas(sortedData);
         if (!storedVentas && dataToLoad.length === 0) { 
@@ -329,7 +333,9 @@ export default function VentasPage() {
   const handleMarkAsPaid = (idToMark: string) => {
     const newList = ventas.map(venta => {
       if (venta.id === idToMark) {
-        return { ...venta, sena: venta.totalVenta };
+        // Ensure totalVenta is a number, default to 0 if not
+        const totalVentaNum = Number(venta.totalVenta) || 0;
+        return { ...venta, sena: totalVentaNum };
       }
       return venta;
     });
@@ -407,3 +413,4 @@ export default function VentasPage() {
     </div>
   );
 }
+

@@ -14,6 +14,7 @@ import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
 
+// Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
   const unidades = Number(detalle?.unidades) || 0;
   const alto = Number(detalle?.alto) || 0;
@@ -23,6 +24,7 @@ const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
   return unidades * alto * ancho * largo * 0.2734;
 };
 
+// Helper to get wood cost for an entire Venta object
 const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number => {
   return (venta.detalles || []).reduce((itemSum, detalle) => {
     if (!detalle.tipoMadera) return itemSum;
@@ -35,6 +37,7 @@ const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number =>
   }, 0);
 };
 
+// Helper to get sawmill cost for an entire Venta object
 const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number => {
   const precioNafta = Number(config.precioLitroNafta) || 0;
   const precioAfilado = Number(config.precioAfiladoSierra) || 0;
@@ -86,14 +89,14 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!initialDatesSet && (comprasList.length > 0 || ventasList.length > 0)) {
       const allRecordDates: Date[] = [];
-      comprasList.forEach(c => allRecordDates.push(parseISO(c.fecha)));
-      ventasList.forEach(v => allRecordDates.push(parseISO(v.fecha)));
+      comprasList.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha))});
+      ventasList.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha))});
 
       if (allRecordDates.length > 0) {
         allRecordDates.sort((a, b) => a.getTime() - b.getTime());
         setFechaDesde(allRecordDates[0]);
         setFechaHasta(allRecordDates[allRecordDates.length - 1]);
-      } else { // Should not happen if comprasList or ventasList have items, but as fallback
+      } else { 
         const today = new Date();
         setFechaDesde(startOfMonth(today));
         setFechaHasta(endOfMonth(today));
@@ -114,7 +117,8 @@ export default function DashboardPage() {
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
     
     return comprasList.filter(compra => {
-        const fechaCompra = parseISO(compra.fecha); // Assumes valid date string from useEffect load
+        if (!compra.fecha || !isValid(parseISO(compra.fecha))) return false;
+        const fechaCompra = parseISO(compra.fecha); 
         return fechaCompra >= startOfDesdePeriod && fechaCompra <= endOfHastaPeriod;
     });
   }, [comprasList, fechaDesde, fechaHasta]);
@@ -125,7 +129,8 @@ export default function DashboardPage() {
     const endOfHastaPeriod = new Date(fechaHasta.getFullYear(), fechaHasta.getMonth(), fechaHasta.getDate(), 23, 59, 59, 999);
 
     return ventasList.filter(venta => {
-        const fechaVenta = parseISO(venta.fecha); // Assumes valid date string
+        if (!venta.fecha || !isValid(parseISO(venta.fecha))) return false;
+        const fechaVenta = parseISO(venta.fecha); 
         return fechaVenta >= startOfDesdePeriod && fechaVenta <= endOfHastaPeriod;
     });
   }, [ventasList, fechaDesde, fechaHasta]);
@@ -140,12 +145,14 @@ export default function DashboardPage() {
 
   const costoMaderaRecuperado = useMemo(() => {
     return filteredVentasList.reduce((sum, venta) => {
-      const costoMaderaEstaVenta = venta.costoMaderaVentaSnapshot ?? getCostoMaderaParaVenta(venta, initialConfigData);
+      const costoMaderaEstaVenta = typeof venta.costoMaderaVentaSnapshot === 'number' 
+        ? venta.costoMaderaVentaSnapshot 
+        : getCostoMaderaParaVenta(venta, initialConfigData);
       return sum + (Number(costoMaderaEstaVenta) || 0);
     }, 0);
-  }, [filteredVentasList]);
+  }, [filteredVentasList, initialConfigData]);
   
-  const saldoMaderaARecuperar = useMemo(() => { // Renamed for clarity
+  const saldoMaderaARecuperar = useMemo(() => { 
     return valorTotalCompras - costoMaderaRecuperado;
   }, [valorTotalCompras, costoMaderaRecuperado]);
 
@@ -153,14 +160,19 @@ export default function DashboardPage() {
   const gananciaNetaSocios = useMemo(() => {
     let totalGananciaNetaFiltrada = 0;
     filteredVentasList.forEach(venta => {
-      const costoMaderaEstaVenta = venta.costoMaderaVentaSnapshot ?? getCostoMaderaParaVenta(venta, initialConfigData);
-      const costoAserrioEstaVenta = venta.costoAserrioVentaSnapshot ?? getCostoAserrioParaVenta(venta, initialConfigData);
+      const costoMaderaEstaVenta = typeof venta.costoMaderaVentaSnapshot === 'number'
+        ? venta.costoMaderaVentaSnapshot
+        : getCostoMaderaParaVenta(venta, initialConfigData);
+      const costoAserrioEstaVenta = typeof venta.costoAserrioVentaSnapshot === 'number'
+        ? venta.costoAserrioVentaSnapshot
+        : getCostoAserrioParaVenta(venta, initialConfigData);
       const costoOperarioEstaVenta = Number(venta.costoOperario) || 0;
+      
       const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - (Number(costoMaderaEstaVenta) || 0) - (Number(costoAserrioEstaVenta) || 0) - costoOperarioEstaVenta;
       totalGananciaNetaFiltrada += gananciaNetaEstaVenta;
     });
-    return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0; // Ensure non-negative for display if loss
-  }, [filteredVentasList]);
+    return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0; 
+  }, [filteredVentasList, initialConfigData]);
 
   const stockPorTipoMadera = useMemo(() => {
     const stockMap: { [key: string]: { compradosM3: number; vendidosPies: number } } = {};
@@ -168,22 +180,22 @@ export default function DashboardPage() {
     (initialConfigData.preciosMadera || []).forEach(pm => {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
-
-    // Use ALL comprasList for historical stock, not filtered
+    
+    // Usa ALL comprasList para histórico
     comprasList.forEach(compra => {
       if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
         stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
-      } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) { // For types not in config but in old data
+      } else if (compra.tipoMadera && !stockMap[compra.tipoMadera]) { 
         stockMap[compra.tipoMadera] = { compradosM3: Number(compra.volumen) || 0, vendidosPies: 0 };
       }
     });
 
-    // Use ALL ventasList for historical stock
+    // Usa ALL ventasList para histórico
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
           stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
-        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) { // For types not in config but in old data
+        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) { 
            stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
         }
       });
@@ -197,13 +209,14 @@ export default function DashboardPage() {
         vendidosM3: vendidosM3,
         stockM3: data.compradosM3 - vendidosM3,
       };
-    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Filter out types with no activity
+    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); 
   }, [comprasList, ventasList, initialConfigData.preciosMadera]);
 
 
   const displayDateRange = useMemo(() => {
     const from = fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "N/A";
     const to = fechaHasta ? format(fechaHasta, "PPP", { locale: es }) : "N/A";
+    if (from === "N/A" && to === "N/A") return "Cargando rango de fechas...";
     return `${from} - ${to}`;
   }, [fechaDesde, fechaHasta]);
 
@@ -336,7 +349,7 @@ export default function DashboardPage() {
                 <li key={item.tipoMadera} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border-b last:border-b-0 hover:bg-muted/50 rounded-md text-sm">
                   <div>
                     <span className="font-medium">{item.tipoMadera}: </span>
-                    <span className={cn("font-semibold", item.stockM3 < 0 ? "text-destructive" : "text-primary")}>
+                    <span className={cn("font-semibold text-lg", item.stockM3 < 0 ? "text-destructive" : "text-primary")}>
                       {item.stockM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
                     </span>
                   </div>
@@ -356,3 +369,4 @@ export default function DashboardPage() {
   );
 }
     
+
