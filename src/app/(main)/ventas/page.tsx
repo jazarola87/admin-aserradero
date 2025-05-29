@@ -10,20 +10,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil } from "lucide-react";
-import type { Venta, VentaDetalle } from "@/types";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil, CircleCheckBig } from "lucide-react";
+import type { Venta, VentaDetalle, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge"; // Import Badge
+import { Badge } from "@/components/ui/badge";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
-
-// Mock data moved inside useEffect to ensure it's only used if localStorage is empty
-// and to avoid re-declaration issues if this component re-renders often.
 
 const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
     const unidades = Number(detalle.unidades) || 0;
@@ -38,9 +35,10 @@ const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
 interface VentaItemProps {
   venta: Venta;
   onDelete: (id: string) => void;
+  onMarkAsPaid: (id: string) => void; // Nueva prop
 }
 
-function VentaItem({ venta, onDelete }: VentaItemProps) {
+function VentaItem({ venta, onDelete, onMarkAsPaid }: VentaItemProps) {
   
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
@@ -64,6 +62,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
 
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
+    // Asegurar que costoAserrioPorPie no sea NaN si costoOperativoAjustado es 0
     const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
 
     const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
@@ -77,23 +76,27 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   }, [venta.detalles]);
 
   const costoOperarioActual = Number(venta.costoOperario) || 0;
+
   const gananciaNetaEstimada = useMemo(() => {
-    return (venta.totalVenta || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta - costoOperarioActual;
+    return (Number(venta.totalVenta) || 0) - costoTotalMaderaVenta - costoTotalAserrioVenta - costoOperarioActual;
   }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta, costoOperarioActual]);
 
   const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual;
+  const valorLucas = costoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+
 
   const senaActual = Number(venta.sena) || 0;
-  const saldoPendiente = (venta.totalVenta || 0) - senaActual;
+  const saldoPendiente = (Number(venta.totalVenta) || 0) - senaActual;
 
-  const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" } => {
-    const totalVenta = Number(venta.totalVenta) || 0;
-    const pagado = Number(venta.sena) || 0;
+  const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" | "outline" } => {
+    const totalVentaNum = Number(venta.totalVenta) || 0;
+    const senaNum = Number(venta.sena) || 0;
 
-    if (pagado >= totalVenta && totalVenta > 0) {
+    if (totalVentaNum <= 0) return { texto: "N/A", variant: "outline" }; // Si no hay total, no se puede determinar estado
+
+    if (senaNum >= totalVentaNum) {
       return { texto: "Cobrado", variant: "default" };
-    } else if (pagado > 0 && pagado < totalVenta) {
+    } else if (senaNum > 0 && senaNum < totalVentaNum) {
       return { texto: "Parcialmente Cobrado", variant: "secondary" };
     } else {
       return { texto: "Pendiente", variant: "destructive" };
@@ -101,17 +104,18 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   };
 
   const estadoCobro = getEstadoCobro();
+  const isFullyPaid = estadoCobro.texto === "Cobrado";
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
       <AccordionTrigger asChild className="hover:no-underline">
          <div className={cn(
-            "flex w-full items-center py-4 px-2 font-medium text-left group", 
+            "flex w-full items-center py-3 px-2 font-medium text-left group", 
             "hover:bg-muted/50 rounded-md"
           )}>
           <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3">
-                <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
+                <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
                 <Badge variant={estadoCobro.variant} className="w-fit mt-1 sm:mt-0">{estadoCobro.texto}</Badge>
                 <span className="text-sm text-muted-foreground block sm:inline mt-1 sm:mt-0">
                   Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}
@@ -119,6 +123,20 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             </div>
             <div className="flex items-center mt-2 sm:mt-0 space-x-1">
                 <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+                
+                {!isFullyPaid && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs h-8 px-2"
+                    onClick={(e) => { e.stopPropagation(); onMarkAsPaid(venta.id); }}
+                    title="Marcar como Cobrado"
+                  >
+                    <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
+                    <span className="hidden sm:inline">Cobrado</span>
+                  </Button>
+                )}
+
                 <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
                   <Link href={`/ventas/${venta.id}/editar`}>
                     <Pencil className="h-4 w-4" />
@@ -255,43 +273,7 @@ export default function VentasPage() {
     let isMounted = true;
     if (typeof window !== 'undefined') {
       const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      const mockVentasData: Venta[] = [
-        {
-          id: "venta001",
-          fecha: "2024-07-20",
-          nombreComprador: "Juan Pérez",
-          telefonoComprador: "555-8765",
-          fechaEntregaEstimada: "2024-07-25",
-          sena: 50,
-          costoOperario: 100,
-          detalles: [
-            { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
-            { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
-          ],
-          totalVenta: 720,
-        },
-         {
-          id: "venta002",
-          fecha: "2024-07-28",
-          nombreComprador: "Maria Rodriguez",
-          telefonoComprador: "555-1234",
-          sena: 500,
-          costoOperario: 150,
-          detalles: [
-            { id: "d003", tipoMadera: "Eucalipto", unidades: 20, ancho: 4, alto: 2, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 160, subTotal: 560, valorUnitario: 28 },
-          ],
-          totalVenta: 560,
-        },
-        {
-          id: "venta003",
-          fecha: "2024-08-01",
-          nombreComprador: "Constructora Delta",
-          detalles: [
-            { id: "d004", tipoMadera: "Pino", unidades: 100, ancho: 3, alto: 3, largo: 3.05, precioPorPie: 2.20, cepillado: false, piesTablares: 750, subTotal: 1650, valorUnitario: 16.50 },
-          ],
-          totalVenta: 1650,
-        },
-      ];
+      const mockVentasData: Venta[] = [ /* Default mock data if needed, or ensure it's empty */ ];
 
       if (isMounted) {
         if (storedVentas) {
@@ -323,6 +305,20 @@ export default function VentasPage() {
       title: "Venta Eliminada",
       description: "La venta ha sido eliminada exitosamente.",
       variant: "default",
+    });
+  };
+
+  const handleMarkAsPaid = (idToMark: string) => {
+    const newList = ventas.map(venta => {
+      if (venta.id === idToMark) {
+        return { ...venta, sena: venta.totalVenta };
+      }
+      return venta;
+    });
+    updateVentasListAndStorage(newList);
+    toast({
+      title: "Venta Actualizada",
+      description: "La venta ha sido marcada como cobrada.",
     });
   };
 
@@ -384,7 +380,7 @@ export default function VentasPage() {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
-                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} />
+                <VentaItem key={venta.id} venta={venta} onDelete={handleDeleteVenta} onMarkAsPaid={handleMarkAsPaid} />
               ))}
             </Accordion>
           )}
@@ -393,4 +389,3 @@ export default function VentasPage() {
     </div>
   );
 }
-
