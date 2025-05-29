@@ -10,38 +10,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil, Send, Download } from "lucide-react"; // Importar Pencil, Send, Download
-import type { Venta, VentaDetalle, Presupuesto } from "@/types";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil } from "lucide-react";
+import type { Venta, VentaDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
-import { useRouter } from "next/navigation";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import { PresupuestoPDFDocument } from '@/components/shared/presupuesto-pdf-document';
-
+import { Badge } from "@/components/ui/badge"; // Import Badge
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
-const mockVentasData: Venta[] = [
-  {
-    id: "venta001",
-    fecha: "2024-07-20",
-    nombreComprador: "Juan Pérez",
-    telefonoComprador: "555-8765",
-    fechaEntregaEstimada: "2024-07-25",
-    sena: 50,
-    costoOperario: 100,
-    detalles: [
-      { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
-      { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
-    ],
-    totalVenta: 720,
-  },
-];
+// Mock data moved inside useEffect to ensure it's only used if localStorage is empty
+// and to avoid re-declaration issues if this component re-renders often.
 
 const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
     const unidades = Number(detalle.unidades) || 0;
@@ -105,6 +87,20 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   const senaActual = Number(venta.sena) || 0;
   const saldoPendiente = (venta.totalVenta || 0) - senaActual;
 
+  const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" } => {
+    const totalVenta = Number(venta.totalVenta) || 0;
+    const pagado = Number(venta.sena) || 0;
+
+    if (pagado >= totalVenta && totalVenta > 0) {
+      return { texto: "Cobrado", variant: "default" };
+    } else if (pagado > 0 && pagado < totalVenta) {
+      return { texto: "Parcialmente Cobrado", variant: "secondary" };
+    } else {
+      return { texto: "Pendiente", variant: "destructive" };
+    }
+  };
+
+  const estadoCobro = getEstadoCobro();
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
@@ -114,9 +110,12 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             "hover:bg-muted/50 rounded-md"
           )}>
           <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-x-3">
                 <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
-                <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
+                <Badge variant={estadoCobro.variant} className="w-fit mt-1 sm:mt-0">{estadoCobro.texto}</Badge>
+                <span className="text-sm text-muted-foreground block sm:inline mt-1 sm:mt-0">
+                  Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}
+                </span>
             </div>
             <div className="flex items-center mt-2 sm:mt-0 space-x-1">
                 <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
@@ -156,9 +155,9 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
       <AccordionContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 mb-4 text-sm p-4 border rounded-md bg-muted/30">
           <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
-          {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(new Date(venta.fechaEntregaEstimada + 'T00:00:00'), "PPP", { locale: es })}</p>}
-          {typeof venta.sena === 'number' && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
-          {typeof venta.costoOperario === 'number' && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+          {venta.fechaEntregaEstimada && <p><strong>Fecha Entrega Estimada:</strong> {format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es })}</p>}
+          {typeof venta.sena === 'number' && venta.sena > 0 && <p><strong>Seña:</strong> ${venta.sena.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
+          {typeof venta.costoOperario === 'number' && venta.costoOperario > 0 && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
         </div>
         <Table>
@@ -192,48 +191,47 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
         <div className="mt-6 p-4 border rounded-md space-y-1 text-sm text-right">
             <div className="flex justify-between text-lg">
               <span>Total Venta:</span>
-              <span className="font-semibold text-primary">${(venta.totalVenta || 0).toFixed(2)}</span>
+              <span className="font-semibold text-primary">${(venta.totalVenta || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
+            {senaActual > 0 && (
+              <>
+                <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Seña Aplicada:</span>
+                    <span className="text-destructive">-${(Number(senaActual) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
+                </div>
+                <div className="flex justify-between text-lg font-semibold">
+                    <span>Saldo Pendiente:</span>
+                    <span className="text-primary">${(Number(saldoPendiente) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
+                </div>
+              </>
+            )}
             <Separator className="my-1" />
             <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Total Madera:</span>
-              <span>${costoTotalMaderaVenta.toFixed(2)}</span>
+              <span>${costoTotalMaderaVenta.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Total Aserrío:</span>
-              <span>${costoTotalAserrioVenta.toFixed(2)}</span>
+              <span>${costoTotalAserrioVenta.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
-            <div className="flex justify-between">
+             <div className="flex justify-between">
               <span className="text-muted-foreground">Costo Operario:</span>
-              <span>${costoOperarioActual.toFixed(2)}</span>
+              <span>${costoOperarioActual.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
              <Separator className="my-1" />
             <div className="flex justify-between font-semibold">
               <span>Ganancia Neta Estimada:</span>
-              <span>${gananciaNetaEstimada.toFixed(2)}</span>
+              <span>${gananciaNetaEstimada.toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             <Separator className="my-1" />
             <div className="flex justify-between">
                 <span>Javier (Madera + 50% Gan. Neta):</span>
-                <span>${(Number(valorJavier) || 0).toFixed(2)}</span>
+                <span>${(Number(valorJavier) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             <div className="flex justify-between">
                 <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
-                <span>${(Number(valorLucas) || 0).toFixed(2)}</span>
+                <span>${(Number(valorLucas) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
-            {senaActual > 0 && (
-                <>
-                <Separator className="my-1" />
-                <div className="flex justify-between text-sm text-destructive">
-                    <span>Seña Aplicada:</span>
-                    <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-semibold">
-                    <span>Saldo Pendiente:</span>
-                    <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
-                </div>
-                </>
-            )}
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -257,6 +255,44 @@ export default function VentasPage() {
     let isMounted = true;
     if (typeof window !== 'undefined') {
       const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+      const mockVentasData: Venta[] = [
+        {
+          id: "venta001",
+          fecha: "2024-07-20",
+          nombreComprador: "Juan Pérez",
+          telefonoComprador: "555-8765",
+          fechaEntregaEstimada: "2024-07-25",
+          sena: 50,
+          costoOperario: 100,
+          detalles: [
+            { id: "d001", tipoMadera: "Pino", unidades: 10, ancho: 6, alto: 2, largo: 2.44, precioPorPie: 2.50, cepillado: true, piesTablares: 80, subTotal: 220, valorUnitario: 22 },
+            { id: "d002", tipoMadera: "Roble", unidades: 5, ancho: 8, alto: 3, largo: 3.05, precioPorPie: 5.00, cepillado: false, piesTablares: 100, subTotal: 500, valorUnitario: 100 },
+          ],
+          totalVenta: 720,
+        },
+         {
+          id: "venta002",
+          fecha: "2024-07-28",
+          nombreComprador: "Maria Rodriguez",
+          telefonoComprador: "555-1234",
+          sena: 500,
+          costoOperario: 150,
+          detalles: [
+            { id: "d003", tipoMadera: "Eucalipto", unidades: 20, ancho: 4, alto: 2, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 160, subTotal: 560, valorUnitario: 28 },
+          ],
+          totalVenta: 560,
+        },
+        {
+          id: "venta003",
+          fecha: "2024-08-01",
+          nombreComprador: "Constructora Delta",
+          detalles: [
+            { id: "d004", tipoMadera: "Pino", unidades: 100, ancho: 3, alto: 3, largo: 3.05, precioPorPie: 2.20, cepillado: false, piesTablares: 750, subTotal: 1650, valorUnitario: 16.50 },
+          ],
+          totalVenta: 1650,
+        },
+      ];
+
       if (isMounted) {
         if (storedVentas) {
           try {
@@ -357,3 +393,4 @@ export default function VentasPage() {
     </div>
   );
 }
+
