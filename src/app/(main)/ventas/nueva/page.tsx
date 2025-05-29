@@ -28,7 +28,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data"; // Import shared config data
+import { initialConfigData } from "@/lib/config-data"; 
 
 const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_MOCK } = initialConfigData;
 
@@ -78,7 +78,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined,
+      fecha: undefined, // Will be set by useEffect
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
@@ -125,9 +125,6 @@ export default function NuevaVentaPage() {
     const maderaSeleccionada = tiposDeMaderaDisponibles.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie);
-    } else {
-      // Optionally clear price if wood type is cleared or not found
-      // form.setValue(`detalles.${index}.precioPorPie`, undefined);
     }
   };
 
@@ -136,7 +133,9 @@ export default function NuevaVentaPage() {
       d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'
     ).map(d => {
       const pies = calcularPiesTablares(d);
-      return { ...d, piesTablares: pies, subTotal: calcularSubtotal(d, pies) };
+      const sub = calcularSubtotal(d, pies);
+      const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
+      return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit };
     });
 
     if (processedDetalles.length === 0) {
@@ -243,6 +242,7 @@ export default function NuevaVentaPage() {
                       <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
+                      <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
                       <TableHead className="min-w-[120px] text-right">Subtotal ($)</TableHead>
                       <TableHead className="w-[50px] text-center">Borrar</TableHead>
                     </TableRow>
@@ -252,6 +252,7 @@ export default function NuevaVentaPage() {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
+                      const valorUnitario = (currentDetalle?.unidades && currentDetalle.unidades > 0 && subTotal > 0) ? subTotal / currentDetalle.unidades : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
                       return (
@@ -314,6 +315,9 @@ export default function NuevaVentaPage() {
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={piesTablares > 0 ? piesTablares.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
+                          </TableCell>
+                          <TableCell className="p-1 text-right align-middle">
+                            <Input readOnly value={valorUnitario > 0 ? valorUnitario.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
