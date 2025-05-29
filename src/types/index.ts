@@ -57,16 +57,25 @@ export interface Presupuesto {
 }
 
 
-export interface PrecioMadera {
+export interface PrecioMadera { // Selling price per board foot
   tipoMadera: string;
   precioPorPie: number;
+}
+
+export interface CostoMaderaMetroCubico { // Cost price per cubic meter
+  tipoMadera: string; // Should match a tipoMadera from PrecioMadera
+  costoPorMetroCubico: number;
 }
 
 export interface Configuracion {
   nombreAserradero: string;
   logoUrl?: string; // Can be a URL or a Data URI
   lemaEmpresa?: string;
-  preciosMadera: PrecioMadera[];
+  preciosMadera: PrecioMadera[]; // Selling prices per board foot
   precioCepilladoPorPie: number;
-}
 
+  // New fields for operational costs
+  precioLitroNafta?: number;
+  precioAfiladoSierra?: number;
+  costosMaderaMetroCubico?: CostoMaderaMetroCubico[];
+}
