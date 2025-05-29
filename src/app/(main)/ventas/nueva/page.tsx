@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -22,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { initialConfigData } from "@/lib/config-data";
 import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
 import { Separator } from "@/components/ui/separator";
-import { useRouter } from "next/navigation"; // Importar useRouter
+import { useRouter } from "next/navigation";
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
@@ -79,7 +78,7 @@ const initialDetallesCount = 15;
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  const router = useRouter(); // Inicializar useRouter
+  const router = useRouter();
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -95,49 +94,52 @@ export default function NuevaVentaPage() {
     },
   });
 
+  const { fields, append, remove, replace } = useFieldArray({
+    control: form.control,
+    name: "detalles",
+  });
+
  useEffect(() => {
     const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
     if (presupuestoParaVentaString) {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        
+        const { id: idOriginalPresupuesto, detalles: detallesPresupuesto, ...clienteData } = presupuesto;
+
+        // 1. Reset form with general data and empty details for useFieldArray to manage
         form.reset({
-          fecha: new Date(), // Sale date is today
-          nombreComprador: presupuesto.nombreCliente,
-          telefonoComprador: presupuesto.telefonoCliente || "",
-          idOriginalPresupuesto: presupuesto.id,
+          ...form.getValues(), // Preserve other form values if any were set before this effect
+          fecha: new Date(), // Set sale date to current date
+          nombreComprador: clienteData.nombreCliente,
+          telefonoComprador: clienteData.telefonoComprador || "",
+          idOriginalPresupuesto: idOriginalPresupuesto,
           fechaEntregaEstimada: undefined, 
           sena: undefined,                 
-          costoOperario: undefined,
-          // Ensure details array has enough empty slots and initialize them
-          detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
+          costoOperario: undefined,        
+          detalles: [], // Start with an empty array for details
         });
 
-        const budgetDetailsToMap = presupuesto.detalles || [];
-        budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
-          form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
-          form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
-          form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
-          form.setValue(`detalles.${index}.alto`, d_presupuesto_item.alto, { shouldDirty: true });
-          form.setValue(`detalles.${index}.largo`, d_presupuesto_item.largo, { shouldDirty: true });
-          form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
-          form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
-        });
+        // 2. Explicitly append each detail from the budget
+        const budgetItemsToAppend = (detallesPresupuesto || []).map(d => ({
+            tipoMadera: d.tipoMadera,
+            unidades: d.unidades,
+            ancho: d.ancho,
+            alto: d.alto,
+            largo: d.largo,
+            precioPorPie: d.precioPorPie,
+            cepillado: d.cepillado ?? false,
+        }));
         
-        if (budgetDetailsToMap.length < initialDetallesCount) {
-            for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
-                const emptyDetail = createEmptyDetalle();
-                form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
-                form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
-                form.setValue(`detalles.${i}.ancho`, emptyDetail.ancho, { shouldDirty: true });
-                form.setValue(`detalles.${i}.alto`, emptyDetail.alto, { shouldDirty: true });
-                form.setValue(`detalles.${i}.largo`, emptyDetail.largo, { shouldDirty: true });
-                form.setValue(`detalles.${i}.precioPorPie`, emptyDetail.precioPorPie, { shouldDirty: true });
-                form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
-            }
+        replace(budgetItemsToAppend); // Use replace to set the field array state completely
+
+        // 3. Pad with empty rows if needed, up to initialDetallesCount
+        let currentLength = budgetItemsToAppend.length;
+        while (currentLength < initialDetallesCount) {
+          append(createEmptyDetalle(), { shouldFocus: false });
+          currentLength++;
         }
         
-        form.trigger(); 
+        form.trigger(); // Trigger validation and UI update
 
         toast({
           title: "Presupuesto Cargado para Venta",
@@ -159,13 +161,9 @@ export default function NuevaVentaPage() {
     } else if (!form.getValues('fecha')) {
       form.setValue('fecha', new Date()); 
     }
-  }, [form, toast]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, toast, append, replace]); // Added append and replace to dependencies
 
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "detalles",
-  });
 
   const watchedDetalles = form.watch("detalles");
   const watchedSena = form.watch("sena");
@@ -177,6 +175,7 @@ export default function NuevaVentaPage() {
     const ancho = Number(detalle?.ancho) || 0; 
     const largo = Number(detalle?.largo) || 0;
     if (!unidades || !alto || !ancho || !largo) return 0;
+    // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
     return unidades * alto * ancho * largo * 0.2734;
   };
 
@@ -195,6 +194,7 @@ export default function NuevaVentaPage() {
     return subtotal;
   };
   
+  // Get current config values directly for calculations
   const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
   const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
   const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
@@ -242,7 +242,7 @@ export default function NuevaVentaPage() {
   const gananciaNetaEstimada = calculatedTotalVentaGeneral - calculatedCostoTotalMaderaVenta - calculatedCostoTotalAserrioVenta - costoOperarioActual;
 
   const valorJavier = calculatedCostoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = calculatedCostoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0) + costoOperarioActual; // Costo operario va para Lucas
+  const valorLucas = calculatedCostoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
 
   const senaActual = Number(watchedSena) || 0;
   const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
@@ -258,10 +258,10 @@ export default function NuevaVentaPage() {
   };
 
   function onSubmit(data: VentaFormValues) {
-    const processedDetalles = data.detalles.filter(
+    const processedDetalles = (data.detalles || []).filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number'
     ).map((d_form, idx) => {
-      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
+      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>; // Type assertion
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies, currentPrecioCepilladoPorPie);
       const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
@@ -329,7 +329,7 @@ export default function NuevaVentaPage() {
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
     });
-    router.push('/ventas'); // Redirigir a la página de listado
+    router.push('/ventas');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
@@ -475,7 +475,6 @@ export default function NuevaVentaPage() {
                             <FormField
                               control={form.control}
                               name={`detalles.${index}.tipoMadera`}
-                              key={`${item.id}-tipoMadera`}
                               render={({ field: maderaField }) => (
                                 <FormItem>
                                   <Select
@@ -619,3 +618,6 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
+
+
+    
