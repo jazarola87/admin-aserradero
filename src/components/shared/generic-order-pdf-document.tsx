@@ -122,14 +122,14 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
 
       <table style={styles.detailsTable}>
         <colgroup>
-            <col style={{width: '25%'}} /> {/* Tipo Madera */}
+            <col style={{width: '17.5%'}} /> {/* Tipo Madera - Reducido */}
             <col style={{width: '7%'}} />  {/* Unid. */}
             <col style={{width: '22%'}} /> {/* Dimensiones */}
             <col style={{width: '7%'}} />  {/* Cepill. */}
             <col style={{width: '10%'}} /> {/* P.Tabl. */}
             <col style={{width: '9%'}} />  {/* $/Pie */}
             <col style={{width: '9%'}} />  {/* Val.Unit. */}
-            <col style={{width: '11%'}} /> {/* Subtotal */}
+            <col style={{width: '18.5%'}} /> {/* Subtotal - Aumentado */}
         </colgroup>
         <thead>
           <tr>
