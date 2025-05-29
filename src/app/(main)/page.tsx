@@ -16,7 +16,6 @@ export default function DashboardPage() {
   return (
     <div className="container mx-auto py-6">
       <PageTitle title="Balance General" description="Resumen financiero del aserradero." />
-      
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -28,7 +27,6 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Ingresos totales generados.</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Valor Total de Compras</CardTitle>
@@ -39,7 +37,6 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Costos totales de adquisición.</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ganancia Bruta</CardTitle>
@@ -50,22 +47,20 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Ventas menos compras.</p>
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Costo Madera Recuperado</CardTitle>
-            <CircleCheckBig className="h-4 w-4 text-blue-500" /> {/* Kept as specific semantic color */}
+            <CircleCheckBig className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${balanceData.costoMaderaRecuperado.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Costo de la madera vendida.</p>
           </CardContent>
         </Card>
-        
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Saldo Madera a Recuperar</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-500" /> {/* Kept as specific semantic color */}
+            <AlertTriangle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${balanceData.saldoMaderaRecuperar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
@@ -73,8 +68,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-      
-      {/* Placeholder for more charts or detailed reports */}
       <div className="mt-8">
         <Card>
           <CardHeader>

@@ -398,10 +398,11 @@ SidebarSeparator.displayName = "SidebarSeparator"
 
 const SidebarContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div">
->(({ className, ...props }, ref) => {
+  React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }
+>(({ className, asChild = false, children, ...props }, ref) => {
+  const Comp = asChild ? Slot : "div"
   return (
-    <div
+    <Comp
       ref={ref}
       data-sidebar="content"
       className={cn(
@@ -409,7 +410,9 @@ const SidebarContent = React.forwardRef<
         className
       )}
       {...props}
-    />
+    >
+      {children}
+    </Comp>
   )
 })
 SidebarContent.displayName = "SidebarContent"
@@ -536,10 +539,10 @@ const sidebarMenuButtonVariants = cva(
 
 const SidebarMenuButton = React.forwardRef<
   HTMLButtonElement,
-  React.ComponentProps<"button"> & {
+  Omit<React.ComponentProps<"button">, "tooltip"> & { // Omit tooltip from button's native props
     asChild?: boolean;
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: string | React.ReactNode; // Allow ReactNode for TooltipContent
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
@@ -548,47 +551,44 @@ const SidebarMenuButton = React.forwardRef<
       isActive = false,
       variant = "default",
       size = "default",
-      tooltip, // This is the string from SidebarNav (e.g., item.title or "")
+      tooltip: tooltipProp, // Renamed to avoid conflict with HTML attribute
       className,
-      children, // This will be the <Link> component when asChild is true
-      ...props
+      children,
+      ...restButtonProps // Props intended for the button or Slot
     },
     ref
   ) => {
     const Comp = asChild ? Slot : "button";
-    const { isMobile, state } = useSidebar();
+    const { state: sidebarState, isMobile: sidebarIsMobile } = useSidebar();
 
-    // Core button/slot structure. If asChild is true, Comp is Slot,
-    // and `children` (the <Link>) will be rendered inside this Slot.
-    // If asChild is false, Comp is "button", and `children` are its content.
-    const coreButton = (
+    const coreButtonElement = (
       <Comp
         ref={ref}
         data-sidebar="menu-button"
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...props}
+        {...restButtonProps} // Spread only relevant props
       >
-        {children} 
+        {children}
       </Comp>
     );
 
-    const tooltipText = typeof tooltip === 'string' ? tooltip : tooltip?.children?.toString();
-    const shouldDisplayTooltip = tooltipText && tooltipText.length > 0 && state === "collapsed" && !isMobile;
+    const tooltipText = typeof tooltipProp === 'string' ? tooltipProp : tooltipProp; // Use ReactNode directly
+    const shouldDisplayTooltip = tooltipText && sidebarState === "collapsed" && !sidebarIsMobile;
 
     if (shouldDisplayTooltip) {
       return (
         <Tooltip>
-          <TooltipTrigger asChild>{coreButton}</TooltipTrigger>
-          <TooltipContent side="right" align="center">
+          <TooltipTrigger asChild>{coreButtonElement}</TooltipTrigger>
+          <TooltipContent side="right" align="center" className="bg-sidebar text-sidebar-foreground border-sidebar-border">
             {tooltipText}
           </TooltipContent>
         </Tooltip>
       );
     }
 
-    return coreButton;
+    return coreButtonElement;
   }
 );
 SidebarMenuButton.displayName = "SidebarMenuButton";
@@ -764,3 +764,4 @@ export {
   useSidebar,
 }
 
+    
