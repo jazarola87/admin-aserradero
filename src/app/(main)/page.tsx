@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers, Package } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,6 +13,7 @@ import { format, parseISO, startOfMonth, endOfMonth, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
+import { Separator } from "@/components/ui/separator";
 
 // Helper functions for calculations (similar to those in ventas/nueva)
 const calcularPiesTablaresItem = (detalle: VentaDetalle): number => {
@@ -21,6 +22,7 @@ const calcularPiesTablaresItem = (detalle: VentaDetalle): number => {
   const ancho = Number(detalle?.ancho) || 0;
   const largo = Number(detalle?.largo) || 0;
   if (!unidades || !alto || !ancho || !largo) return 0;
+  // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
   return unidades * alto * ancho * largo * 0.2734;
 };
 
@@ -31,6 +33,7 @@ const getCostoMaderaParaVentaItem = (detalle: VentaDetalle, config: Configuracio
 
   const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
   const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+  // 1 m³ = 200 pies tablares
   return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
 };
 
@@ -80,12 +83,12 @@ export default function DashboardPage() {
 
   const filteredComprasList = useMemo(() => {
     if (!fechaDesde || !fechaHasta) return comprasList;
-    const endOfHasta = endOfMonth(fechaHasta); 
+    const endOfHastaPeriod = endOfMonth(fechaHasta); 
     return comprasList.filter(compra => {
       if (!compra.fecha) return false;
       try {
         const fechaCompra = parseISO(compra.fecha);
-        return isValid(fechaCompra) && fechaCompra >= fechaDesde && fechaCompra <= endOfHasta;
+        return isValid(fechaCompra) && fechaCompra >= fechaDesde && fechaCompra <= endOfHastaPeriod;
       } catch (e) {
         return false;
       }
@@ -94,12 +97,12 @@ export default function DashboardPage() {
 
   const filteredVentasList = useMemo(() => {
     if (!fechaDesde || !fechaHasta) return ventasList;
-    const endOfHasta = endOfMonth(fechaHasta);
+    const endOfHastaPeriod = endOfMonth(fechaHasta);
     return ventasList.filter(venta => {
       if (!venta.fecha) return false;
       try {
         const fechaVenta = parseISO(venta.fecha);
-        return isValid(fechaVenta) && fechaVenta >= fechaDesde && fechaVenta <= endOfHasta;
+        return isValid(fechaVenta) && fechaVenta >= fechaDesde && fechaVenta <= endOfHastaPeriod;
       } catch (e) {
         return false;
       }
@@ -141,23 +144,38 @@ export default function DashboardPage() {
     return totalGananciaNetaFiltrada / 2;
   }, [filteredVentasList]);
 
-  const totalMetrosCubicosComprados = useMemo(() => {
-    return filteredComprasList.reduce((sum, compra) => sum + (Number(compra.volumen) || 0), 0);
-  }, [filteredComprasList]);
+  const stockPorTipoMadera = useMemo(() => {
+    const stockMap: { [key: string]: { compradosM3: number, vendidosPies: number } } = {};
 
-  const totalPiesTablaresVendidos = useMemo(() => {
-    return filteredVentasList.reduce((sumVenta, venta) => {
-      const piesVenta = (venta.detalles || []).reduce((sumDetalle, detalle) => {
-        return sumDetalle + calcularPiesTablaresItem(detalle);
-      }, 0);
-      return sumVenta + piesVenta;
-    }, 0);
-  }, [filteredVentasList]);
+    (initialConfigData.preciosMadera || []).forEach(pm => {
+      stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
+    });
 
-  const stockDisponibleEstimadoM3 = useMemo(() => {
-    const metrosCubicosVendidos = totalPiesTablaresVendidos / 200;
-    return totalMetrosCubicosComprados - metrosCubicosVendidos;
-  }, [totalMetrosCubicosComprados, totalPiesTablaresVendidos]);
+    filteredComprasList.forEach(compra => {
+      if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
+        stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
+      }
+    });
+
+    filteredVentasList.forEach(venta => {
+      (venta.detalles || []).forEach(detalle => {
+        if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
+          stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
+        }
+      });
+    });
+
+    return Object.entries(stockMap).map(([tipoMadera, data]) => {
+      const vendidosM3 = data.vendidosPies / 200;
+      return {
+        tipoMadera,
+        compradosM3: data.compradosM3,
+        vendidosM3: vendidosM3,
+        stockM3: data.compradosM3 - vendidosM3,
+      };
+    }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); // Solo mostrar tipos con actividad o stock
+  }, [filteredComprasList, filteredVentasList]);
+
 
   const displayDateRange = useMemo(() => {
     const from = fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "N/A";
@@ -170,9 +188,9 @@ export default function DashboardPage() {
     <div className="container mx-auto py-6">
       <PageTitle 
         title="Balance General" 
-        description={`Resumen financiero del aserradero para el período: ${displayDateRange}`}
+        description={`Resumen financiero y de stock del aserradero para el período: ${displayDateRange}`}
       />
-      <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 border rounded-lg shadow-sm">
+      <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 border rounded-lg shadow-sm bg-card">
         <div className="flex-1">
           <Popover>
             <PopoverTrigger asChild>
@@ -226,7 +244,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"> {/* Ajustado para que la tarjeta de stock no quede sola */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Valor Total de Ventas</CardTitle>
@@ -277,39 +295,42 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Costo de madera en inventario (compras - recuperado).</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Disponible Estimado (M³)</CardTitle>
-            <Layers className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stockDisponibleEstimadoM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
-            </div>
-            <p className="text-xs text-muted-foreground">Stock estimado para el período seleccionado.</p>
-          </CardContent>
-        </Card>
       </div>
-      {/* Se puede eliminar la tarjeta de "Actividad Reciente" o dejarla para futuros gráficos */}
-      {/* 
-      <div className="mt-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Actividad Gráfica Reciente</CardTitle>
-            <CardDescription>Próximamente: Gráficos de ventas y compras del período seleccionado.</CardDescription>
-          </CardHeader>
-          <CardContent className="h-64 flex items-center justify-center">
-            {(filteredVentasList.length === 0 && filteredComprasList.length === 0) ? (
-              <p className="text-muted-foreground">No hay datos de actividad para el período seleccionado.</p>
-            ) : (
-              <p className="text-muted-foreground">Gráficos en desarrollo.</p> 
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      */}
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Package className="mr-2 h-5 w-5 text-primary" />
+            Stock Disponible por Tipo de Madera (Estimado para el período)
+          </CardTitle>
+          <CardDescription>Calculado como: Total Comprado (m³) - Total Vendido (m³) para cada tipo de madera en el rango de fechas seleccionado.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {stockPorTipoMadera.length > 0 ? (
+            <ul className="space-y-2 text-sm">
+              {stockPorTipoMadera.map((item) => (
+                <li key={item.tipoMadera} className="flex justify-between items-center p-2 border-b last:border-b-0 hover:bg-muted/50 rounded-md">
+                  <span className="font-medium">{item.tipoMadera}:</span>
+                  <div className="text-right">
+                    <span className={cn("font-semibold", item.stockM3 < 0 && "text-destructive")}>
+                      {item.stockM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
+                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground block sm:inline">
+                      (Comprado: {item.compradosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
+                       , Vendido: {item.vendidosM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³)
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted-foreground">No hay datos de stock para el período seleccionado o no se han configurado tipos de madera con actividad.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
-
     
+
+      
