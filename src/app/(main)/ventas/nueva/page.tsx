@@ -34,11 +34,11 @@ import type { Presupuesto, VentaDetalle as VentaDetalleType } from "@/types";
 const { preciosMadera: tiposDeMaderaDisponibles, precioCepilladoPorPie: PRECIO_CEPILLADO_POR_PIE_CONFIG } = initialConfigData;
 
 const ventaDetalleSchema = z.object({
-  tipoMadera: z.string().optional().or(z.literal("")),
+  tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pulgadas (espesor)
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), // pies
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
   cepillado: z.boolean().default(false).optional(),
 });
@@ -61,7 +61,7 @@ const ventaFormSchema = z.object({
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
 
 const createEmptyDetalle = (): z.infer<typeof ventaDetalleSchema> => ({
-  tipoMadera: "",
+  tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
   alto: undefined,
@@ -76,12 +76,12 @@ const initialDetalles = Array(initialDetallesCount).fill(null).map(() => createE
 
 export default function NuevaVentaPage() {
   const { toast } = useToast();
-  const [precioCepilladoGlobal, setPrecioCepilladoGlobal] = useState(PRECIO_CEPILLADO_POR_PIE_CONFIG); // Renamed for clarity
+  const [precioCepilladoGlobal, setPrecioCepilladoGlobal] = useState(PRECIO_CEPILLADO_POR_PIE_CONFIG);
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      // fecha will be set by useEffect
+      fecha: undefined, // Will be set by useEffect
       nombreComprador: "",
       telefonoComprador: "",
       detalles: initialDetalles,
@@ -95,16 +95,12 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
-        const detallesVenta = presupuesto.detalles.map(d_presupuesto => {
-          const emptyDetail = createEmptyDetalle();
+        const detallesVenta = presupuesto.detalles.map(d_presupuesto_item => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { id, ...restOfPresupuestoDetail } = d_presupuesto_item; // Omit 'id' from budget detail
           return {
-            ...emptyDetail, // Start with defaults
-            ...d_presupuesto, // Spread budget item values
-            tipoMadera: d_presupuesto.tipoMadera || emptyDetail.tipoMadera, // Ensure tipoMadera is explicitly set
-            precioPorPie: d_presupuesto.precioPorPie ?? emptyDetail.precioPorPie, // Ensure precioPorPie is explicitly set (use ?? for numbers to allow 0)
-            // id is intentionally omitted or set to undefined if needed by schema/logic elsewhere,
-            // as venta details will get new IDs or are identified by index in the form.
-            // We don't want to reuse budget detail IDs.
+            ...createEmptyDetalle(),    // Start with schema-defined defaults (e.g., tipoMadera: undefined)
+            ...restOfPresupuestoDetail, // Spread actual values from budget (this will set tipoMadera, precioPorPie, etc.)
           };
         });
 
@@ -131,14 +127,13 @@ export default function NuevaVentaPage() {
           description: "No se pudieron cargar los datos del presupuesto. Por favor, ingréselos manualmente.",
           variant: "destructive",
         });
-        if (!form.getValues('fecha')) { // Set default date if budget load fails AND no date is set
+        if (!form.getValues('fecha')) {
           form.setValue('fecha', new Date());
         }
       } finally {
         localStorage.removeItem('presupuestoParaVenta');
       }
     } else if (!form.getValues('fecha')) {
-      // If not loading from budget and no date is set yet, set to current date
       form.setValue('fecha', new Date());
     }
   }, [form, toast]);
@@ -151,12 +146,12 @@ export default function NuevaVentaPage() {
 
   const watchedDetalles = form.watch("detalles");
 
-  const calcularPiesTablares = (detalle: typeof watchedDetalles[0] | undefined) => {
+  const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
     if (!detalle || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return 0;
     return (detalle.alto * detalle.ancho * detalle.largo * detalle.unidades) / 12;
   };
 
-  const calcularSubtotal = (detalle: typeof watchedDetalles[0] | undefined, piesTablares: number) => {
+  const calcularSubtotal = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>, piesTablares: number) => {
     if (!detalle || typeof detalle.precioPorPie !== 'number') return 0;
     let subtotal = piesTablares * detalle.precioPorPie;
     if (detalle.cepillado) {
@@ -174,12 +169,12 @@ export default function NuevaVentaPage() {
   }, 0);
 
   const handleTipoMaderaChange = (value: string, index: number) => {
-    form.setValue(`detalles.${index}.tipoMadera`, value);
+    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
     const maderaSeleccionada = tiposDeMaderaDisponibles.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
-      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie);
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
     } else {
-      form.setValue(`detalles.${index}.precioPorPie`, undefined);
+      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true });
     }
   };
 
@@ -189,7 +184,7 @@ export default function NuevaVentaPage() {
     ).map(d => {
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
-      const valorUnit = (d.unidades && d.unidades > 0) ? sub / d.unidades : 0;
+      const valorUnit = (d.unidades && d.unidades > 0 && sub > 0) ? sub / d.unidades : 0; // Added check for sub > 0
       return { ...d, piesTablares: pies, subTotal: sub, valorUnitario: valorUnit } as VentaDetalleType;
     });
 
@@ -229,7 +224,7 @@ export default function NuevaVentaPage() {
     });
   }
 
-  const isRowEffectivelyEmpty = (detalle: typeof watchedDetalles[0] | undefined) => {
+  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
   };
@@ -385,7 +380,7 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isEffectivelyEmpty || fields.length > 1) && ( // Allow deleting the last row if it's not empty
+                            {(!isEffectivelyEmpty || fields.length > 1) && ( 
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
