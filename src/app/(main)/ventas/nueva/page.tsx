@@ -81,7 +81,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined,
+      fecha: undefined, // Será establecido en useEffect
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -99,7 +99,7 @@ export default function NuevaVentaPage() {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
         form.reset({
-          fecha: new Date(), 
+          fecha: new Date(), // Sale date is today
           nombreComprador: presupuesto.nombreCliente,
           telefonoComprador: presupuesto.telefonoCliente || "",
           idOriginalPresupuesto: presupuesto.id,
@@ -111,25 +111,25 @@ export default function NuevaVentaPage() {
 
         const budgetDetailsToMap = presupuesto.detalles || [];
         budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
-          form.setValue(\`detalles.\${index}.tipoMadera\`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.unidades\`, d_presupuesto_item.unidades, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.ancho\`, d_presupuesto_item.ancho, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.alto\`, d_presupuesto_item.alto, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.largo\`, d_presupuesto_item.largo, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.precioPorPie\`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
-          form.setValue(\`detalles.\${index}.cepillado\`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
+          form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
+          form.setValue(`detalles.${index}.unidades`, d_presupuesto_item.unidades, { shouldDirty: true });
+          form.setValue(`detalles.${index}.ancho`, d_presupuesto_item.ancho, { shouldDirty: true });
+          form.setValue(`detalles.${index}.alto`, d_presupuesto_item.alto, { shouldDirty: true });
+          form.setValue(`detalles.${index}.largo`, d_presupuesto_item.largo, { shouldDirty: true });
+          form.setValue(`detalles.${index}.precioPorPie`, d_presupuesto_item.precioPorPie, { shouldDirty: true });
+          form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
         
         if (budgetDetailsToMap.length < initialDetallesCount) {
             for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
                 const emptyDetail = createEmptyDetalle();
-                form.setValue(\`detalles.\${i}.tipoMadera\`, emptyDetail.tipoMadera, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.unidades\`, emptyDetail.unidades, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.ancho\`, emptyDetail.ancho, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.alto\`, emptyDetail.alto, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.largo\`, emptyDetail.largo, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.precioPorPie\`, emptyDetail.precioPorPie, { shouldDirty: true });
-                form.setValue(\`detalles.\${i}.cepillado\`, emptyDetail.cepillado, { shouldDirty: true });
+                form.setValue(`detalles.${i}.tipoMadera`, emptyDetail.tipoMadera, { shouldDirty: true });
+                form.setValue(`detalles.${i}.unidades`, emptyDetail.unidades, { shouldDirty: true });
+                form.setValue(`detalles.${i}.ancho`, emptyDetail.ancho, { shouldDirty: true });
+                form.setValue(`detalles.${i}.alto`, emptyDetail.alto, { shouldDirty: true });
+                form.setValue(`detalles.${i}.largo`, emptyDetail.largo, { shouldDirty: true });
+                form.setValue(`detalles.${i}.precioPorPie`, emptyDetail.precioPorPie, { shouldDirty: true });
+                form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
             }
         }
 
@@ -137,7 +137,7 @@ export default function NuevaVentaPage() {
 
         toast({
           title: "Presupuesto Cargado para Venta",
-          description: \`Datos del presupuesto para \${presupuesto.nombreCliente} cargados. Fecha actualizada.\`,
+          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada.`,
         });
       } catch (error) {
         console.error("Error al cargar presupuesto desde localStorage:", error);
@@ -155,7 +155,8 @@ export default function NuevaVentaPage() {
     } else if (!form.getValues('fecha')) {
       form.setValue('fecha', new Date()); 
     }
-  }, [form, toast]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, toast]); // form.reset, form.setValue, form.trigger, form.getValues are stable. Toast es estable.
 
 
   const { fields, append, remove } = useFieldArray({
@@ -171,7 +172,7 @@ export default function NuevaVentaPage() {
     const unidades = Number(detalle?.unidades) || 0;
     const alto = Number(detalle?.alto) || 0; 
     const ancho = Number(detalle?.ancho) || 0; 
-    const largo = Number(detalle?.largo) || 0; 
+    const largo = Number(detalle?.largo) || 0;
   
     if (!unidades || !alto || !ancho || !largo) return 0;
     return unidades * alto * ancho * largo * 0.2734;
@@ -193,12 +194,12 @@ export default function NuevaVentaPage() {
     }
     return subtotal;
   };
-
+  
   const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
   const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
   const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
   const currentPrecioAfiladoSierra = Number(initialConfigData.precioAfiladoSierra) || 0;
-
+  
   let calculatedTotalVentaGeneral = 0;
   if (Array.isArray(watchedDetalles)) {
     watchedDetalles.forEach(detalle => {
@@ -225,7 +226,7 @@ export default function NuevaVentaPage() {
 
   const costoOperativoBase = (currentPrecioLitroNafta * 6) + (currentPrecioAfiladoSierra * 3);
   const costoOperativoAjustado = costoOperativoBase * 1.38;
-  const costoAserrioPorPie = costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) ? costoOperativoAjustado / 600 : 0;
+  const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
   
   let totalPiesTablaresVentaParaAserrio = 0;
   if (Array.isArray(watchedDetalles)) {
@@ -249,7 +250,7 @@ export default function NuevaVentaPage() {
 
   if (senaActual > 0) {
     const totalJavierYLucas = valorJavier + valorLucas;
-    if (totalJavierYLucas > 0) {
+    if (totalJavierYLucas > 0) { 
       const proporcionJavier = valorJavier / totalJavierYLucas;
       const proporcionLucas = valorLucas / totalJavierYLucas;
       const senaParaJavier = senaActual * proporcionJavier;
@@ -261,12 +262,12 @@ export default function NuevaVentaPage() {
 
 
   const handleTipoMaderaChange = (value: string, index: number) => {
-    form.setValue(\`detalles.\${index}.tipoMadera\`, value, { shouldValidate: true });
+    form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
     const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
-      form.setValue(\`detalles.\${index}.precioPorPie\`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
     } else {
-      form.setValue(\`detalles.\${index}.precioPorPie\`, undefined, { shouldValidate: true });
+      form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true });
     }
   };
 
@@ -288,7 +289,7 @@ export default function NuevaVentaPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: \`vd-\${Date.now()}-\${idx}\` 
+        id: `vd-${Date.now()}-${idx}` 
       } as VentaDetalleType;
     });
 
@@ -302,7 +303,7 @@ export default function NuevaVentaPage() {
     }
 
     const nuevaVenta: Venta = {
-      id: \`venta-\${Date.now()}\`,
+      id: `venta-${Date.now()}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -323,7 +324,7 @@ export default function NuevaVentaPage() {
 
     toast({
       title: "Venta Registrada",
-      description: \`Se ha registrado la venta a \${data.nombreComprador}. Total: $\${nuevaVenta.totalVenta?.toFixed(2)}\`,
+      description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
     });
 
     if (data.idOriginalPresupuesto) {
@@ -486,8 +487,8 @@ export default function NuevaVentaPage() {
                           <TableCell className="p-1">
                             <FormField
                               control={form.control}
-                              name={\`detalles.\${index}.tipoMadera\`}
-                              key={\`\${item.id}-tipoMadera\`}
+                              name={`detalles.${index}.tipoMadera`}
+                              key={`${item.id}-tipoMadera`}
                               render={({ field: maderaField }) => (
                                 <FormItem>
                                   <Select
@@ -514,32 +515,32 @@ export default function NuevaVentaPage() {
                             />
                           </TableCell>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={\`detalles.\${index}.unidades\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={\`detalles.\${index}.alto\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={\`detalles.\${index}.ancho\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={\`detalles.\${index}.largo\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
-                            <FormField control={form.control} name={\`detalles.\${index}.precioPorPie\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : (isNaN(f.value as number) ? "" : f.value)} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            <FormField control={form.control} name={\`detalles.\${index}.cepillado\`} render={({ field: f }) => (
+                            <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
                             />
                           </TableCell>
