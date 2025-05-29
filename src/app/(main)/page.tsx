@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -61,19 +61,34 @@ export default function DashboardPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem('comprasList');
-      if (storedCompras) setComprasList(JSON.parse(storedCompras));
+      if (storedCompras) {
+        try {
+            const parsed = JSON.parse(storedCompras);
+            if (Array.isArray(parsed)) setComprasList(parsed);
+        } catch (e) { console.error("Error parsing compras from localStorage", e); }
+      }
 
       const storedVentas = localStorage.getItem('ventasList');
-      if (storedVentas) setVentasList(JSON.parse(storedVentas));
+      if (storedVentas) {
+        try {
+            const parsed = JSON.parse(storedVentas);
+            if (Array.isArray(parsed)) setVentasList(parsed);
+        } catch (e) { console.error("Error parsing ventas from localStorage", e); }
+      }
     }
   }, []);
 
   const filteredComprasList = useMemo(() => {
     if (!fechaDesde || !fechaHasta) return comprasList;
-    const endOfHasta = endOfMonth(fechaHasta); // Ensure we include the whole day
+    const endOfHasta = endOfMonth(fechaHasta); 
     return comprasList.filter(compra => {
-      const fechaCompra = parseISO(compra.fecha);
-      return isValid(fechaCompra) && fechaCompra >= fechaDesde && fechaCompra <= endOfHasta;
+      if (!compra.fecha) return false;
+      try {
+        const fechaCompra = parseISO(compra.fecha);
+        return isValid(fechaCompra) && fechaCompra >= fechaDesde && fechaCompra <= endOfHasta;
+      } catch (e) {
+        return false;
+      }
     });
   }, [comprasList, fechaDesde, fechaHasta]);
 
@@ -81,8 +96,13 @@ export default function DashboardPage() {
     if (!fechaDesde || !fechaHasta) return ventasList;
     const endOfHasta = endOfMonth(fechaHasta);
     return ventasList.filter(venta => {
-      const fechaVenta = parseISO(venta.fecha);
-      return isValid(fechaVenta) && fechaVenta >= fechaDesde && fechaVenta <= endOfHasta;
+      if (!venta.fecha) return false;
+      try {
+        const fechaVenta = parseISO(venta.fecha);
+        return isValid(fechaVenta) && fechaVenta >= fechaDesde && fechaVenta <= endOfHasta;
+      } catch (e) {
+        return false;
+      }
     });
   }, [ventasList, fechaDesde, fechaHasta]);
 
@@ -120,6 +140,24 @@ export default function DashboardPage() {
     });
     return totalGananciaNetaFiltrada / 2;
   }, [filteredVentasList]);
+
+  const totalMetrosCubicosComprados = useMemo(() => {
+    return filteredComprasList.reduce((sum, compra) => sum + (Number(compra.volumen) || 0), 0);
+  }, [filteredComprasList]);
+
+  const totalPiesTablaresVendidos = useMemo(() => {
+    return filteredVentasList.reduce((sumVenta, venta) => {
+      const piesVenta = (venta.detalles || []).reduce((sumDetalle, detalle) => {
+        return sumDetalle + calcularPiesTablaresItem(detalle);
+      }, 0);
+      return sumVenta + piesVenta;
+    }, 0);
+  }, [filteredVentasList]);
+
+  const stockDisponibleEstimadoM3 = useMemo(() => {
+    const metrosCubicosVendidos = totalPiesTablaresVendidos / 200;
+    return totalMetrosCubicosComprados - metrosCubicosVendidos;
+  }, [totalMetrosCubicosComprados, totalPiesTablaresVendidos]);
 
   const displayDateRange = useMemo(() => {
     const from = fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "N/A";
@@ -188,7 +226,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"> {/* Ajustado para que la tarjeta de stock no quede sola */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Valor Total de Ventas</CardTitle>
@@ -239,22 +277,39 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">Costo de madera en inventario (compras - recuperado).</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Disponible Estimado (M³)</CardTitle>
+            <Layers className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {stockDisponibleEstimadoM3.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m³
+            </div>
+            <p className="text-xs text-muted-foreground">Stock estimado para el período seleccionado.</p>
+          </CardContent>
+        </Card>
       </div>
+      {/* Se puede eliminar la tarjeta de "Actividad Reciente" o dejarla para futuros gráficos */}
+      {/* 
       <div className="mt-8">
         <Card>
           <CardHeader>
-            <CardTitle>Actividad Reciente</CardTitle>
+            <CardTitle>Actividad Gráfica Reciente</CardTitle>
             <CardDescription>Próximamente: Gráficos de ventas y compras del período seleccionado.</CardDescription>
           </CardHeader>
           <CardContent className="h-64 flex items-center justify-center">
             {(filteredVentasList.length === 0 && filteredComprasList.length === 0) ? (
               <p className="text-muted-foreground">No hay datos de actividad para el período seleccionado.</p>
             ) : (
-              <p className="text-muted-foreground">Gráficos en desarrollo.</p> // Placeholder for future charts
+              <p className="text-muted-foreground">Gráficos en desarrollo.</p> 
             )}
           </CardContent>
         </Card>
       </div>
+      */}
     </div>
   );
 }
+
+    
