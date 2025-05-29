@@ -81,7 +81,7 @@ export default function NuevaVentaPage() {
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: undefined, // Será establecido en useEffect
+      fecha: undefined, 
       nombreComprador: "",
       telefonoComprador: "",
       fechaEntregaEstimada: undefined,
@@ -98,6 +98,7 @@ export default function NuevaVentaPage() {
       try {
         const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
         
+        // Reset form for main fields and ensure details array has enough empty slots
         form.reset({
           fecha: new Date(), // Sale date is today
           nombreComprador: presupuesto.nombreCliente,
@@ -109,6 +110,7 @@ export default function NuevaVentaPage() {
           detalles: Array(Math.max(initialDetallesCount, presupuesto.detalles.length)).fill(null).map(() => createEmptyDetalle()),
         });
 
+        // Explicitly set values for budget items using form.setValue for each field
         const budgetDetailsToMap = presupuesto.detalles || [];
         budgetDetailsToMap.forEach((d_presupuesto_item, index) => {
           form.setValue(`detalles.${index}.tipoMadera`, d_presupuesto_item.tipoMadera, { shouldDirty: true });
@@ -120,6 +122,7 @@ export default function NuevaVentaPage() {
           form.setValue(`detalles.${index}.cepillado`, d_presupuesto_item.cepillado ?? false, { shouldDirty: true });
         });
         
+        // Ensure remaining detail lines are empty
         if (budgetDetailsToMap.length < initialDetallesCount) {
             for (let i = budgetDetailsToMap.length; i < initialDetallesCount; i++) {
                 const emptyDetail = createEmptyDetalle();
@@ -132,7 +135,7 @@ export default function NuevaVentaPage() {
                 form.setValue(`detalles.${i}.cepillado`, emptyDetail.cepillado, { shouldDirty: true });
             }
         }
-
+        
         form.trigger(); 
 
         toast({
@@ -156,7 +159,7 @@ export default function NuevaVentaPage() {
       form.setValue('fecha', new Date()); 
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, toast]); // form.reset, form.setValue, form.trigger, form.getValues are stable. Toast es estable.
+  }, [form, toast]); 
 
 
   const { fields, append, remove } = useFieldArray({
@@ -175,13 +178,14 @@ export default function NuevaVentaPage() {
     const largo = Number(detalle?.largo) || 0;
   
     if (!unidades || !alto || !ancho || !largo) return 0;
+    // Fórmula: unidades * alto (pulg) * ancho (pulg) * largo (metros) * 0.2734
     return unidades * alto * ancho * largo * 0.2734;
   };
 
   const calcularSubtotal = (
     detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
     piesTablares: number,
-    precioCepilladoConfigValue: number
+    precioCepilladoConfig: number
   ): number => {
     const precioPorPie = Number(detalle?.precioPorPie) || 0;
     const cepillado = detalle?.cepillado || false;
@@ -190,11 +194,12 @@ export default function NuevaVentaPage() {
 
     let subtotal = piesTablares * precioPorPie;
     if (cepillado) {
-      subtotal += piesTablares * precioCepilladoConfigValue;
+      subtotal += piesTablares * precioCepilladoConfig;
     }
     return subtotal;
   };
   
+  // Obtener valores de configuración actuales para los cálculos en tiempo real
   const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
   const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
   const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
@@ -218,6 +223,7 @@ export default function NuevaVentaPage() {
         if (piesTablaresArticulo > 0) {
           const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+          // 200 pies tablares = 1 metro cúbico
           calculatedCostoTotalMaderaVenta += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
         }
       }
@@ -245,20 +251,7 @@ export default function NuevaVentaPage() {
   const valorLucas = calculatedCostoTotalAserrioVenta + (gananciaNetaEstimada / 2);
 
   const senaActual = Number(watchedSena) || 0;
-  let saldoACobrarJavier = valorJavier;
-  let saldoACobrarLucas = valorLucas;
-
-  if (senaActual > 0) {
-    const totalJavierYLucas = valorJavier + valorLucas;
-    if (totalJavierYLucas > 0) { 
-      const proporcionJavier = valorJavier / totalJavierYLucas;
-      const proporcionLucas = valorLucas / totalJavierYLucas;
-      const senaParaJavier = senaActual * proporcionJavier;
-      const senaParaLucas = senaActual * proporcionLucas;
-      saldoACobrarJavier = valorJavier - senaParaJavier;
-      saldoACobrarLucas = valorLucas - senaParaLucas;
-    }
-  }
+  const saldoPendiente = calculatedTotalVentaGeneral - senaActual;
 
 
   const handleTipoMaderaChange = (value: string, index: number) => {
@@ -614,16 +607,13 @@ export default function NuevaVentaPage() {
                         <span>Seña Aplicada:</span>
                         <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm font-semibold">
-                        <span>Saldo a Cobrar Javier:</span>
-                        <span>${(Number(saldoACobrarJavier) || 0).toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm font-semibold">
-                        <span>Saldo a Cobrar Lucas:</span>
-                        <span>${(Number(saldoACobrarLucas) || 0).toFixed(2)}</span>
-                    </div>
                   </>
                 )}
+                <Separator className="my-1" />
+                <div className="flex justify-between text-lg font-semibold">
+                  <span>Saldo Pendiente:</span>
+                  <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
+                </div>
               </div>
               <Button type="submit" size="lg" disabled={form.formState.isSubmitting} className="mt-4">
                 <Save className="mr-2 h-4 w-4" />
@@ -636,3 +626,4 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
+

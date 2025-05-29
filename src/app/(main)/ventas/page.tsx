@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Send, Download } from "lucide-react";
+import { PlusCircle, Trash2, Search, ChevronDown, DollarSign } from "lucide-react";
 import type { Venta, VentaDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -48,32 +48,21 @@ const calcularPiesTablaresVenta = (detalle: VentaDetalle): number => {
     return unidades * alto * ancho * largo * 0.2734;
 };
 
-const calcularSubtotalVenta = (detalle: VentaDetalle, piesTablares: number): number => {
-    const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0) return 0;
-    if (piesTablares === 0) return 0;
-
-    let subtotal = piesTablares * precioPorPie;
-    if (detalle.cepillado) {
-      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
-    }
-    return subtotal;
-};
-
-
 interface VentaItemProps {
   venta: Venta;
   onDelete: (id: string) => void;
 }
 
 function VentaItem({ venta, onDelete }: VentaItemProps) {
+  
   const costoTotalMaderaVenta = useMemo(() => {
     let costoTotal = 0;
+    const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
     (venta.detalles || []).forEach(detalle => {
       if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
         const piesTablaresArticulo = calcularPiesTablaresVenta(detalle);
         if (piesTablaresArticulo > 0) {
-          const costoMaderaConfig = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
           costoTotal += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
         }
@@ -88,7 +77,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
 
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado)) ? costoOperativoAjustado / 600 : 0;
+    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
 
     const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
       if (detalle.tipoMadera && Number(detalle.unidades) > 0) {
@@ -109,21 +98,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
   const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada / 2);
 
   const senaActual = Number(venta.sena) || 0;
-  let saldoACobrarJavier = valorJavier;
-  let saldoACobrarLucas = valorLucas;
-
-  if (senaActual > 0) {
-    const totalJavierYLucas = valorJavier + valorLucas;
-    if (totalJavierYLucas > 0) {
-      const proporcionJavier = valorJavier / totalJavierYLucas;
-      const proporcionLucas = valorLucas / totalJavierYLucas;
-      const senaParaJavier = senaActual * proporcionJavier;
-      const senaParaLucas = senaActual * proporcionLucas;
-      saldoACobrarJavier = valorJavier - senaParaJavier;
-      saldoACobrarLucas = valorLucas - senaParaLucas;
-    }
-  }
-
+  const saldoPendiente = (venta.totalVenta || 0) - senaActual;
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
@@ -137,11 +112,11 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
                 <span className="font-semibold">Venta a: {venta.nombreComprador}</span>
                 <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">Fecha: {new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-ES')}</span>
             </div>
-            <div className="flex items-center mt-2 sm:mt-0 space-x-1 sm:space-x-2">
-                <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+            <div className="flex items-center mt-2 sm:mt-0">
+                <span className="mr-2 sm:mr-4 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
                 <AlertDialog>
                     <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive mr-2" onClick={(e) => e.stopPropagation()}>
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Eliminar Venta</span>
                     </Button>
@@ -161,7 +136,7 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
                     </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
-                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
+                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180" data-manual-chevron="true" />
             </div>
           </div>
         </div>
@@ -202,10 +177,10 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
             ))}
           </TableBody>
         </Table>
-        <div className="mt-6 p-4 border rounded-md space-y-1 text-sm">
-            <div className="flex justify-between text-lg font-semibold">
+        <div className="mt-6 p-4 border rounded-md space-y-1 text-sm text-right">
+            <div className="flex justify-between text-lg">
               <span>Total Venta:</span>
-              <span className="text-primary">${(venta.totalVenta || 0).toFixed(2)}</span>
+              <span className="font-semibold text-primary">${(venta.totalVenta || 0).toFixed(2)}</span>
             </div>
             <Separator className="my-1" />
             <div className="flex justify-between">
@@ -241,16 +216,13 @@ function VentaItem({ venta, onDelete }: VentaItemProps) {
                     <span>Seña Aplicada:</span>
                     <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-semibold">
-                    <span>Saldo a Cobrar Javier:</span>
-                    <span>${(Number(saldoACobrarJavier) || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                    <span>Saldo a Cobrar Lucas:</span>
-                    <span>${(Number(saldoACobrarLucas) || 0).toFixed(2)}</span>
-                </div>
                 </>
             )}
+             <Separator className="my-1" />
+            <div className="flex justify-between text-lg font-semibold">
+                <span>Saldo Pendiente:</span>
+                <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
+            </div>
         </div>
       </AccordionContent>
     </AccordionItem>
@@ -375,3 +347,4 @@ export default function VentasPage() {
     </div>
   );
 }
+
