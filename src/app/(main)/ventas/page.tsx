@@ -19,6 +19,7 @@ import { es } from "date-fns/locale";
 import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import * as AccordionPrimitive from "@radix-ui/react-accordion"; // Import for AccordionPrimitive.Header
 
 const VENTAS_STORAGE_KEY = 'ventasList';
 
@@ -57,8 +58,6 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
   const { toast } = useToast();
 
   useEffect(() => {
-    // Update senaInputValue if the prop 'venta.sena' changes from outside
-    // This is important if sena is updated globally and the component needs to reflect it
     setSenaInputValue(venta.sena?.toString() || "");
   }, [venta.sena]);
 
@@ -106,19 +105,19 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
 
   const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" | "outline" } => {
     const totalVentaNum = Number(venta.totalVenta) || 0;
-    const senaNum = senaActual; // Use senaActual which is already Number(venta.sena) || 0
+    const senaNum = senaActual; 
 
     if (totalVentaNum <= 0 && senaNum <=0 && (!venta.detalles || venta.detalles.length === 0)) return { texto: "N/A", variant: "outline" }; 
 
-    if (senaNum >= totalVentaNum && totalVentaNum > 0) { // Ensure totalVenta is positive for it to be "Cobrado"
+    if (senaNum >= totalVentaNum && totalVentaNum > 0) { 
       return { texto: "Cobrado", variant: "default" };
     } else if (senaNum > 0 && senaNum < totalVentaNum) {
       const saldo = totalVentaNum - senaNum;
       return { texto: `Parcialmente Cobrado (Resta: $${saldo.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, variant: "secondary" };
-    } else if (totalVentaNum > 0){ // Only "Pendiente" if there's something to be paid
+    } else if (totalVentaNum > 0){ 
       return { texto: "Pendiente", variant: "destructive" };
     }
-    return { texto: "Sin Cobro Requerido", variant: "outline" }; // If total is 0
+    return { texto: "Sin Cobro Requerido", variant: "outline" }; 
   };
 
   const estadoCobro = getEstadoCobro();
@@ -137,110 +136,113 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
-      <AccordionTrigger asChild className="hover:no-underline">
-         <div className={cn(
-            "flex w-full items-center py-3 px-2 font-medium text-left group", 
-            "hover:bg-muted/50 rounded-md"
-          )}>
-          <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+      {/* Use AccordionPrimitive.Header directly for more control if needed, or just style the div */}
+      <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
+        <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
+          {/* Content for the trigger button - NO OTHER BUTTONS HERE */}
+          <div className="flex items-center justify-between w-full"> {/* Inner div for layout within the trigger */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
-                <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
-                <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto max-w-[250px] sm:max-w-xs text-left">
-                  {estadoCobro.texto}
-                </Badge>
-                <span className="text-sm text-muted-foreground block sm:inline">
-                  Fecha: {venta.fecha && isValid(parseISO(venta.fecha)) ? format(parseISO(venta.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
-                </span>
+              <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
+              <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto max-w-[250px] sm:max-w-xs text-left">
+                {estadoCobro.texto}
+              </Badge>
+              <span className="text-sm text-muted-foreground block sm:inline">
+                Fecha: {venta.fecha && isValid(parseISO(venta.fecha)) ? format(parseISO(venta.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
+              </span>
             </div>
-            <div className="flex items-center mt-2 sm:mt-0 space-x-1">
-                <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                
-                {!isFullyPaid && (
-                  <>
-                    <AlertDialog open={isSenaDialogOpen} onOpenChange={setIsSenaDialogOpen}>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-xs h-8 px-2"
-                          onClick={(e) => { e.stopPropagation(); setIsSenaDialogOpen(true); }}
-                          title="Ingresar o Modificar Seña"
-                        >
-                          <DollarSign className="mr-1 h-3.5 w-3.5 text-blue-500" />
-                          <span className="hidden sm:inline">Seña</span>
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Ingresar/Modificar Seña</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Venta ID: {venta.id} <br/>
-                            Total Venta: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <br/>
-                            Seña Actual: ${senaActual.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <div className="py-4">
-                          <Input 
-                            type="number"
-                            placeholder="Monto de la seña"
-                            value={senaInputValue}
-                            onChange={(e) => setSenaInputValue(e.target.value)}
-                            step="0.01"
-                          />
-                        </div>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel onClick={() => setSenaInputValue(venta.sena?.toString() || "")}>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleGuardarSena}>Guardar Seña</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="text-xs h-8 px-2"
-                      onClick={(e) => { e.stopPropagation(); onMarkAsPaid(venta.id); }}
-                      title="Marcar como Cobrado Totalmente"
-                    >
-                      <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
-                      <span className="hidden sm:inline">Cobrado</span>
-                    </Button>
-                  </>
-                )}
-
-                <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                  <Link href={`/ventas/${venta.id}/editar`}>
-                    <Pencil className="h-4 w-4" />
-                    <span className="sr-only">Editar Venta</span>
-                  </Link>
-                </Button>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Eliminar Venta</span>
-                    </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                        Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={(e) => { e.stopPropagation(); onDelete(venta.id); }} className="bg-destructive hover:bg-destructive/90">
-                        Eliminar
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-                <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true" />
-            </div>
+            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+            {/* The default chevron from AccordionTrigger component will be used.
+                If you want to customize it, you'd use asChild and provide your own,
+                but ensure that child is NOT a button.
+                The class "data-[state=open]:[&>svg]:rotate-180" targets the default SVG.
+            */}
           </div>
+        </AccordionTrigger>
+
+        {/* Action buttons are SIBLINGS to AccordionTrigger */}
+        <div className="flex items-center space-x-1 shrink-0">
+          {!isFullyPaid && (
+            <>
+              <AlertDialog open={isSenaDialogOpen} onOpenChange={setIsSenaDialogOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs h-8 px-2"
+                    title="Ingresar o Modificar Seña"
+                  >
+                    <DollarSign className="mr-1 h-3.5 w-3.5 text-blue-500" />
+                    <span className="hidden sm:inline">Seña</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Ingresar/Modificar Seña</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Venta ID: {venta.id} <br/>
+                      Total Venta: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <br/>
+                      Seña Actual: ${senaActual.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <div className="py-4">
+                    <Input 
+                      type="number"
+                      placeholder="Monto de la seña"
+                      value={senaInputValue}
+                      onChange={(e) => setSenaInputValue(e.target.value)}
+                      step="0.01"
+                    />
+                  </div>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel onClick={() => setSenaInputValue(venta.sena?.toString() || "")}>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleGuardarSena}>Guardar Seña</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="text-xs h-8 px-2"
+                onClick={() => onMarkAsPaid(venta.id)}
+                title="Marcar como Cobrado Totalmente"
+              >
+                <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
+                <span className="hidden sm:inline">Cobrado</span>
+              </Button>
+            </>
+          )}
+
+          <Button asChild variant="ghost" size="icon">
+            <Link href={`/ventas/${venta.id}/editar`}>
+              <Pencil className="h-4 w-4" />
+              <span className="sr-only">Editar Venta</span>
+            </Link>
+          </Button>
+          <AlertDialog>
+              <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Eliminar Venta</span>
+              </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(venta.id)} className="bg-destructive hover:bg-destructive/90">
+                  Eliminar
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+              </AlertDialogContent>
+          </AlertDialog>
         </div>
-      </AccordionTrigger>
+      </div>
       <AccordionContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 mb-4 text-sm p-4 border rounded-md bg-muted/30">
           <p><strong>Teléfono Comprador:</strong> {venta.telefonoComprador || "N/A"}</p>
@@ -488,3 +490,4 @@ export default function VentasPage() {
   );
 }
 
+    
