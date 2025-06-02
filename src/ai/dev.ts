@@ -3,4 +3,6 @@ import { config } from 'dotenv';
 config();
 
 import '@/ai/flows/precio-sugerido.ts';
-import '@/ai/flows/asistente-consultas-flow.ts';
+// Import the flow definitions file for Genkit registration
+import '@/ai/flows/asistente-consultas-flow-definitions.ts';
+// The 'use server' file (asistente-consultas-flow.ts) is for Next.js server actions, not Genkit registration.
