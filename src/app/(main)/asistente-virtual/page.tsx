@@ -7,14 +7,13 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Loader2, Send } from "lucide-react";
 import { consultarAsistente, type AsistenteConsultasInput, type AsistenteConsultasOutput } from "@/ai/flows/asistente-consultas-flow";
-import type { Compra, Venta } from "@/types";
+import type { Compra, Venta, VentaDetalle } from "@/types";
 
 const formSchema = z.object({
   prompt: z.string().min(5, {
@@ -24,8 +23,8 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-// Helper to strip down VentaDetalle to what's needed for the prompt to avoid overly large context
-const simplifyVentaDetalle = (detalle: any) => ({
+// Helper to strip down VentaDetalle to what's needed for the prompt
+const simplifyVentaDetalle = (detalle: VentaDetalle): Partial<VentaDetalle> => ({
   tipoMadera: detalle.tipoMadera,
   unidades: detalle.unidades,
   ancho: detalle.ancho,
@@ -60,28 +59,35 @@ export default function AsistenteVirtualPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [respuestaAsistente, setRespuestaAsistente] = useState<string | null>(null);
 
-  const [comprasData, setComprasData] = useState<any[]>([]);
-  const [ventasData, setVentasData] = useState<any[]>([]);
+  // Estos estados almacenarán los datos simplificados listos para el flujo
+  const [comprasDataParaFlujo, setComprasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyCompra>>>([]);
+  const [ventasDataParaFlujo, setVentasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyVenta>>>([]);
 
   useEffect(() => {
-    // Cargar datos de localStorage al montar el componente
+    // Cargar y simplificar datos de localStorage al montar el componente
     if (typeof window !== 'undefined') {
       const storedCompras = localStorage.getItem('comprasList');
       const storedVentas = localStorage.getItem('ventasList');
       if (storedCompras) {
         try {
           const parsedCompras: Compra[] = JSON.parse(storedCompras);
-          setComprasData(parsedCompras.map(simplifyCompra));
-        } catch (e) { console.error("Error parsing compras data for assistant:", e); }
+          setComprasDataParaFlujo(parsedCompras.map(simplifyCompra));
+        } catch (e) { 
+          console.error("Error parsing compras data for assistant:", e); 
+          toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de compras.", variant: "destructive" });
+        }
       }
       if (storedVentas) {
          try {
           const parsedVentas: Venta[] = JSON.parse(storedVentas);
-          setVentasData(parsedVentas.map(simplifyVenta));
-        } catch (e) { console.error("Error parsing ventas data for assistant:", e); }
+          setVentasDataParaFlujo(parsedVentas.map(simplifyVenta));
+        } catch (e) { 
+          console.error("Error parsing ventas data for assistant:", e); 
+          toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de ventas.", variant: "destructive" });
+        }
       }
     }
-  }, []);
+  }, [toast]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -94,10 +100,10 @@ export default function AsistenteVirtualPage() {
     setIsLoading(true);
     setRespuestaAsistente(null);
 
-    if (comprasData.length === 0 && ventasData.length === 0) {
+    if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0) {
         toast({
-            title: "No hay datos",
-            description: "No hay datos de compras o ventas cargados en el sistema para consultar.",
+            title: "No hay datos cargados",
+            description: "No hay datos de compras o ventas en el sistema para consultar. Por favor, registre algunas operaciones primero.",
             variant: "destructive",
         });
         setIsLoading(false);
@@ -107,20 +113,38 @@ export default function AsistenteVirtualPage() {
     try {
       const inputData: AsistenteConsultasInput = {
         prompt: data.prompt,
-        comprasData: comprasData,
-        ventasData: ventasData,
+        comprasData: comprasDataParaFlujo,
+        ventasData: ventasDataParaFlujo,
       };
+      
+      console.log("Enviando al asistente:", JSON.stringify({prompt: inputData.prompt, numCompras: inputData.comprasData.length, numVentas: inputData.ventasData.length}));
+
       const result = await consultarAsistente(inputData);
       setRespuestaAsistente(result.respuesta);
+      
+      if (result.respuesta.startsWith("Ocurrió un error") || result.respuesta.startsWith("El asistente no pudo procesar")) {
+        toast({
+            title: "Respuesta del Asistente",
+            description: result.respuesta, // Muestra el error específico del flujo
+            variant: "destructive",
+            duration: 7000,
+        });
+      } else {
+        toast({
+            title: "Respuesta Recibida",
+            description: "El asistente ha procesado tu consulta.",
+        });
+      }
+
+    } catch (error: any) {
+      console.error("Error al consultar al asistente (cliente):", error);
+      let clientErrorMessage = "No se pudo obtener una respuesta del asistente. Intente de nuevo.";
+      if (error.message) {
+        clientErrorMessage += ` Error: ${error.message}`;
+      }
       toast({
-        title: "Respuesta Recibida",
-        description: "El asistente ha procesado tu consulta.",
-      });
-    } catch (error) {
-      console.error("Error al consultar al asistente:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo obtener una respuesta del asistente. Intente de nuevo.",
+        title: "Error de Comunicación",
+        description: clientErrorMessage,
         variant: "destructive",
       });
     } finally {
@@ -132,14 +156,14 @@ export default function AsistenteVirtualPage() {
     <div className="container mx-auto py-6">
       <PageTitle
         title="Asistente Virtual de Datos"
-        description="Realice consultas en lenguaje natural sobre sus registros de compras y ventas."
+        description="Realice consultas en lenguaje natural sobre sus registros de compras y ventas. El asistente utilizará los datos actualmente guardados en la aplicación."
       />
       <div className="grid md:grid-cols-3 gap-8">
         <Card className="md:col-span-1">
           <CardHeader>
             <CardTitle>Realizar Consulta</CardTitle>
             <CardDescription>
-              Escriba su pregunta sobre los datos. Por ejemplo: &quot;¿Cuál fue la venta más grande en Julio?&quot; o &quot;¿Cuántos m³ de Pino compré este año?&quot;
+              Escriba su pregunta. Ejemplos: &quot;¿Cuál fue la venta más grande en Julio?&quot;, &quot;¿Cuántos m³ de Pino compré este año?&quot;, &quot;¿Cuál es la medida más vendida en ancho y alto del tipo de madera Pino?&quot;
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -153,7 +177,7 @@ export default function AsistenteVirtualPage() {
                       <FormLabel>Su Pregunta:</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Ej: ¿Cuál es el tipo de madera más vendido?"
+                          placeholder="Ej: ¿Total de ventas de Roble el mes pasado?"
                           className="min-h-[100px]"
                           {...field}
                         />
@@ -190,10 +214,13 @@ export default function AsistenteVirtualPage() {
               <div className="text-center text-muted-foreground">
                 <Bot className="mx-auto h-12 w-12 mb-4" />
                 <p>La respuesta del asistente aparecerá aquí.</p>
+                 {(comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0) && 
+                    <p className="mt-2 text-sm text-destructive">Nota: No hay datos de compras o ventas cargados para consultar.</p>
+                 }
               </div>
             )}
             {respuestaAsistente && !isLoading && (
-              <div className="w-full text-left space-y-4 p-4 bg-muted rounded-md whitespace-pre-wrap">
+              <div className="w-full text-left space-y-4 p-4 bg-muted rounded-md whitespace-pre-wrap text-sm">
                 <p>{respuestaAsistente}</p>
               </div>
             )}

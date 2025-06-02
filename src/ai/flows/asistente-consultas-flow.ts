@@ -84,7 +84,7 @@ Datos de Ventas:
 - Venta ID {{id}} a {{nombreComprador}} (Fecha: {{fecha}}), Total Venta: {{totalVenta}}
   Detalles de la Venta:
   {{#each detalles}}
-  -- {{unidades}} unidades de {{tipoMadera}} (Dimensiones: {{alto}}" Alto x {{ancho}}" Ancho x {{largo}}m Largo), Precio/Pie: {{precioPorPie}}{{#if cepillado}}, Cepillado: Sí{{/if}}, Pies Tablares: {{piesTablares}}, Subtotal: {{subTotal}}
+  -- {{#if unidades}}{{unidades}} unidades de {{/if}}{{#if tipoMadera}}{{tipoMadera}}{{else}}madera no especificada{{/if}}{{#if alto}} (Dimensiones: {{alto}}" Alto{{/if}}{{#if ancho}} x {{ancho}}" Ancho{{/if}}{{#if largo}} x {{largo}}m Largo){{/if}}{{#if precioPorPie}}, Precio/Pie: {{precioPorPie}}{{/if}}{{#if cepillado}}, Cepillado: Sí{{/if}}{{#if piesTablares}}, Pies Tablares: {{piesTablares}}{{/if}}{{#if subTotal}}, Subtotal: {{subTotal}}{{/if}}
   {{else}}
   -- No hay detalles para esta venta.
   {{/each}}
@@ -96,7 +96,7 @@ No se proporcionaron datos de ventas.
 Consulta del Usuario:
 {{{prompt}}}
 
-Por favor, responde a la consulta basándote únicamente en los datos proporcionados. Si la pregunta requiere información que no está presente (ej. costos operativos detallados, stock exacto si no se deduce de compras/ventas, detalles de clientes no listados), indica que no tienes esa información específica, pero intenta responder con lo que sí tienes. Si la pregunta es ambigua, pide aclaración.
+Por favor, responde a la consulta basándote únicamente en los datos proporcionados. Si la pregunta requiere información que no está presente (ej. costos operativos detallados no inferibles, stock exacto si no se deduce de compras/ventas, detalles de clientes no listados), indica que no tienes esa información específica, pero intenta responder con lo que sí tienes. Si la pregunta es ambigua, pide aclaración.
 Sé conciso y directo en tu respuesta. Si necesitas realizar cálculos (ej. sumas, promedios, encontrar el más vendido), hazlos y presenta el resultado.
 
 Formato de Respuesta Esperado:
@@ -113,10 +113,37 @@ const asistenteConsultasFlow = ai.defineFlow(
     outputSchema: AsistenteConsultasOutputSchema,
   },
   async (input) => {
-    const { output } = await promptTemplate(input);
-    if (!output) {
-      return { respuesta: "No se pudo generar una respuesta en este momento." };
+    console.log("AsistenteConsultasFlow: Recibida entrada - ", JSON.stringify(input.prompt));
+    try {
+      const { output, usage } = await promptTemplate(input);
+      console.log("AsistenteConsultasFlow: Uso de tokens - ", usage);
+
+      if (!output) {
+        console.error("AsistenteConsultasFlow: La salida del LLM fue nula o indefinida después del parseo. Esto puede indicar que el LLM no devolvió un JSON válido o que la respuesta fue bloqueada.");
+        // Considerar loguear la respuesta cruda si Genkit lo permite fácilmente aquí.
+        return { respuesta: "El asistente no pudo procesar la solicitud para generar una respuesta estructurada. Por favor, intente reformular su pregunta o verifique los datos de entrada." };
+      }
+      console.log("AsistenteConsultasFlow: Respuesta generada - ", output.respuesta);
+      return output;
+    } catch (e: any) {
+      console.error("AsistenteConsultasFlow: Error durante la ejecución del prompt o la llamada al LLM:", e);
+      let errorMessage = "Ocurrió un error al comunicarse con el asistente de IA.";
+      
+      // Intentar extraer más detalles del error si están disponibles
+      if (e.message) {
+        errorMessage += ` Detalles: ${e.message}.`;
+      }
+      if (e.finishReason) { // Algunos errores de LLM pueden tener esto
+         errorMessage += ` Razón de finalización: ${e.finishReason}.`;
+      }
+       if (e.safetyRatings) {
+         errorMessage += ` Clasificaciones de seguridad activadas: ${JSON.stringify(e.safetyRatings)}.`;
+       }
+      // Para errores de Zod en la validación de salida (aunque definePrompt debería manejar esto en !output)
+      if (e.errors) {
+        errorMessage += ` Errores de validación: ${JSON.stringify(e.errors)}`;
+      }
+      return { respuesta: errorMessage };
     }
-    return output;
   }
 );
