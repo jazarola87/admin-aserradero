@@ -36,11 +36,11 @@ const VENTAS_STORAGE_KEY = 'ventasList';
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
-  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
+  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(),
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(),
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(),
+  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
 });
 
@@ -49,12 +49,12 @@ const ventaFormSchema = z.object({
   nombreComprador: z.string().min(2, "Mínimo 2 caracteres."),
   telefonoComprador: z.string().optional(),
   fechaEntregaEstimada: z.date().optional(),
-  sena: z.coerce.number().nonnegative("La seña no puede ser negativa.").optional().or(z.literal(NaN)),
-  costoOperario: z.coerce.number().nonnegative("El costo de operario no puede ser negativo.").optional().or(z.literal(NaN)),
+  sena: z.coerce.number().nonnegative("La seña no puede ser negativa.").optional(),
+  costoOperario: z.coerce.number().nonnegative("El costo de operario no puede ser negativo.").optional(),
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && (Number(d.unidades) || 0) > 0 && typeof (Number(d.precioPorPie)) === 'number'),
+      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && (Number(d.unidades) || 0) > 0 && typeof (Number(d.precioPorPie)) === 'number' && !isNaN(Number(d.precioPorPie))),
       {
         message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
       }
@@ -186,11 +186,11 @@ export default function NuevaVentaPage() {
     piesTablares: number,
     precioCepilladoConfigValue: number
   ): number => {
-    const precioPorPie = Number(detalle?.precioPorPie) || 0;
-    const cepillado = detalle?.cepillado || false;
-    if (piesTablares === 0) return 0;
+    const precioPorPie = Number(detalle?.precioPorPie);
+    if (isNaN(precioPorPie) || piesTablares === 0) return 0;
+
     let subtotal = piesTablares * precioPorPie;
-    if (cepillado) {
+    if (detalle?.cepillado) {
       subtotal += piesTablares * precioCepilladoConfigValue;
     }
     return subtotal;
@@ -204,7 +204,7 @@ export default function NuevaVentaPage() {
   let calculatedTotalVentaGeneral = 0;
   if (Array.isArray(watchedDetalles)) {
     watchedDetalles.forEach(detalle => {
-      if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number') {
+      if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number' && !isNaN(Number(detalle.precioPorPie))) {
         const pies = calcularPiesTablares(detalle);
         calculatedTotalVentaGeneral += calcularSubtotalDetalle(detalle, pies, currentPrecioCepilladoPorPie);
       }
@@ -265,7 +265,7 @@ export default function NuevaVentaPage() {
 
   function onSubmit(data: VentaFormValues) {
     const processedDetalles = (data.detalles || []).filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number'
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, idx) => {
       const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
@@ -336,7 +336,7 @@ export default function NuevaVentaPage() {
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
 
   return (
@@ -418,7 +418,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Seña ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 50.00" {...field} value={isNaN(field.value as number) ? "" : field.value} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 50.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -431,7 +431,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Costo Operario ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={isNaN(field.value as number) ? "" : field.value} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -504,27 +504,27 @@ export default function NuevaVentaPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
@@ -578,7 +578,7 @@ export default function NuevaVentaPage() {
                           className="font-semibold text-primary text-right w-32 h-8" 
                           placeholder={calculatedTotalVentaGeneral.toFixed(2)}
                           {...field}
-                          value={isNaN(field.value as number) ? "" : field.value}
+                          value={field.value ?? ""}
                           onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         />
                       </FormControl>
@@ -602,7 +602,7 @@ export default function NuevaVentaPage() {
                           className="text-right w-32 h-8 bg-muted/30" 
                           placeholder={calculatedCostoTotalMaderaVenta.toFixed(2)}
                           {...field}
-                          value={isNaN(field.value as number) ? "" : field.value}
+                          value={field.value ?? ""}
                           onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         />
                       </FormControl>
@@ -624,7 +624,7 @@ export default function NuevaVentaPage() {
                           className="text-right w-32 h-8 bg-muted/30" 
                           placeholder={calculatedCostoTotalAserrioVenta.toFixed(2)}
                           {...field}
-                          value={isNaN(field.value as number) ? "" : field.value}
+                          value={field.value ?? ""}
                           onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                         />
                       </FormControl>

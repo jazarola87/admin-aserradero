@@ -35,12 +35,12 @@ import { useRouter } from "next/navigation";
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
-  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional(),
+  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
 });
 
@@ -60,7 +60,7 @@ const presupuestoFormSchema = z.object({
 
 type PresupuestoFormValues = z.infer<typeof presupuestoFormSchema>;
 
-const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
+const createEmptyDetalle = (): Partial<z.infer<typeof itemDetalleSchema>> => ({ // Return Partial for createEmptyDetalle
   tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
@@ -80,18 +80,18 @@ export default function NuevoPresupuestoPage() {
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
     defaultValues: {
-      fecha: undefined, 
+      fecha: new Date(), // Set directly here
       nombreCliente: "",
       telefonoCliente: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
 
-   useEffect(() => {
-    if (!form.getValues('fecha')) {
-      form.setValue('fecha', new Date());
-    }
-  }, [form]);
+  // useEffect(() => { // No longer needed if fecha is set in defaultValues
+  //   if (!form.getValues('fecha')) {
+  //     form.setValue('fecha', new Date());
+  //   }
+  // }, [form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -111,9 +111,8 @@ export default function NuevoPresupuestoPage() {
   };
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
-    const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0; // Changed this condition
-    if (piesTablares === 0) return 0;
+    const precioPorPie = Number(detalle.precioPorPie); // Removed || 0
+    if (isNaN(precioPorPie) || piesTablares === 0) return 0; // Check if precioPorPie is NaN
 
     let subtotal = piesTablares * precioPorPie;
     if (detalle.cepillado) {
@@ -123,7 +122,7 @@ export default function NuevoPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -142,9 +141,9 @@ export default function NuevoPresupuestoPage() {
 
   function onSubmit(data: PresupuestoFormValues) {
     const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number'
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, index) => {
-      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
+      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>; // Assume valid numbers
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
@@ -158,7 +157,7 @@ export default function NuevoPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 7)}` 
+        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
       } as PresupuestoDetalle;
     });
 
@@ -183,7 +182,7 @@ export default function NuevoPresupuestoPage() {
       const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
       let presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
       presupuestosActuales.push(nuevoPresupuesto);
-      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
+      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); 
       localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
     }
     
@@ -197,7 +196,7 @@ export default function NuevoPresupuestoPage() {
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
 
   return (
@@ -255,7 +254,7 @@ export default function NuevoPresupuestoPage() {
           <Card>
             <CardHeader>
               <CardTitle>Detalles del Presupuesto</CardTitle>
-              <CardDescription>Ingrese los productos a presupuestar. Las filas con tipo de madera, unidades y precio se considerarán válidas.</CardDescription>
+              <CardDescription>Ingrese los productos a presupuestar. Las filas con tipo de madera y unidades se considerarán válidas.</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -267,7 +266,7 @@ export default function NuevoPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
-                      <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
+                      {/* Columna Precio/Pie Oculta */}
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -316,29 +315,25 @@ export default function NuevoPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          <TableCell className="p-1">
-                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
-                            />
-                          </TableCell>
+                          {/* Columna Precio/Pie Oculta - El FormField para precioPorPie se elimina de aquí */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -389,3 +384,4 @@ export default function NuevoPresupuestoPage() {
     </div>
   );
 }
+

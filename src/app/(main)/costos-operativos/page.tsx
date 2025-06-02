@@ -44,15 +44,13 @@ type CostosOperativosFormValues = Pick<Configuracion, 'precioLitroNafta' | 'prec
 export default function CostosOperativosPage() {
   const { toast } = useToast();
 
-  // Prepare default values for costosMaderaMetroCubico by mapping from preciosMadera
-  // and merging with existing costs if available.
   const defaultCostosMadera = useMemo(() => {
     const preciosMaderaTipos = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
     const existingCostosMap = new Map(initialConfigData.costosMaderaMetroCubico?.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
 
     return preciosMaderaTipos.map(tipo => ({
       tipoMadera: tipo,
-      costoPorMetroCubico: existingCostosMap.get(tipo) ?? 0,
+      costoPorMetroCubico: existingCostosMap.get(tipo) ?? undefined, // Use undefined for empty
     }));
   }, []);
 
@@ -60,8 +58,8 @@ export default function CostosOperativosPage() {
   const form = useForm<CostosOperativosFormValues>({
     resolver: zodResolver(costosOperativosFormSchema),
     defaultValues: {
-      precioLitroNafta: initialConfigData.precioLitroNafta ?? 0,
-      precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? 0,
+      precioLitroNafta: initialConfigData.precioLitroNafta ?? undefined,
+      precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? undefined,
       costosMaderaMetroCubico: defaultCostosMadera,
     },
   });
@@ -71,31 +69,30 @@ export default function CostosOperativosPage() {
     name: "costosMaderaMetroCubico",
   });
   
-  // Effect to update form fields if initialConfigData.preciosMadera changes
-  // or if the component re-mounts and needs to sync with the latest global config.
   useEffect(() => {
     const updatedDefaultCostos = initialConfigData.preciosMadera.map(pm => {
         const existing = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === pm.tipoMadera);
         return {
             tipoMadera: pm.tipoMadera,
-            costoPorMetroCubico: existing?.costoPorMetroCubico ?? 0,
+            costoPorMetroCubico: existing?.costoPorMetroCubico ?? undefined,
         };
     });
 
-    // form.reset can be used here to update multiple fields including field arrays
     form.reset({
-        precioLitroNafta: initialConfigData.precioLitroNafta ?? 0,
-        precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? 0,
+        precioLitroNafta: initialConfigData.precioLitroNafta ?? undefined,
+        precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? undefined,
         costosMaderaMetroCubico: updatedDefaultCostos,
     });
   }, [initialConfigData.preciosMadera, initialConfigData.costosMaderaMetroCubico, form]);
 
 
   function onSubmit(data: CostosOperativosFormValues) {
-    // Ensure data.costosMaderaMetroCubico is not undefined before passing
     const updatePayload: Partial<Configuracion> = {
         ...data,
-        costosMaderaMetroCubico: data.costosMaderaMetroCubico || []
+        costosMaderaMetroCubico: (data.costosMaderaMetroCubico || []).map(c => ({
+            ...c,
+            costoPorMetroCubico: c.costoPorMetroCubico === undefined || isNaN(Number(c.costoPorMetroCubico)) ? 0 : Number(c.costoPorMetroCubico)
+        }))
     };
     updateConfigData(updatePayload);
     toast({
@@ -129,7 +126,7 @@ export default function CostosOperativosPage() {
                     <FormItem>
                       <FormLabel>Precio Litro de Nafta ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="Ej: 1.50" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                        <Input type="number" step="0.01" placeholder="Ej: 1.50" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -142,7 +139,7 @@ export default function CostosOperativosPage() {
                     <FormItem>
                       <FormLabel>Precio Afilado de Sierra ($)</FormLabel>
                       <FormControl>
-                        <Input type="number" step="0.01" placeholder="Ej: 10.00" {...field} onChange={e => field.onChange(parseFloat(e.target.value) || 0)} />
+                        <Input type="number" step="0.01" placeholder="Ej: 10.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -161,7 +158,7 @@ export default function CostosOperativosPage() {
                       <FormLabel htmlFor={`costosMaderaMetroCubico.${index}.tipoMadera`}>Tipo de Madera</FormLabel>
                       <Input
                         id={`costosMaderaMetroCubico.${index}.tipoMadera`}
-                        value={item.tipoMadera} // Display only
+                        value={item.tipoMadera} 
                         readOnly
                         className="bg-muted/50 border-none"
                       />
@@ -173,7 +170,7 @@ export default function CostosOperativosPage() {
                         <FormItem className="flex-1">
                           <FormLabel>Costo / m³ ($)</FormLabel>
                           <FormControl>
-                            <Input type="number" step="0.01" placeholder="Ej: 120.00" {...field}  onChange={e => field.onChange(parseFloat(e.target.value) || undefined)} />
+                            <Input type="number" step="0.01" placeholder="Ej: 120.00" {...field} value={field.value ?? ""}  onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -199,3 +196,4 @@ export default function CostosOperativosPage() {
     </div>
   );
 }
+

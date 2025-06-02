@@ -36,12 +36,12 @@ const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 const initialDetallesCount = 15; 
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
-  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional(),
+  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
 });
 
@@ -61,7 +61,7 @@ const presupuestoFormSchema = z.object({
 
 type PresupuestoFormValues = z.infer<typeof presupuestoFormSchema>;
 
-const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
+const createEmptyDetalle = (): Partial<z.infer<typeof itemDetalleSchema>> => ({ // Return Partial for createEmptyDetalle
   tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
@@ -88,6 +88,11 @@ export default function EditarPresupuestoPage() {
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
+  
+  const { fields, append, remove, replace } = useFieldArray({
+    control: form.control,
+    name: "detalles",
+  });
 
    useEffect(() => {
     if (presupuestoId && typeof window !== 'undefined') {
@@ -97,30 +102,31 @@ export default function EditarPresupuestoPage() {
         const presupuestoAEditar = presupuestosActuales.find(p => p.id === presupuestoId);
 
         if (presupuestoAEditar) {
-            const detallesParaForm = Array(Math.max(initialDetallesCount, presupuestoAEditar.detalles.length)).fill(null).map(() => createEmptyDetalle());
-            
-            presupuestoAEditar.detalles.forEach((detalle, index) => {
-                if (index < detallesParaForm.length) {
-                    detallesParaForm[index] = {
-                        tipoMadera: detalle.tipoMadera,
-                        unidades: detalle.unidades,
-                        ancho: detalle.ancho,
-                        alto: detalle.alto,
-                        largo: detalle.largo,
-                        precioPorPie: detalle.precioPorPie,
-                        cepillado: detalle.cepillado ?? false,
-                    };
-                }
-            });
+            const loadedDetails = (presupuestoAEditar.detalles || []).map(d => ({
+                tipoMadera: d.tipoMadera,
+                unidades: Number(d.unidades) || undefined,
+                ancho: Number(d.ancho) || undefined,
+                alto: Number(d.alto) || undefined,
+                largo: Number(d.largo) || undefined,
+                precioPorPie: Number(d.precioPorPie) || undefined,
+                cepillado: d.cepillado ?? false,
+            }));
             
             form.reset({
                 fecha: presupuestoAEditar.fecha ? parseISO(presupuestoAEditar.fecha) : new Date(),
                 nombreCliente: presupuestoAEditar.nombreCliente,
                 telefonoCliente: presupuestoAEditar.telefonoCliente || "",
-                detalles: detallesParaForm,
+                detalles: [], // Reset with empty, then populate
             });
-            form.trigger();
+            
+            replace(loadedDetails); // Replace the empty array with mapped items
 
+            let currentLength = loadedDetails.length;
+            while (currentLength < initialDetallesCount) {
+                append(createEmptyDetalle(), { shouldFocus: false });
+                currentLength++;
+            }
+            form.trigger(); // Trigger validation after reset and repopulation
         } else {
             toast({
               title: "Error",
@@ -131,12 +137,9 @@ export default function EditarPresupuestoPage() {
         }
         setIsLoadingData(false);
     }
-  }, [presupuestoId, form, router, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presupuestoId, form, router, toast, replace, append]);
 
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "detalles",
-  });
 
   const watchedDetalles = form.watch("detalles");
 
@@ -151,9 +154,8 @@ export default function EditarPresupuestoPage() {
   };
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
-    const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0;
-    if (piesTablares === 0) return 0;
+    const precioPorPie = Number(detalle.precioPorPie); // Removed || 0
+    if (isNaN(precioPorPie) || piesTablares === 0) return 0; // Check if precioPorPie is NaN
 
     let subtotal = piesTablares * precioPorPie;
     if (detalle.cepillado) {
@@ -163,7 +165,7 @@ export default function EditarPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -184,7 +186,7 @@ export default function EditarPresupuestoPage() {
     if(!presupuestoId) return;
 
     const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number'
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, index) => {
       const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
@@ -200,7 +202,7 @@ export default function EditarPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
+        id: `pd-bulk-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
       } as PresupuestoDetalle;
     });
 
@@ -243,7 +245,7 @@ export default function EditarPresupuestoPage() {
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
 
   if (isLoadingData) {
@@ -366,22 +368,22 @@ export default function EditarPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value === 0 ? "" : f.value || ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           {/* Columna Precio/Pie Oculta */}
@@ -400,7 +402,7 @@ export default function EditarPresupuestoPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty(currentDetalle) && (
+                            {!isEffectivelyEmpty && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
