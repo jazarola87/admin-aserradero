@@ -44,7 +44,9 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 
   const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
   const costoOperativoAjustado = costoOperativoBase * 1.38;
+  // Ensure costoAserrioPorPie is 0 if costoOperativoAjustado is 0, to prevent NaN or Infinity
   const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+
 
   const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
     return acc + calcularPiesTablaresItem(detalle);
@@ -57,8 +59,8 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
-  const [initialDatesSet, setInitialDatesSet] = useState(false);
-  
+  const [dataLoaded, setDataLoaded] = useState(false); // Flag to track if data has been loaded
+
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
@@ -83,11 +85,19 @@ export default function DashboardPage() {
         } catch (e) { console.error("Error parsing ventas from localStorage", e); }
       }
       setVentasList(loadedVentas);
+      setDataLoaded(true); // Set data as loaded after attempting to fetch
     }
   }, []);
 
   useEffect(() => {
-    if (!initialDatesSet && (comprasList.length > 0 || ventasList.length > 0)) {
+    // Only proceed if data has been loaded (or attempted to load)
+    if (!dataLoaded) {
+      return;
+    }
+
+    // Only set initial dates if they haven't been set yet by any means.
+    // This means `fechaDesde` and `fechaHasta` are still in their initial `undefined` state.
+    if (fechaDesde === undefined && fechaHasta === undefined) {
       const allRecordDates: Date[] = [];
       comprasList.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha))});
       ventasList.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha))});
@@ -96,19 +106,14 @@ export default function DashboardPage() {
         allRecordDates.sort((a, b) => a.getTime() - b.getTime());
         setFechaDesde(allRecordDates[0]);
         setFechaHasta(allRecordDates[allRecordDates.length - 1]);
-      } else { 
+      } else {
+        // Default to current month if no records after loading
         const today = new Date();
         setFechaDesde(startOfMonth(today));
         setFechaHasta(endOfMonth(today));
       }
-      setInitialDatesSet(true);
-    } else if (!initialDatesSet && comprasList.length === 0 && ventasList.length === 0) {
-      const today = new Date();
-      setFechaDesde(startOfMonth(today));
-      setFechaHasta(endOfMonth(today));
-      setInitialDatesSet(true);
     }
-  }, [comprasList, ventasList, initialDatesSet]);
+  }, [comprasList, ventasList, dataLoaded, fechaDesde, fechaHasta]);
 
 
   const filteredComprasList = useMemo(() => {
@@ -181,7 +186,6 @@ export default function DashboardPage() {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
     
-    // Usa ALL comprasList para histórico
     comprasList.forEach(compra => {
       if (compra.tipoMadera && stockMap[compra.tipoMadera]) {
         stockMap[compra.tipoMadera].compradosM3 += Number(compra.volumen) || 0;
@@ -190,7 +194,6 @@ export default function DashboardPage() {
       }
     });
 
-    // Usa ALL ventasList para histórico
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
@@ -216,9 +219,10 @@ export default function DashboardPage() {
   const displayDateRange = useMemo(() => {
     const from = fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "N/A";
     const to = fechaHasta ? format(fechaHasta, "PPP", { locale: es }) : "N/A";
-    if (from === "N/A" && to === "N/A") return "Cargando rango de fechas...";
+    if (from === "N/A" && to === "N/A" && !dataLoaded) return "Cargando rango de fechas...";
+    if (from === "N/A" && to === "N/A" && dataLoaded) return "No hay registros para definir un rango";
     return `${from} - ${to}`;
-  }, [fechaDesde, fechaHasta]);
+  }, [fechaDesde, fechaHasta, dataLoaded]);
 
 
   return (
@@ -369,4 +373,3 @@ export default function DashboardPage() {
   );
 }
     
-
