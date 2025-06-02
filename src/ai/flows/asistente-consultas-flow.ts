@@ -11,8 +11,8 @@
 // Import the actual flow logic and schemas from the definitions file
 import { 
   asistenteConsultasFlowInternal,
-  AsistenteConsultasInputSchema, 
-  AsistenteConsultasOutputSchema 
+  // AsistenteConsultasInputSchema, // Schema no longer re-exported here
+  // AsistenteConsultasOutputSchema  // Schema no longer re-exported here
 } from './asistente-consultas-flow-definitions'; 
 import type { 
   AsistenteConsultasInput, 
@@ -21,9 +21,8 @@ import type {
 
 // Re-export types if they are used by the client-side component calling this action
 export type { AsistenteConsultasInput, AsistenteConsultasOutput };
-// Re-export schemas if they are used for validation on client before calling action (optional)
-export { AsistenteConsultasInputSchema, AsistenteConsultasOutputSchema };
-
+// Do NOT re-export Zod schemas from the 'use server' file.
+// They are defined and exported from 'asistente-consultas-flow-definitions.ts' for Genkit's internal use.
 
 export async function consultarAsistente(input: AsistenteConsultasInput): Promise<AsistenteConsultasOutput> {
   // The actual Genkit flow execution happens by calling the imported internal flow
