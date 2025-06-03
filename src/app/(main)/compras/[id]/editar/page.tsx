@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -19,18 +18,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, Save } from "lucide-react";
+import { CalendarIcon, Save, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data";
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
+import { getCompraById, updateCompra as updateCompraInDB } from "@/lib/firebase/services/comprasService";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -63,18 +61,11 @@ export default function EditarCompraPage() {
   const compraId = params.id as string;
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
-    defaultValues: {
-      fecha: new Date(),
-      tipoMadera: "",
-      proveedor: "",
-      telefonoProveedor: "",
-      volumen: undefined,
-      precioPorMetroCubico: undefined,
-      costo: 0,
-    },
+    // Default values will be set by useEffect
   });
 
   const watchedVolumen = form.watch("volumen");
@@ -90,77 +81,106 @@ export default function EditarCompraPage() {
   }, [watchedVolumen, watchedPrecioPorMetroCubico, form]);
 
   useEffect(() => {
-    if (compraId && typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      const comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-      const compraAEditar = comprasActuales.find(c => c.id === compraId);
+    if (!compraId) {
+      setIsLoading(false);
+      router.push('/compras');
+      return;
+    }
 
-      if (compraAEditar) {
-        let precioM3Calculado = compraAEditar.precioPorMetroCubico;
-        if (precioM3Calculado === undefined && compraAEditar.volumen > 0 && compraAEditar.costo > 0) {
-            precioM3Calculado = compraAEditar.costo / compraAEditar.volumen;
+    async function fetchCompra() {
+      setIsLoading(true);
+      try {
+        const compraAEditar = await getCompraById(compraId);
+        if (compraAEditar) {
+          let fechaParseada = new Date();
+          if(compraAEditar.fecha && isValid(parseISO(compraAEditar.fecha))) {
+            fechaParseada = parseISO(compraAEditar.fecha);
+          } else if (compraAEditar.fecha) { // If it's a string but not ISO, try direct parse
+             try {
+               fechaParseada = new Date(compraAEditar.fecha);
+               if (!isValid(fechaParseada)) fechaParseada = new Date(); // Fallback if still invalid
+             } catch {
+               fechaParseada = new Date(); // Fallback
+             }
+          }
+          
+          form.reset({
+            ...compraAEditar,
+            fecha: fechaParseada,
+            volumen: compraAEditar.volumen ?? undefined,
+            precioPorMetroCubico: compraAEditar.precioPorMetroCubico ?? undefined,
+            costo: compraAEditar.costo ?? 0,
+            telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Compra no encontrada en Firestore.",
+            variant: "destructive",
+          });
+          router.push('/compras');
         }
-
-        form.reset({
-          ...compraAEditar,
-          fecha: compraAEditar.fecha ? parseISO(compraAEditar.fecha) : new Date(),
-          volumen: compraAEditar.volumen ?? undefined,
-          precioPorMetroCubico: precioM3Calculado ?? undefined,
-          costo: compraAEditar.costo ?? 0,
-          telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
-        });
-      } else {
+      } catch (error) {
+        console.error("Error al cargar compra desde Firestore: ", error);
         toast({
-          title: "Error",
-          description: "Compra no encontrada.",
+          title: "Error al Cargar Compra",
+          description: "No se pudo obtener la compra de la base de datos.",
           variant: "destructive",
         });
         router.push('/compras');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
+    fetchCompra();
   }, [compraId, form, router, toast]);
 
-  function onSubmit(data: CompraFormValues) {
+  async function onSubmit(data: CompraFormValues) {
     if (!compraId) return;
+    setIsSubmitting(true);
 
-    const compraActualizada: Compra = {
+    const compraActualizada: Partial<Omit<Compra, 'id'>> = {
       ...data,
-      id: compraId,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
+    // Eliminar 'id' del objeto si por alguna razón se coló
+    delete (compraActualizada as any).id; 
 
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-      const index = comprasActuales.findIndex(c => c.id === compraId);
-      if (index !== -1) {
-        comprasActuales[index] = compraActualizada;
-      } else {
-        comprasActuales.push(compraActualizada);
-      }
-      comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
-      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
+    try {
+      await updateCompraInDB(compraId, compraActualizada);
+      toast({
+        title: "Compra Actualizada en Firestore",
+        description: `Se ha actualizado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
+      });
+      router.push('/compras');
+    } catch (error) {
+      console.error("Error al actualizar compra en Firestore: ", error);
+       toast({
+        title: "Error al Actualizar",
+        description: "No se pudo actualizar la compra en la base de datos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    toast({
-      title: "Compra Actualizada",
-      description: `Se ha actualizado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
-    });
-    router.push('/compras');
   }
 
   if (isLoading) {
-    return <div className="container mx-auto py-6">Cargando datos de la compra...</div>;
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+        <p>Cargando datos de la compra desde Firestore...</p>
+      </div>
+    );
   }
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Editar Compra" description="Modifique los detalles de la adquisición de madera." />
+      <PageTitle title="Editar Compra (Firestore)" description="Modifique los detalles de la adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Formulario de Edición de Compra</CardTitle>
-          <CardDescription>Modifique los campos necesarios y guarde los cambios.</CardDescription>
+          <CardDescription>Modifique los campos necesarios y guarde los cambios en Firestore.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -180,8 +200,9 @@ export default function EditarCompraPage() {
                               "w-full pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
+                            disabled={isSubmitting}
                           >
-                            {field.value ? (
+                            {field.value && isValid(field.value) ? (
                               format(field.value, "PPP", { locale: es })
                             ) : (
                               <span>Seleccione una fecha</span>
@@ -196,7 +217,7 @@ export default function EditarCompraPage() {
                           selected={field.value}
                           onSelect={field.onChange}
                           disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
+                            date > new Date() || date < new Date("1900-01-01") || isSubmitting
                           }
                           initialFocus
                           locale={es}
@@ -214,7 +235,7 @@ export default function EditarCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccione un tipo de madera" />
@@ -241,7 +262,7 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Volumen (m³)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -255,7 +276,7 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Precio por Metro Cúbico ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -269,7 +290,7 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Costo Total Calculado ($)</FormLabel>
                     <FormControl>
-                       <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none"/>
+                       <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none" disabled={isSubmitting}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -283,7 +304,7 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Proveedor</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nombre del proveedor" {...field} />
+                      <Input placeholder="Nombre del proveedor" {...field} disabled={isSubmitting}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -297,16 +318,16 @@ export default function EditarCompraPage() {
                   <FormItem>
                     <FormLabel>Teléfono del Proveedor (Opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Número de teléfono" {...field} />
+                      <Input placeholder="Número de teléfono" {...field} disabled={isSubmitting}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <div className="flex justify-end">
-                <Button type="submit">
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Cambios
+                <Button type="submit" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {isSubmitting ? "Guardando..." : "Guardar Cambios"}
                 </Button>
               </div>
             </form>

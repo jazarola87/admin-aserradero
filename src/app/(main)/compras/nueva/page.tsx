@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, Save } from "lucide-react";
+import { CalendarIcon, Save, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -29,8 +29,7 @@ import type { Compra } from "@/types";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { initialConfigData } from "@/lib/config-data";
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
+import { addCompra as addCompraToDB } from "@/lib/firebase/services/comprasService";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -59,6 +58,8 @@ type CompraFormValues = z.infer<typeof compraFormSchema>;
 export default function NuevaCompraPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
     defaultValues: {
@@ -82,36 +83,40 @@ export default function NuevaCompraPage() {
     form.setValue("costo", total, { shouldValidate: true, shouldDirty: true });
   }, [watchedVolumen, watchedPrecioPorMetroCubico, form]);
 
-  function onSubmit(data: CompraFormValues) {
-    const nuevaCompra: Compra = {
-      ...data, 
-      id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+  async function onSubmit(data: CompraFormValues) {
+    setIsSubmitting(true);
+    const compraDataToSave: Omit<Compra, 'id'> = {
+      ...data,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-      comprasActuales.push(nuevaCompra);
-      comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort newest first
-      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
+    try {
+      await addCompraToDB(compraDataToSave);
+      toast({
+        title: "Compra Registrada en Firestore",
+        description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
+        variant: "default"
+      });
+      router.push('/compras');
+    } catch (error) {
+      console.error("Error al registrar compra en Firestore: ", error);
+      toast({
+        title: "Error al Registrar Compra",
+        description: "No se pudo registrar la compra en la base de datos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    toast({
-      title: "Compra Registrada",
-      description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
-      variant: "default"
-    });
-    router.push('/compras');
   }
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nueva Compra" description="Registre los detalles de una nueva adquisición de madera." />
+      <PageTitle title="Ingresar Nueva Compra (Firestore)" description="Registre los detalles de una nueva adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Formulario de Compra</CardTitle>
-          <CardDescription>Complete todos los campos para registrar la compra.</CardDescription>
+          <CardDescription>Complete todos los campos para registrar la compra en Firestore.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -131,6 +136,7 @@ export default function NuevaCompraPage() {
                               "w-full pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
+                            disabled={isSubmitting}
                           >
                             {field.value ? (
                               format(field.value, "PPP", { locale: es })
@@ -147,7 +153,7 @@ export default function NuevaCompraPage() {
                           selected={field.value}
                           onSelect={field.onChange}
                           disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
+                            date > new Date() || date < new Date("1900-01-01") || isSubmitting
                           }
                           initialFocus
                           locale={es}
@@ -165,7 +171,7 @@ export default function NuevaCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccione un tipo de madera" />
@@ -193,7 +199,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Volumen (m³)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 15.5" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} disabled={isSubmitting} />
                     </FormControl>
                     <FormDescription>Cantidad de madera en metros cúbicos.</FormDescription>
                     <FormMessage />
@@ -208,7 +214,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Precio por Metro Cúbico ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 250.00" {...field} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} disabled={isSubmitting} />
                     </FormControl>
                     <FormDescription>Costo de la madera por cada metro cúbico.</FormDescription>
                     <FormMessage />
@@ -223,7 +229,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Costo Total Calculado ($)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none"/>
+                      <Input type="number" step="0.01" placeholder="Calculado automáticamente" {...field} readOnly className="bg-muted/50 border-none" disabled={isSubmitting} />
                     </FormControl>
                     <FormDescription>Costo total de la compra (volumen x precio/m³).</FormDescription>
                     <FormMessage />
@@ -238,7 +244,7 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Proveedor</FormLabel>
                     <FormControl>
-                      <Input placeholder="Nombre del proveedor" {...field} />
+                      <Input placeholder="Nombre del proveedor" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -252,16 +258,16 @@ export default function NuevaCompraPage() {
                   <FormItem>
                     <FormLabel>Teléfono del Proveedor (Opcional)</FormLabel>
                     <FormControl>
-                      <Input placeholder="Número de teléfono" {...field} />
+                      <Input placeholder="Número de teléfono" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <div className="flex justify-end">
-                <Button type="submit">
-                  <Save className="mr-2 h-4 w-4" />
-                  Registrar Compra
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {isSubmitting ? "Registrando..." : "Registrar Compra"}
                 </Button>
               </div>
             </form>

@@ -9,73 +9,64 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, Pencil } from "lucide-react";
+import { PlusCircle, Trash2, Search, Pencil, Loader2 } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
-
-const mockComprasData: Compra[] = [
-  { id: "comp001", fecha: "2024-07-15", tipoMadera: "Pino", volumen: 5, precioPorMetroCubico: 100, costo: 500, proveedor: "Maderas del Sur S.A.", telefonoProveedor: "555-1234" },
-  { id: "comp002", fecha: "2024-07-18", tipoMadera: "Roble", volumen: 2, precioPorMetroCubico: 250, costo: 500, proveedor: "Bosques del Norte Ltda." },
-  { id: "comp003", fecha: "2024-07-20", tipoMadera: "Cedro", volumen: 1.5, precioPorMetroCubico: 300, costo: 450, proveedor: "Importadora Tropical", telefonoProveedor: "555-5678" },
-];
-
+import { getAllCompras, deleteCompra as deleteCompraFromDB } from "@/lib/firebase/services/comprasService";
 
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const updateComprasListAndStorage = useCallback((newList: Compra[]) => {
-    // Sort before setting state and localStorage
-    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
-    setCompras(sortedList);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(sortedList));
+  const fetchCompras = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const comprasList = await getAllCompras();
+      // Firestore query already orders by fecha desc, so direct set is fine.
+      setCompras(comprasList);
+    } catch (error) {
+      console.error("Error al cargar compras desde Firestore: ", error);
+      toast({
+        title: "Error al Cargar Compras",
+        description: (error instanceof Error && error.message) ? error.message : "No se pudieron obtener las compras desde la base de datos.",
+        variant: "destructive",
+      });
+      setCompras([]);
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      let dataToLoad = mockComprasData;
-      if (storedCompras) {
-        try {
-          const parsedCompras = JSON.parse(storedCompras);
-          if (Array.isArray(parsedCompras)) {
-            dataToLoad = parsedCompras;
-          }
-        } catch (e) {
-          console.error("Error parsing compras from localStorage", e);
-          // Fallback to mockData if parsing fails
-        }
-      }
-      // Ensure data is sorted before setting/saving
-      const sortedData = dataToLoad.sort((a, b) => b.fecha.localeCompare(a.fecha));
-      setCompras(sortedData);
-      if (!storedCompras) { // Only save mockData if localStorage was empty
-        localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(sortedData));
-      }
-    }
-  }, []); // Removed updateComprasListAndStorage from dependencies to run only once on mount
+    fetchCompras();
+  }, [fetchCompras]);
 
-  const handleDeleteCompra = (idToDelete: string) => {
-    const newList = compras.filter(compra => compra.id !== idToDelete);
-    updateComprasListAndStorage(newList); // This will sort and save
-    toast({
-      title: "Compra Eliminada",
-      description: "La compra ha sido eliminada exitosamente.",
-      variant: "default",
-    });
+  const handleDeleteCompra = async (idToDelete: string) => {
+    try {
+      await deleteCompraFromDB(idToDelete);
+      setCompras(prevCompras => prevCompras.filter(compra => compra.id !== idToDelete));
+      toast({
+        title: "Compra Eliminada",
+        description: "La compra ha sido eliminada exitosamente de Firestore.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error("Error al eliminar compra de Firestore: ", error);
+      toast({
+        title: "Error al Eliminar Compra",
+        description: (error instanceof Error && error.message) ? error.message : "No se pudo eliminar la compra de la base de datos.",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredCompras = useMemo(() => {
-    if (!searchTerm) return compras; // compras is already sorted
-    return compras.filter(compra => 
+    if (!searchTerm) return compras;
+    return compras.filter(compra =>
       compra.proveedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (compra.telefonoProveedor && compra.telefonoProveedor.includes(searchTerm)) ||
       compra.tipoMadera.toLowerCase().includes(searchTerm.toLowerCase())
@@ -84,7 +75,7 @@ export default function ComprasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Compras" description="Listado de todas las compras de madera.">
+      <PageTitle title="Registro de Compras (Firestore)" description="Listado de todas las compras de madera desde Firestore.">
         <Button asChild>
           <Link href="/compras/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -98,9 +89,11 @@ export default function ComprasPage() {
           <CardTitle>Historial de Compras</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardDescription>
-              {filteredCompras.length > 0 
-                ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s). (Ordenadas por fecha descendente)` 
-                : compras.length === 0 ? "Aún no se han registrado compras." : "No se encontraron compras con los criterios de búsqueda."}
+              {isLoading ? "Cargando compras..." :
+                (filteredCompras.length > 0
+                  ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s). (Ordenadas por fecha descendente)`
+                  : compras.length === 0 ? "Aún no se han registrado compras en Firestore." : "No se encontraron compras con los criterios de búsqueda.")
+              }
             </CardDescription>
             <div className="relative w-full sm:w-auto">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -110,19 +103,25 @@ export default function ComprasPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 w-full sm:w-[300px]"
+                disabled={isLoading}
               />
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {compras.length === 0 ? (
+          {isLoading ? (
             <div className="text-center py-10 text-muted-foreground">
-              <p>No hay compras registradas.</p>
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+              <p>Cargando compras desde Firestore...</p>
+            </div>
+          ) : compras.length === 0 && !searchTerm ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <p>No hay compras registradas en Firestore.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/compras/nueva">Registrar la primera compra</Link>
               </Button>
             </div>
-          ) : filteredCompras.length === 0 ? (
+          ) : filteredCompras.length === 0 && searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <p>No se encontraron compras que coincidan con su búsqueda.</p>
             </div>
@@ -143,7 +142,7 @@ export default function ComprasPage() {
               <TableBody>
                 {filteredCompras.map((compra) => (
                   <TableRow key={compra.id}>
-                    <TableCell>{compra.fecha && isValid(parseISO(compra.fecha)) ? format(parseISO(compra.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</TableCell> 
+                    <TableCell>{compra.fecha && isValid(parseISO(compra.fecha)) ? format(parseISO(compra.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</TableCell>
                     <TableCell>{compra.tipoMadera}</TableCell>
                     <TableCell>{compra.volumen} m³</TableCell>
                     <TableCell>${(compra.precioPorMetroCubico ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
@@ -168,7 +167,7 @@ export default function ComprasPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra.
+                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de Firestore.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
