@@ -14,7 +14,8 @@ import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getAllCompras, deleteCompra as deleteCompraFromDB } from "@/lib/firebase/services/comprasService";
+
+const COMPRAS_STORAGE_KEY = 'comprasList';
 
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
@@ -22,44 +23,44 @@ export default function ComprasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const fetchCompras = useCallback(async () => {
+  const loadComprasFromLocalStorage = useCallback(() => {
     setIsLoading(true);
-    try {
-      const comprasList = await getAllCompras();
-      // Firestore query already orders by fecha desc, so direct set is fine.
-      setCompras(comprasList);
-    } catch (error) {
-      console.error("Error al cargar compras desde Firestore: ", error);
-      toast({
-        title: "Error al Cargar Compras",
-        description: (error instanceof Error && error.message) ? error.message : "No se pudieron obtener las compras desde la base de datos.",
-        variant: "destructive",
-      });
-      setCompras([]);
-    } finally {
-      setIsLoading(false);
+    if (typeof window !== 'undefined') {
+      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+      if (storedCompras) {
+        try {
+          const parsedCompras = JSON.parse(storedCompras);
+          if (Array.isArray(parsedCompras)) {
+            // Ensure dates are valid and sort
+            const validCompras = parsedCompras.filter(c => c.fecha && isValid(parseISO(c.fecha)));
+            validCompras.sort((a,b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
+            setCompras(validCompras);
+          }
+        } catch (e) {
+          console.error("Error parsing compras from localStorage", e);
+          toast({ title: "Error al cargar compras", description: "No se pudieron cargar los datos de localStorage.", variant: "destructive" });
+          setCompras([]);
+        }
+      } else {
+        setCompras([]); // No data in localStorage
+      }
     }
+    setIsLoading(false);
   }, [toast]);
 
   useEffect(() => {
-    fetchCompras();
-  }, [fetchCompras]);
+    loadComprasFromLocalStorage();
+  }, [loadComprasFromLocalStorage]);
 
   const handleDeleteCompra = async (idToDelete: string) => {
-    try {
-      await deleteCompraFromDB(idToDelete);
-      setCompras(prevCompras => prevCompras.filter(compra => compra.id !== idToDelete));
+    if (typeof window !== 'undefined') {
+      const updatedCompras = compras.filter(compra => compra.id !== idToDelete);
+      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(updatedCompras));
+      setCompras(updatedCompras);
       toast({
         title: "Compra Eliminada",
-        description: "La compra ha sido eliminada exitosamente de Firestore.",
+        description: "La compra ha sido eliminada exitosamente de localStorage.",
         variant: "default",
-      });
-    } catch (error) {
-      console.error("Error al eliminar compra de Firestore: ", error);
-      toast({
-        title: "Error al Eliminar Compra",
-        description: (error instanceof Error && error.message) ? error.message : "No se pudo eliminar la compra de la base de datos.",
-        variant: "destructive",
       });
     }
   };
@@ -75,7 +76,7 @@ export default function ComprasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Compras (Firestore)" description="Listado de todas las compras de madera desde Firestore.">
+      <PageTitle title="Registro de Compras (LocalStorage)" description="Listado de todas las compras de madera desde localStorage.">
         <Button asChild>
           <Link href="/compras/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -92,7 +93,7 @@ export default function ComprasPage() {
               {isLoading ? "Cargando compras..." :
                 (filteredCompras.length > 0
                   ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s). (Ordenadas por fecha descendente)`
-                  : compras.length === 0 ? "Aún no se han registrado compras en Firestore." : "No se encontraron compras con los criterios de búsqueda.")
+                  : compras.length === 0 ? "Aún no se han registrado compras en localStorage." : "No se encontraron compras con los criterios de búsqueda.")
               }
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -112,11 +113,11 @@ export default function ComprasPage() {
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground">
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-              <p>Cargando compras desde Firestore...</p>
+              <p>Cargando compras desde localStorage...</p>
             </div>
           ) : compras.length === 0 && !searchTerm ? (
             <div className="text-center py-10 text-muted-foreground">
-              <p>No hay compras registradas en Firestore.</p>
+              <p>No hay compras registradas en localStorage.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/compras/nueva">Registrar la primera compra</Link>
               </Button>
@@ -167,7 +168,7 @@ export default function ComprasPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de Firestore.
+                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de localStorage.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

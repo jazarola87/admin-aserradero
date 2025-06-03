@@ -28,8 +28,9 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data";
-import { addCompra as addCompraToDB } from "@/lib/firebase/services/comprasService";
+import { defaultConfig } from "@/lib/default-config"; // Import defaultConfig
+
+const COMPRAS_STORAGE_KEY = 'comprasList';
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -85,24 +86,31 @@ export default function NuevaCompraPage() {
 
   async function onSubmit(data: CompraFormValues) {
     setIsSubmitting(true);
-    const compraDataToSave: Omit<Compra, 'id'> = {
+    const nuevaCompra: Compra = {
       ...data,
+      id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
     try {
-      await addCompraToDB(compraDataToSave);
+      if (typeof window !== 'undefined') {
+        const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
+        let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
+        comprasActuales.push(nuevaCompra);
+        comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
+        localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
+      }
       toast({
-        title: "Compra Registrada en Firestore",
+        title: "Compra Registrada en LocalStorage",
         description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
         variant: "default"
       });
       router.push('/compras');
     } catch (error) {
-      console.error("Error al registrar compra en Firestore: ", error);
+      console.error("Error al registrar compra en LocalStorage: ", error);
       toast({
         title: "Error al Registrar Compra",
-        description: "No se pudo registrar la compra en la base de datos.",
+        description: "No se pudo registrar la compra en localStorage.",
         variant: "destructive",
       });
     } finally {
@@ -112,11 +120,11 @@ export default function NuevaCompraPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nueva Compra (Firestore)" description="Registre los detalles de una nueva adquisición de madera." />
+      <PageTitle title="Ingresar Nueva Compra (LocalStorage)" description="Registre los detalles de una nueva adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Formulario de Compra</CardTitle>
-          <CardDescription>Complete todos los campos para registrar la compra en Firestore.</CardDescription>
+          <CardDescription>Complete todos los campos para registrar la compra en localStorage.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -178,12 +186,12 @@ export default function NuevaCompraPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {initialConfigData.preciosMadera.map((madera) => (
+                        {(defaultConfig.preciosMadera || []).map((madera) => (
                           <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                             {madera.tipoMadera}
                           </SelectItem>
                         ))}
-                         {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                         {(defaultConfig.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormDescription>Especifique el tipo de madera adquirida.</FormDescription>
