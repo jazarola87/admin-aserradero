@@ -11,13 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, ChevronDown, Download, Pencil } from "lucide-react";
+import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil } from "lucide-react"; // ChevronDown removed as it's default in Trigger
 import type { Presupuesto } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document'; // Corrected import path
+import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { initialConfigData } from '@/lib/config-data';
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -271,54 +271,58 @@ export default function PresupuestosPage() {
             <Accordion type="single" collapsible className="w-full">
               {filteredPresupuestos.map((presupuesto) => (
                 <AccordionItem value={presupuesto.id} key={presupuesto.id}>
-                  <AccordionTrigger asChild className="hover:no-underline">
-                    <div className={cn(
-                      "flex w-full items-center justify-between py-4 px-2 font-medium text-left hover:bg-muted/50 rounded-md"
-                    )}>
-                      <div className="flex-1">
-                          <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
-                          <span className="ml-4 text-sm text-muted-foreground">Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</span>
+                  <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
+                    <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
+                        <div className="flex-1 mb-2 sm:mb-0">
+                            <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
+                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">
+                              Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
+                            </span>
+                        </div>
+                        <span className="font-semibold text-base sm:text-lg self-start sm:self-center">
+                          Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                        </span>
                       </div>
-                      <div className="flex items-center space-x-2">
-                          <span className="mr-2 font-semibold text-lg">Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                          <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
-                              <Download className="mr-2 h-4 w-4" /> PDF
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
-                              <Send className="mr-2 h-4 w-4" /> A Venta
-                          </Button>
-                           <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/presupuestos/${presupuesto.id}/editar`}>
-                                <Pencil className="h-4 w-4" />
-                                <span className="sr-only">Editar Presupuesto</span>
-                              </Link>
+                    </AccordionTrigger>
+                    
+                    <div className="flex items-center space-x-1 shrink-0">
+                        <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                            <Download className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">PDF</span>
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
+                            <Send className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">A Venta</span>
+                        </Button>
+                        <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                          <Link href={`/presupuestos/${presupuesto.id}/editar`}>
+                            <Pencil className="h-4 w-4" />
+                            <span className="sr-only">Editar Presupuesto</span>
+                          </Link>
+                        </Button>
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                <Trash2 className="h-4 w-4" />
+                                <span className="sr-only">Eliminar Presupuesto</span>
                             </Button>
-                          <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                  <Trash2 className="h-4 w-4" />
-                                  <span className="sr-only">Eliminar Presupuesto</span>
-                              </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                              <AlertDialogHeader>
-                                  <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                  Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
-                                  </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                  <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
-                                  Eliminar
-                                  </AlertDialogAction>
-                              </AlertDialogFooter>
-                              </AlertDialogContent>
-                          </AlertDialog>
-                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 ml-2 group-data-[state=open]:rotate-180" />
-                      </div>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
+                                Eliminar
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </div>
-                  </AccordionTrigger>
+                  </div>
                   <AccordionContent>
                     <p className="mb-2 text-sm"><strong>Teléfono Cliente:</strong> {presupuesto.telefonoCliente || "N/A"}</p>
                     <Table>
