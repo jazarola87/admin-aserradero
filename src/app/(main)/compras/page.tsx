@@ -14,8 +14,7 @@ import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
+import { getAllCompras, deleteCompra } from "@/lib/firebase/services/comprasService";
 
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
@@ -23,44 +22,43 @@ export default function ComprasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const loadComprasFromLocalStorage = useCallback(() => {
+  const loadComprasFromFirebase = useCallback(async () => {
     setIsLoading(true);
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      if (storedCompras) {
-        try {
-          const parsedCompras = JSON.parse(storedCompras);
-          if (Array.isArray(parsedCompras)) {
-            // Ensure dates are valid and sort
-            const validCompras = parsedCompras.filter(c => c.fecha && isValid(parseISO(c.fecha)));
-            validCompras.sort((a,b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
-            setCompras(validCompras);
-          }
-        } catch (e) {
-          console.error("Error parsing compras from localStorage", e);
-          toast({ title: "Error al cargar compras", description: "No se pudieron cargar los datos de localStorage.", variant: "destructive" });
-          setCompras([]);
-        }
-      } else {
-        setCompras([]); // No data in localStorage
-      }
+    try {
+      const comprasList = await getAllCompras();
+      setCompras(comprasList);
+    } catch (error) {
+      console.error("Error al cargar compras desde Firebase: ", error);
+      toast({
+        title: "Error al Cargar Compras",
+        description: "No se pudieron obtener las compras de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, [toast]);
 
   useEffect(() => {
-    loadComprasFromLocalStorage();
-  }, [loadComprasFromLocalStorage]);
+    loadComprasFromFirebase();
+  }, [loadComprasFromFirebase]);
 
   const handleDeleteCompra = async (idToDelete: string) => {
-    if (typeof window !== 'undefined') {
-      const updatedCompras = compras.filter(compra => compra.id !== idToDelete);
-      localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(updatedCompras));
-      setCompras(updatedCompras);
+    try {
+      await deleteCompra(idToDelete);
       toast({
         title: "Compra Eliminada",
-        description: "La compra ha sido eliminada exitosamente de localStorage.",
+        description: "La compra ha sido eliminada exitosamente de Firebase.",
         variant: "default",
+      });
+      // Recargar la lista para reflejar la eliminación
+      loadComprasFromFirebase();
+    } catch (error) {
+      console.error("Error al eliminar compra en Firebase: ", error);
+      toast({
+        title: "Error al Eliminar",
+        description: "No se pudo eliminar la compra de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+        variant: "destructive",
       });
     }
   };
@@ -76,7 +74,7 @@ export default function ComprasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Compras (LocalStorage)" description="Listado de todas las compras de madera desde localStorage.">
+      <PageTitle title="Registro de Compras (Firebase)" description="Listado de todas las compras de madera desde Firebase.">
         <Button asChild>
           <Link href="/compras/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -90,10 +88,10 @@ export default function ComprasPage() {
           <CardTitle>Historial de Compras</CardTitle>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardDescription>
-              {isLoading ? "Cargando compras..." :
+              {isLoading ? "Cargando compras desde Firebase..." :
                 (filteredCompras.length > 0
                   ? `Mostrando ${filteredCompras.length} de ${compras.length} compra(s). (Ordenadas por fecha descendente)`
-                  : compras.length === 0 ? "Aún no se han registrado compras en localStorage." : "No se encontraron compras con los criterios de búsqueda.")
+                  : compras.length === 0 ? "Aún no se han registrado compras en Firebase." : "No se encontraron compras con los criterios de búsqueda.")
               }
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -113,11 +111,11 @@ export default function ComprasPage() {
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground">
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-              <p>Cargando compras desde localStorage...</p>
+              <p>Cargando compras desde Firebase...</p>
             </div>
           ) : compras.length === 0 && !searchTerm ? (
             <div className="text-center py-10 text-muted-foreground">
-              <p>No hay compras registradas en localStorage.</p>
+              <p>No hay compras registradas en Firebase.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/compras/nueva">Registrar la primera compra</Link>
               </Button>
@@ -168,7 +166,7 @@ export default function ComprasPage() {
                           <AlertDialogHeader>
                             <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de localStorage.
+                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de Firebase.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
