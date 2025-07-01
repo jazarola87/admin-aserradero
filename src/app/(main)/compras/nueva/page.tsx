@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -28,9 +27,8 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { defaultConfig } from "@/lib/default-config"; // Import defaultConfig
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
+import { addCompra } from "@/lib/firebase/services/comprasService";
+import { initialConfigData } from "@/lib/config-data";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -86,31 +84,25 @@ export default function NuevaCompraPage() {
 
   async function onSubmit(data: CompraFormValues) {
     setIsSubmitting(true);
-    const nuevaCompra: Compra = {
+    
+    const compraParaGuardar: Omit<Compra, 'id'> = {
       ...data,
-      id: `compra-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
     try {
-      if (typeof window !== 'undefined') {
-        const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-        let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-        comprasActuales.push(nuevaCompra);
-        comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-        localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
-      }
+      await addCompra(compraParaGuardar);
       toast({
-        title: "Compra Registrada en LocalStorage",
+        title: "Compra Registrada en Firebase",
         description: `Se ha registrado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
         variant: "default"
       });
       router.push('/compras');
     } catch (error) {
-      console.error("Error al registrar compra en LocalStorage: ", error);
+      console.error("Error al registrar compra en Firebase: ", error);
       toast({
         title: "Error al Registrar Compra",
-        description: "No se pudo registrar la compra en localStorage.",
+        description: "No se pudo registrar la compra en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
         variant: "destructive",
       });
     } finally {
@@ -120,11 +112,11 @@ export default function NuevaCompraPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nueva Compra (LocalStorage)" description="Registre los detalles de una nueva adquisición de madera." />
+      <PageTitle title="Ingresar Nueva Compra" description="Registre los detalles de una nueva adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Formulario de Compra</CardTitle>
-          <CardDescription>Complete todos los campos para registrar la compra en localStorage.</CardDescription>
+          <CardDescription>Complete todos los campos para registrar la compra en Firebase.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -186,12 +178,12 @@ export default function NuevaCompraPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {(defaultConfig.preciosMadera || []).map((madera) => (
+                        {(initialConfigData.preciosMadera || []).map((madera) => (
                           <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                             {madera.tipoMadera}
                           </SelectItem>
                         ))}
-                         {(defaultConfig.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                         {(initialConfigData.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormDescription>Especifique el tipo de madera adquirida.</FormDescription>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -27,9 +26,8 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Compra } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { defaultConfig } from "@/lib/default-config"; // Import defaultConfig
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
+import { getCompraById, updateCompra } from "@/lib/firebase/services/comprasService";
+import { initialConfigData } from "@/lib/config-data";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -87,100 +85,76 @@ export default function EditarCompraPage() {
       return;
     }
 
-    setIsLoading(true);
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-      if (storedCompras) {
-        try {
-          const comprasActuales: Compra[] = JSON.parse(storedCompras);
-          const compraAEditar = comprasActuales.find(c => c.id === compraId);
-          if (compraAEditar) {
-            let fechaParseada = new Date();
-            if(compraAEditar.fecha && isValid(parseISO(compraAEditar.fecha))) {
-              fechaParseada = parseISO(compraAEditar.fecha);
-            } else if (compraAEditar.fecha) {
-               try {
-                 fechaParseada = new Date(compraAEditar.fecha);
-                 if (!isValid(fechaParseada)) fechaParseada = new Date();
-               } catch {
-                 fechaParseada = new Date();
-               }
-            }
-            
-            form.reset({
-              ...compraAEditar,
-              fecha: fechaParseada,
-              volumen: compraAEditar.volumen ?? undefined,
-              precioPorMetroCubico: compraAEditar.precioPorMetroCubico ?? undefined,
-              costo: compraAEditar.costo ?? 0,
-              telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
-            });
-          } else {
-            toast({
-              title: "Error",
-              description: "Compra no encontrada en localStorage.",
-              variant: "destructive",
-            });
-            router.push('/compras');
+    async function fetchCompra() {
+      setIsLoading(true);
+      try {
+        const compraAEditar = await getCompraById(compraId);
+        if (compraAEditar) {
+          let fechaParseada = new Date();
+          if(compraAEditar.fecha && isValid(parseISO(compraAEditar.fecha))) {
+            fechaParseada = parseISO(compraAEditar.fecha);
+          } else if (compraAEditar.fecha) {
+              try {
+                fechaParseada = new Date(compraAEditar.fecha);
+                if (!isValid(fechaParseada)) fechaParseada = new Date();
+              } catch {
+                fechaParseada = new Date();
+              }
           }
-        } catch (error) {
-           console.error("Error al cargar compra desde localStorage: ", error);
-           toast({
-             title: "Error al Cargar Compra",
-             description: "No se pudo obtener la compra de localStorage.",
-             variant: "destructive",
-           });
-           router.push('/compras');
+          
+          form.reset({
+            ...compraAEditar,
+            fecha: fechaParseada,
+            volumen: compraAEditar.volumen ?? undefined,
+            precioPorMetroCubico: compraAEditar.precioPorMetroCubico ?? undefined,
+            costo: compraAEditar.costo ?? 0,
+            telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
+          });
+        } else {
+          toast({
+            title: "Error",
+            description: "Compra no encontrada en Firebase.",
+            variant: "destructive",
+          });
+          router.push('/compras');
         }
-      } else {
-        toast({
-          title: "Error",
-          description: "No hay datos de compras en localStorage.",
-          variant: "destructive",
-        });
-        router.push('/compras');
+      } catch (error) {
+          console.error("Error al cargar compra desde Firebase: ", error);
+          toast({
+            title: "Error al Cargar Compra",
+            description: "No se pudo obtener la compra de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+            variant: "destructive",
+          });
+          router.push('/compras');
+      } finally {
+        setIsLoading(false);
       }
     }
-    setIsLoading(false);
+    
+    fetchCompra();
   }, [compraId, form, router, toast]);
 
   async function onSubmit(data: CompraFormValues) {
     if (!compraId) return;
     setIsSubmitting(true);
 
-    const compraActualizada: Compra = {
+    const compraActualizada: Partial<Omit<Compra, 'id'>> = {
       ...data,
-      id: compraId,
       fecha: format(data.fecha, "yyyy-MM-dd"),
     };
 
     try {
-      if (typeof window !== 'undefined') {
-        const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-        let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-        const index = comprasActuales.findIndex(c => c.id === compraId);
-        if (index !== -1) {
-          comprasActuales[index] = compraActualizada;
-          comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-          localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
-          toast({
-            title: "Compra Actualizada en LocalStorage",
-            description: `Se ha actualizado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
-          });
-          router.push('/compras');
-        } else {
-           toast({
-            title: "Error",
-            description: "Compra no encontrada para actualizar.",
-            variant: "destructive",
-          });
-        }
-      }
+      await updateCompra(compraId, compraActualizada);
+      toast({
+        title: "Compra Actualizada en Firebase",
+        description: `Se ha actualizado la compra de ${data.tipoMadera} de ${data.proveedor}.`,
+      });
+      router.push('/compras');
     } catch (error) {
-      console.error("Error al actualizar compra en LocalStorage: ", error);
-       toast({
+      console.error("Error al actualizar compra en Firebase: ", error);
+      toast({
         title: "Error al Actualizar",
-        description: "No se pudo actualizar la compra en localStorage.",
+        description: "No se pudo actualizar la compra en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
         variant: "destructive",
       });
     } finally {
@@ -191,19 +165,19 @@ export default function EditarCompraPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
-        <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-        <p>Cargando datos de la compra desde localStorage...</p>
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando datos de la compra...</p>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Editar Compra (LocalStorage)" description="Modifique los detalles de la adquisición de madera." />
+      <PageTitle title="Editar Compra" description="Modifique los detalles de la adquisición de madera." />
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Formulario de Edición de Compra</CardTitle>
-          <CardDescription>Modifique los campos necesarios y guarde los cambios en localStorage.</CardDescription>
+          <CardDescription>Modifique los campos necesarios y guarde los cambios en Firebase.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -265,12 +239,12 @@ export default function EditarCompraPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {(defaultConfig.preciosMadera || []).map((madera) => (
+                        {(initialConfigData.preciosMadera || []).map((madera) => (
                           <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                             {madera.tipoMadera}
                           </SelectItem>
                         ))}
-                        {(defaultConfig.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                        {(initialConfigData.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormMessage />
