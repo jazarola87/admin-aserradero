@@ -13,6 +13,8 @@ import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { initialConfigData } from "@/lib/config-data";
+import { getAllCompras } from "@/lib/firebase/services/comprasService";
+import { useToast } from "@/hooks/use-toast";
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
@@ -59,35 +61,44 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
-  const [dataLoaded, setDataLoaded] = useState(false); // Flag to track if data has been loaded
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const { toast } = useToast();
 
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem('comprasList');
-      let loadedCompras: Compra[] = [];
-      if (storedCompras) {
+    async function loadData() {
         try {
-            const parsed = JSON.parse(storedCompras);
-            if (Array.isArray(parsed)) loadedCompras = parsed.filter(c => c.fecha && isValid(parseISO(c.fecha)));
-        } catch (e) { console.error("Error parsing compras from localStorage", e); }
-      }
-      setComprasList(loadedCompras);
+            // Fetch Compras from Firebase
+            const comprasFromFirebase = await getAllCompras();
+            setComprasList(comprasFromFirebase);
 
-      const storedVentas = localStorage.getItem('ventasList');
-      let loadedVentas: Venta[] = [];
-      if (storedVentas) {
-        try {
-            const parsed = JSON.parse(storedVentas);
-            if (Array.isArray(parsed)) loadedVentas = parsed.filter(v => v.fecha && isValid(parseISO(v.fecha)));
-        } catch (e) { console.error("Error parsing ventas from localStorage", e); }
-      }
-      setVentasList(loadedVentas);
-      setDataLoaded(true); // Set data as loaded after attempting to fetch
+            // Keep Ventas from localStorage for now
+            if (typeof window !== 'undefined') {
+                const storedVentas = localStorage.getItem('ventasList');
+                let loadedVentas: Venta[] = [];
+                if (storedVentas) {
+                    try {
+                        const parsed = JSON.parse(storedVentas);
+                        if (Array.isArray(parsed)) loadedVentas = parsed.filter(v => v.fecha && isValid(parseISO(v.fecha)));
+                    } catch (e) { console.error("Error parsing ventas from localStorage", e); }
+                }
+                setVentasList(loadedVentas);
+            }
+        } catch (error) {
+            console.error("Error loading data for dashboard:", error);
+            toast({
+                title: "Error al cargar datos",
+                description: "No se pudieron cargar los datos de compras desde Firebase. El stock puede ser incorrecto.",
+                variant: "destructive",
+            });
+        } finally {
+            setDataLoaded(true);
+        }
     }
-  }, []);
+    loadData();
+  }, [toast]);
 
   useEffect(() => {
     // Only proceed if data has been loaded (or attempted to load)
