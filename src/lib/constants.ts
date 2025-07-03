@@ -46,11 +46,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wrench,
   },
   {
-    title: 'Chequeo de Costos',
-    href: '/chequeo-costos',
-    icon: ClipboardCheck,
-  },
-  {
     title: 'Asistente Virtual',
     href: '/asistente-virtual',
     icon: Bot,
