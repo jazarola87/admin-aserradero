@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { getAppConfig, updateAppConfig } from "@/lib/firebase/services/configuracionService"; 
 import type { Configuracion } from "@/types"; 
 import React, { useState, useEffect } from "react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const precioMaderaSchema = z.object({
   tipoMadera: z.string().min(1, "El tipo de madera es requerido."),
@@ -136,6 +137,8 @@ export default function PreciosVentaPage() {
     );
   }
 
+  const watchedPreciosMadera = form.watch("preciosMadera");
+
   return (
     <div className="container mx-auto py-6">
       <PageTitle 
@@ -205,7 +208,9 @@ export default function PreciosVentaPage() {
 
               <Separator />
               <h3 className="text-lg font-medium">Tipos de Madera y Precios de Venta por Pie Tablar</h3>
-              {fields.map((item, index) => (
+              {fields.map((item, index) => {
+                const tipoMaderaActual = watchedPreciosMadera?.[index]?.tipoMadera;
+                return (
                 <div key={item.id} className="flex items-end gap-4 p-4 border rounded-md">
                   <FormField
                     control={form.control}
@@ -229,12 +234,33 @@ export default function PreciosVentaPage() {
                       </FormItem>
                     )}
                   />
-                  <Button type="button" variant="destructive" size="icon" onClick={() => remove(index)} className="shrink-0">
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Eliminar tipo y precio</span>
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="destructive" size="icon" className="shrink-0" onClick={(e) => e.preventDefault()}>
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Eliminar tipo y precio</span>
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Está realmente seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Esta acción es permanente y eliminará el tipo de madera "{tipoMaderaActual || 'este tipo'}". Si este tipo de madera se usa en compras, ventas o presupuestos, podría afectar los reportes históricos.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => remove(index)}
+                          className="bg-destructive hover:bg-destructive/90"
+                        >
+                          Sí, Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
-              ))}
+              )})}
               <Button type="button" variant="outline" onClick={() => append({ tipoMadera: "", precioPorPie: 0 })}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Agregar Tipo de Madera y Precio
               </Button>
