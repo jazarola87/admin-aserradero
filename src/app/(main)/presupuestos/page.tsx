@@ -175,7 +175,7 @@ export default function PresupuestosPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Presupuestos (Firebase)" description="Listado de todos los presupuestos generados.">
+      <PageTitle title="Registro de Presupuestos" description="Listado de todos los presupuestos generados.">
         <Button asChild>
           <Link href="/presupuestos/nuevo">
             <PlusCircle className="mr-2 h-4 w-4" />
