@@ -14,11 +14,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogIn } from "lucide-react";
 import { signInWithEmailAndPassword } from "@/lib/firebase/services/authService";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
+import { firebaseConfig } from "@/lib/firebase/config";
 
 const loginFormSchema = z.object({
   email: z.string().email({ message: "Por favor, ingrese un email válido." }),
@@ -109,6 +110,11 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
+        <CardFooter>
+            <p className="text-xs text-muted-foreground text-center w-full">
+                Conectando al proyecto: {firebaseConfig.projectId}
+            </p>
+        </CardFooter>
       </Card>
     </div>
   );
