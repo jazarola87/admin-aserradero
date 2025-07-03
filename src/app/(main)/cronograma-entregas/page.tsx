@@ -175,6 +175,16 @@ export default function CronogramaEntregasPage() {
             <Accordion type="single" collapsible className="w-full">
               {ventasConEntregaEstimada.map((venta) => {
                 const estadoCobro = getEstadoCobroDisplay(venta);
+
+                const totalVentaNum = Number(venta.totalVenta) || 0;
+                const senaNum = Number(venta.sena) || 0;
+                const saldoPendiente = totalVentaNum - senaNum;
+                
+                const esCobrable = estadoCobro.texto === "Cobrado" || estadoCobro.texto === "Parcial" || estadoCobro.texto === "Pendiente";
+                
+                const textoMonto = esCobrable ? 'Saldo' : 'Total';
+                const monto = esCobrable ? saldoPendiente : totalVentaNum;
+                
                 return (
                 <AccordionItem value={venta.id} key={venta.id}>
                   <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
@@ -188,7 +198,7 @@ export default function CronogramaEntregasPage() {
                             <span className="text-sm text-foreground">Cliente: {venta.nombreComprador}</span>
                           </div>
                         <span className="font-semibold text-base sm:text-lg self-start sm:self-center">
-                          Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                          {textoMonto}: ${monto.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     </AccordionTrigger>
