@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -35,7 +36,7 @@ import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService
 const initialDetallesCount = 15; 
 
 const ventaDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
+  tipoMadera: z.string().optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
@@ -54,9 +55,16 @@ const ventaFormSchema = z.object({
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && (Number(d.unidades) || 0) > 0 && typeof (Number(d.precioPorPie)) === 'number' && !isNaN(Number(d.precioPorPie))),
+      (detalles) => detalles.some(d => 
+        d.tipoMadera && d.tipoMadera.length > 0 &&
+        d.unidades && d.unidades > 0 &&
+        d.alto && d.alto > 0 &&
+        d.ancho && d.ancho > 0 &&
+        d.largo && d.largo > 0 &&
+        d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
+      ),
       {
-        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
+        message: "Debe completar al menos una fila de producto con todos sus campos (Tipo, Unidades, Dimensiones).",
       }
     ),
   idOriginalPresupuesto: z.string().optional(), 
@@ -256,7 +264,13 @@ export default function EditarVentaPage() {
     setIsSubmitting(true);
 
     const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number' && !isNaN(Number(d_form.precioPorPie))
+      d => 
+        d.tipoMadera && d.tipoMadera.length > 0 &&
+        d.unidades && d.unidades > 0 &&
+        d.alto && d.alto > 0 &&
+        d.ancho && d.ancho > 0 &&
+        d.largo && d.largo > 0 &&
+        d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
     ).map((d_form, idx) => {
       const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
@@ -663,3 +677,5 @@ export default function EditarVentaPage() {
     </div>
   );
 }
+
+    

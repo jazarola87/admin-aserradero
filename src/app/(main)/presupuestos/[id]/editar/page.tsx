@@ -35,7 +35,7 @@ import { useRouter, useParams } from "next/navigation";
 const initialDetallesCount = 15; 
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional(),
+  tipoMadera: z.string().optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
@@ -51,16 +51,16 @@ const presupuestoFormSchema = z.object({
   detalles: z.array(itemDetalleSchema)
     .min(1, "Debe agregar al menos un detalle.")
     .refine(
-      (arr) => arr.some(d => 
-        d.tipoMadera &&
-        d.unidades &&
-        d.alto &&
-        d.ancho &&
-        d.largo &&
-        typeof d.precioPorPie === 'number'
+      (detalles) => detalles.some(d => 
+        d.tipoMadera && d.tipoMadera.length > 0 &&
+        d.unidades && d.unidades > 0 &&
+        d.alto && d.alto > 0 &&
+        d.ancho && d.ancho > 0 &&
+        d.largo && d.largo > 0 &&
+        d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
       ),
       {
-        message: "Debe ingresar al menos un artículo completo (con tipo, unidades, y todas las dimensiones).",
+        message: "Debe completar al menos una fila de producto con todos sus campos (Tipo, Unidades, Dimensiones).",
       }
     ),
 });
@@ -199,12 +199,12 @@ export default function EditarPresupuestoPage() {
     try {
       const processedDetalles = data.detalles
         .filter(d => 
-            d.tipoMadera && 
-            d.unidades && 
-            d.alto && 
-            d.ancho && 
-            d.largo && 
-            typeof d.precioPorPie === 'number'
+            d.tipoMadera && d.tipoMadera.length > 0 &&
+            d.unidades && d.unidades > 0 &&
+            d.alto && d.alto > 0 &&
+            d.ancho && d.ancho > 0 &&
+            d.largo && d.largo > 0 &&
+            d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
         )
         .map((d, index) => {
             const pies = calcularPiesTablares(d);
@@ -460,3 +460,5 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
+
+    
