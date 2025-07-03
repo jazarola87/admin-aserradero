@@ -81,12 +81,6 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
 
 const initialDetallesCount = 15;
 
-/**
- * A centralized and robust calculation engine for sales totals.
- * @param detalles The array of sale items from the form.
- * @param config The application configuration from Firebase.
- * @returns An object with all calculated totals.
- */
 const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Configuracion | null) => {
     if (!config) {
         return { totalVenta: 0, costoMadera: 0, costoAserrio: 0 };
@@ -113,20 +107,17 @@ const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Confi
         const pies = piesTablaresPorDetalle(detalle);
         totalPies += pies;
 
-        // Total Venta Calculation
         let subtotalVenta = pies * (Number(detalle.precioPorPie) || 0);
         if (detalle.cepillado) {
             subtotalVenta += pies * (Number(config.precioCepilladoPorPie) || 0);
         }
         totalVenta += subtotalVenta;
 
-        // Costo Madera Calculation (Costo por Metro Cúbico / 200) * pies
         const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
         const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
         costoMadera += (costoPorMetroCubico / 200) * pies;
     }
 
-    // Costo Aserrio Calculation (((Precio Nafta * 6) + (Precio Afilado * 3)) * 1.38) / 600
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
