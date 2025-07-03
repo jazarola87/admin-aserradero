@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers, Package, Loader2 } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers, Package, Loader2, HardHat } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -168,6 +168,13 @@ export default function DashboardPage() {
     }, 0);
   }, [filteredVentasList, config]);
   
+  const costoTotalAserrio = useMemo(() => {
+    if (!config) return 0;
+    return filteredVentasList.reduce((sum, venta) => {
+        return sum + getCostoAserrioParaVenta(venta, config);
+    }, 0);
+  }, [filteredVentasList, config]);
+
   const saldoMaderaARecuperar = useMemo(() => { 
     return valorTotalCompras - costoMaderaRecuperado;
   }, [valorTotalCompras, costoMaderaRecuperado]);
@@ -355,6 +362,16 @@ export default function DashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">${saldoMaderaARecuperar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <p className="text-xs text-muted-foreground">Costo de madera comprada en período que aún no se recuperó con ventas del período.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Costo Total Aserrío</CardTitle>
+            <HardHat className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${costoTotalAserrio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <p className="text-xs text-muted-foreground">Suma de costos de aserrío para ventas del período.</p>
           </CardContent>
         </Card>
       </div>
