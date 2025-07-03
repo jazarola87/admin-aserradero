@@ -16,6 +16,27 @@ import { useToast } from "@/hooks/use-toast";
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
+import { Badge } from "@/components/ui/badge";
+
+type EstadoCobro = { texto: string; variant: "default" | "secondary" | "destructive" | "outline" };
+
+// Helper to determine payment status
+const getEstadoCobroDisplay = (venta: Venta): EstadoCobro => {
+    const totalVentaNum = Number(venta.totalVenta) || 0;
+    const senaNum = Number(venta.sena) || 0;
+
+    if (totalVentaNum <= 0 && senaNum <=0 && (!venta.detalles || venta.detalles.length === 0)) return { texto: "N/A", variant: "outline" };
+
+    if (senaNum >= totalVentaNum && totalVentaNum > 0) {
+      return { texto: "Cobrado", variant: "default" };
+    } else if (senaNum > 0 && senaNum < totalVentaNum) {
+      return { texto: `Parcial`, variant: "secondary" };
+    } else if (totalVentaNum > 0){
+      return { texto: "Pendiente", variant: "destructive" };
+    }
+    return { texto: "Sin Cobro", variant: "outline" };
+};
+
 
 export default function CronogramaEntregasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -152,17 +173,20 @@ export default function CronogramaEntregasPage() {
             </div>
           ) : (
             <Accordion type="single" collapsible className="w-full">
-              {ventasConEntregaEstimada.map((venta) => (
+              {ventasConEntregaEstimada.map((venta) => {
+                const estadoCobro = getEstadoCobroDisplay(venta);
+                return (
                 <AccordionItem value={venta.id} key={venta.id}>
                   <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
                     <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-                        <div className="flex-1 mb-2 sm:mb-0">
-                          <span className="font-semibold text-primary">
-                            Entrega: {venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) ? format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es }) : 'N/A'}
-                          </span>
-                          <span className="ml-0 sm:ml-4 text-sm text-foreground block sm:inline">Cliente: {venta.nombreComprador}</span>
-                        </div>
+                          <div className="flex-1 mb-2 sm:mb-0 flex flex-wrap items-center gap-x-4 gap-y-2">
+                            <span className="font-semibold text-primary whitespace-nowrap">
+                              Entrega: {venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) ? format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es }) : 'N/A'}
+                            </span>
+                            <Badge variant={estadoCobro.variant} className="text-xs h-5">{estadoCobro.texto}</Badge>
+                            <span className="text-sm text-foreground">Cliente: {venta.nombreComprador}</span>
+                          </div>
                         <span className="font-semibold text-base sm:text-lg self-start sm:self-center">
                           Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                         </span>
@@ -212,7 +236,8 @@ export default function CronogramaEntregasPage() {
                     </Table>
                   </AccordionContent>
                 </AccordionItem>
-              ))}
+                )
+              })}
             </Accordion>
           )}
         </CardContent>
