@@ -49,7 +49,8 @@ export default function LoginPage() {
         description: "Bienvenido de vuelta.",
       });
     } catch (error: any) {
-      console.error("Login Error:", error);
+      // This error is expected when a user enters invalid credentials.
+      // We notify the user with a toast, so no need to log it to the console.
       toast({
         title: "Error de Inicio de Sesión",
         description: "El email o la contraseña son incorrectos. Por favor, intente de nuevo.",
