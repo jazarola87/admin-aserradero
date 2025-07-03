@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -178,7 +179,7 @@ export default function NuevaVentaPage() {
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
 
-  const totals = useMemo(() => calculateAllTotals(watchedDetalles, config), [watchedDetalles, config]);
+  const totals = calculateAllTotals(watchedDetalles, config);
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
@@ -212,6 +213,9 @@ export default function NuevaVentaPage() {
       setIsSubmitting(false);
       return;
     }
+    
+    // Use the same robust calculation for submission
+    const finalTotals = calculateAllTotals(data.detalles, config);
 
     const processedDetalles = (data.detalles || []).filter(
       d => 
@@ -262,10 +266,10 @@ export default function NuevaVentaPage() {
       sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
-      totalVenta: totals.totalVenta,
+      totalVenta: finalTotals.totalVenta,
       idOriginalPresupuesto: data.idOriginalPresupuesto,
-      costoMaderaVentaSnapshot: totals.costoMadera,
-      costoAserrioVentaSnapshot: totals.costoAserrio,
+      costoMaderaVentaSnapshot: finalTotals.costoMadera,
+      costoAserrioVentaSnapshot: finalTotals.costoAserrio,
     };
     
     try {

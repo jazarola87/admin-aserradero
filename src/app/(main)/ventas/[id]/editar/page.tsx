@@ -82,6 +82,53 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
   cepillado: false,
 });
 
+const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Configuracion | null) => {
+    if (!config) {
+        return { totalVenta: 0, costoMadera: 0, costoAserrio: 0 };
+    }
+
+    const piesTablaresPorDetalle = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
+        const unidades = Number(detalle?.unidades) || 0;
+        const alto = Number(detalle?.alto) || 0;
+        const ancho = Number(detalle?.ancho) || 0;
+        const largo = Number(detalle?.largo) || 0;
+        if (!unidades || !alto || !ancho || !largo) return 0;
+        return unidades * alto * ancho * largo * 0.2734;
+    };
+
+    let totalVenta = 0;
+    let costoMadera = 0;
+    let totalPies = 0;
+
+    for (const detalle of detalles) {
+        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
+            continue;
+        }
+
+        const pies = piesTablaresPorDetalle(detalle);
+        totalPies += pies;
+
+        let subtotalVenta = pies * (Number(detalle.precioPorPie) || 0);
+        if (detalle.cepillado) {
+            subtotalVenta += pies * (Number(config.precioCepilladoPorPie) || 0);
+        }
+        totalVenta += subtotalVenta;
+
+        const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+        const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+        costoMadera += (costoPorMetroCubico / 200) * pies;
+    }
+
+    const precioNafta = Number(config.precioLitroNafta) || 0;
+    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoAjustado = costoOperativoBase * 1.38;
+    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
+    const costoAserrio = totalPies * costoPorPieAserrio;
+
+    return { totalVenta, costoMadera, costoAserrio };
+};
+
 export default function EditarVentaPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -166,43 +213,7 @@ export default function EditarVentaPage() {
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
 
-  const totals = useMemo(() => {
-    if (!config) {
-        return { totalVenta: 0, costoMadera: 0, costoAserrio: 0 };
-    }
-
-    let totalVenta = 0;
-    let costoMadera = 0;
-    let totalPies = 0;
-
-    for (const detalle of watchedDetalles) {
-        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
-            continue;
-        }
-
-        const pies = (Number(detalle.unidades) || 0) * (Number(detalle.alto) || 0) * (Number(detalle.ancho) || 0) * (Number(detalle.largo) || 0) * 0.2734;
-        totalPies += pies;
-
-        let subtotalVenta = pies * (Number(detalle.precioPorPie) || 0);
-        if (detalle.cepillado) {
-            subtotalVenta += pies * (Number(config.precioCepilladoPorPie) || 0);
-        }
-        totalVenta += subtotalVenta;
-
-        const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
-        const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-        costoMadera += (costoPorMetroCubico / 200) * pies;
-    }
-
-    const precioNafta = Number(config.precioLitroNafta) || 0;
-    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
-    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
-    const costoAjustado = costoOperativoBase * 1.38;
-    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
-    const costoAserrio = totalPies * costoPorPieAserrio;
-
-    return { totalVenta, costoMadera, costoAserrio };
-  }, [watchedDetalles, config]);
+  const totals = calculateAllTotals(watchedDetalles, config);
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
@@ -232,6 +243,9 @@ export default function EditarVentaPage() {
   async function onSubmit(data: VentaFormValues) {
     if (!ventaId || !config) return;
     setIsSubmitting(true);
+    
+    // Use the same robust calculation for submission
+    const finalTotals = calculateAllTotals(data.detalles, config);
 
     const processedDetalles = data.detalles.filter(
       d => 
@@ -278,10 +292,10 @@ export default function EditarVentaPage() {
       sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
-      totalVenta: totals.totalVenta,
+      totalVenta: finalTotals.totalVenta,
       idOriginalPresupuesto: data.idOriginalPresupuesto, 
-      costoMaderaVentaSnapshot: totals.costoMadera, 
-      costoAserrioVentaSnapshot: totals.costoAserrio, 
+      costoMaderaVentaSnapshot: finalTotals.costoMadera, 
+      costoAserrioVentaSnapshot: finalTotals.costoAserrio, 
     };
 
     try {
