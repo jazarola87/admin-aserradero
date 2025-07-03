@@ -9,7 +9,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { getAppConfig } from '@/lib/firebase/services/configuracionService';
-import { defaultConfig } from '@/lib/config-data';
+// defaultConfig no es necesario aquí, ya que getAppConfig se encarga de los fallbacks.
 
 export const ChequeoAserrioOutputSchema = z.object({
   calculoDetallado: z.string().describe('Una explicación paso a paso de cómo se calculó el costo.'),
@@ -45,11 +45,11 @@ const prompt = ai.definePrompt({
 
     Ejemplo de explicación:
     "El costo de aserrío por pie se calcula así:
-    1. Costo Nafta: $1.75 * 6 = $10.50
-    2. Costo Afilado: $12.00 * 3 = $36.00
-    3. Costo Operativo Base: $10.50 + $36.00 = $46.50
-    4. Costo Ajustado (con factor 1.38): $46.50 * 1.38 = $64.17
-    5. Costo Final por Pie (dividido por 600 pies): $64.17 / 600 = $0.10695"
+    1. Costo Nafta: $1100 * 6 = $6600
+    2. Costo Afilado: $6000 * 3 = $18000
+    3. Costo Operativo Base: $6600 + $18000 = $24600
+    4. Costo Ajustado (con factor 1.38): $24600 * 1.38 = $33948
+    5. Costo Final por Pie (dividido por 600 pies): $33948 / 600 = $56.58"
     `,
 });
 
@@ -60,9 +60,8 @@ const chequearCostoAserrioFlow = ai.defineFlow(
     outputSchema: ChequeoAserrioOutputSchema,
   },
   async () => {
-    // Obtener la configuración de Firebase y fusionarla con los valores por defecto
-    const liveConfig = await getAppConfig();
-    const config = { ...defaultConfig, ...liveConfig };
+    // Obtener la configuración de Firebase. getAppConfig ya maneja los valores por defecto.
+    const config = await getAppConfig();
     
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
