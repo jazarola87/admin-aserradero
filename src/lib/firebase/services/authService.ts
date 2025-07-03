@@ -11,8 +11,7 @@ export async function signInWithEmailAndPassword(email: string, password: string
         const userCredential = await firebaseSignIn(auth, email, password);
         return userCredential.user;
     } catch (error) {
-        // The error is intentionally not logged here.
-        // It's caught and handled by the UI component, which shows a toast to the user.
+        console.error("Error in signInWithEmailAndPassword:", error);
         throw error;
     }
 }
