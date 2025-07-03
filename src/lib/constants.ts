@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Bot, FileText, ClipboardList, Wrench, CalendarClock, HardHat, Upload } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Bot, FileText, ClipboardList, Wrench, CalendarClock, HardHat, Upload, ClipboardCheck } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -45,7 +45,12 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/costos-operativos',
     icon: Wrench,
   },
-    {
+  {
+    title: 'Chequeo de Costos',
+    href: '/chequeo-costos',
+    icon: ClipboardCheck,
+  },
+  {
     title: 'Asistente Virtual',
     href: '/asistente-virtual',
     icon: Bot,
