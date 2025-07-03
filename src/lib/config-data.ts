@@ -11,7 +11,7 @@ const defaultPreciosMadera: PrecioMadera[] = [
 // Default material costs to be used ONLY when creating the config document for the first time.
 const defaultCostosMadera: CostoMaderaMetroCubico[] = defaultPreciosMadera.map(pm => ({
   tipoMadera: pm.tipoMadera,
-  costoPorMetroCubico: 0,
+  costoPorMetroCubico: 120.00,
 }));
 
 /**
@@ -20,12 +20,12 @@ const defaultCostosMadera: CostoMaderaMetroCubico[] = defaultPreciosMadera.map(p
  * This is NOT the live application configuration.
  */
 export const defaultConfig: Configuracion = {
-  nombreAserradero: "Mi Aserradero",
+  nombreAserradero: "Aserradero El Roble",
   logoUrl: "",
-  lemaEmpresa: "Calidad y tradición en maderas.",
+  lemaEmpresa: "Calidad y tradición en maderas desde 1980.",
   preciosMadera: defaultPreciosMadera,
-  precioCepilladoPorPie: 0.50,
-  precioLitroNafta: 1.5,
-  precioAfiladoSierra: 10,
+  precioCepilladoPorPie: 0.65,
+  precioLitroNafta: 1.75,
+  precioAfiladoSierra: 12.00,
   costosMaderaMetroCubico: defaultCostosMadera,
 };
