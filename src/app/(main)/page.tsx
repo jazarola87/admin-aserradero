@@ -165,16 +165,19 @@ export default function DashboardPage() {
 
   const gananciaNetaSocios = useMemo(() => {
     if (!config) return 0;
-    let totalGananciaNetaFiltrada = 0;
-    filteredVentasList.forEach(venta => {
+
+    const totalGananciaNetaFiltrada = filteredVentasList.reduce((totalSum, venta) => {
       const costoMaderaEstaVenta = getCostoMaderaParaVenta(venta, config);
       const costoAserrioEstaVenta = getCostoAserrioParaVenta(venta, config);
       const costoOperarioEstaVenta = Number(venta.costoOperario) || 0;
       
-      const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - (Number(costoMaderaEstaVenta) || 0) - (Number(costoAserrioEstaVenta) || 0) - costoOperarioEstaVenta;
-      totalGananciaNetaFiltrada += gananciaNetaEstaVenta;
-    });
-    return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0; 
+      const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - (costoMaderaEstaVenta || 0) - (costoAserrioEstaVenta || 0) - costoOperarioEstaVenta;
+      
+      return totalSum + gananciaNetaEstaVenta;
+    }, 0);
+
+    // Solo dividir por 2 si la ganancia total es positiva
+    return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0;
   }, [filteredVentasList, config]);
 
   const stockPorTipoMadera = useMemo(() => {
