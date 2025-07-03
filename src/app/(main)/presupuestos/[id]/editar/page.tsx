@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -174,7 +173,7 @@ export default function EditarPresupuestoPage() {
     return subtotal;
   };
   
-  const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
+  const totalGeneralPresupuesto = (watchedDetalles || []).reduce((acc, detalle) => {
     if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
@@ -460,5 +459,3 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
-
-    
