@@ -16,6 +16,7 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
 import { useToast } from "@/hooks/use-toast";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
+import { defaultConfig } from "@/lib/config-data";
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
@@ -29,7 +30,7 @@ const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
 
 // Helper to get wood cost for an entire Venta object
 const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number => {
-  if (typeof venta.costoMaderaVentaSnapshot === 'number') {
+  if (typeof venta.costoMaderaVentaSnapshot === 'number' && venta.costoMaderaVentaSnapshot > 0) {
     return venta.costoMaderaVentaSnapshot;
   }
   return (venta.detalles || []).reduce((itemSum, detalle) => {
@@ -37,7 +38,17 @@ const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number =>
     const piesTablaresArticulo = calcularPiesTablaresItem(detalle);
     if (piesTablaresArticulo <= 0) return itemSum;
 
-    const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+    const costosConfig = config.costosMaderaMetroCubico || [];
+    let costoMaderaConfig = costosConfig.find(c => c.tipoMadera === detalle.tipoMadera);
+
+    // If the saved cost is missing or zero, try to find a fallback in the default config
+    if (!costoMaderaConfig || costoMaderaConfig.costoPorMetroCubico <= 0) {
+      const fallbackCostoConfig = defaultConfig.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
+      if (fallbackCostoConfig && fallbackCostoConfig.costoPorMetroCubico > 0) {
+        costoMaderaConfig = fallbackCostoConfig;
+      }
+    }
+    
     const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
     return itemSum + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
   }, 0);
@@ -45,11 +56,11 @@ const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number =>
 
 // Helper to get sawmill cost for an entire Venta object
 const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number => {
-  if (typeof venta.costoAserrioVentaSnapshot === 'number') {
+  if (typeof venta.costoAserrioVentaSnapshot === 'number' && venta.costoAserrioVentaSnapshot > 0) {
     return venta.costoAserrioVentaSnapshot;
   }
-  const precioNafta = Number(config.precioLitroNafta) || 0;
-  const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+  const precioNafta = (Number(config.precioLitroNafta) > 0 ? Number(config.precioLitroNafta) : Number(defaultConfig.precioLitroNafta)) || 0;
+  const precioAfilado = (Number(config.precioAfiladoSierra) > 0 ? Number(config.precioAfiladoSierra) : Number(defaultConfig.precioAfiladoSierra)) || 0;
 
   const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
   const costoOperativoAjustado = costoOperativoBase * 1.38;

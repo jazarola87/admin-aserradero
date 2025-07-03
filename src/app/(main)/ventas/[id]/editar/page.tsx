@@ -32,6 +32,7 @@ import type { VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/t
 import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
 import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService";
+import { defaultConfig } from "@/lib/config-data";
 
 const initialDetallesCount = 15; 
 
@@ -210,12 +211,21 @@ export default function EditarVentaPage() {
   }, [watchedDetalles, config]);
 
   const calculatedCostoTotalMaderaVenta = useMemo(() => {
-    if (!config || !config.costosMaderaMetroCubico) return 0;
+    if (!config) return 0;
+    const costosConfig = config.costosMaderaMetroCubico || [];
     return watchedDetalles.reduce((acc, detalle) => {
       const piesTablaresArticulo = calcularPiesTablares(detalle);
       if (piesTablaresArticulo <= 0 || !detalle.tipoMadera) return acc;
       
-      const costoMaderaConfig = config.costosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+      let costoMaderaConfig = costosConfig.find(c => c.tipoMadera === detalle.tipoMadera);
+      
+      if (!costoMaderaConfig || costoMaderaConfig.costoPorMetroCubico <= 0) {
+        const fallbackCostoConfig = defaultConfig.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
+        if (fallbackCostoConfig && fallbackCostoConfig.costoPorMetroCubico > 0) {
+          costoMaderaConfig = fallbackCostoConfig;
+        }
+      }
+
       const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
       return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
     }, 0);
@@ -223,7 +233,10 @@ export default function EditarVentaPage() {
 
   const calculatedCostoTotalAserrioVenta = useMemo(() => {
     if (!config) return 0;
-    const costoOperativoBase = (Number(config.precioLitroNafta) || 0) * 6 + (Number(config.precioAfiladoSierra) || 0) * 3;
+    const precioNafta = (Number(config.precioLitroNafta) > 0 ? Number(config.precioLitroNafta) : Number(defaultConfig.precioLitroNafta)) || 0;
+    const precioAfilado = (Number(config.precioAfiladoSierra) > 0 ? Number(config.precioAfiladoSierra) : Number(defaultConfig.precioAfiladoSierra)) || 0;
+    
+    const costoOperativoBase = precioNafta * 6 + precioAfilado * 3;
     const costoOperativoAjustado = costoOperativoBase * 1.38;
     const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado)) ? costoOperativoAjustado / 600 : 0;
 
@@ -673,5 +686,3 @@ export default function EditarVentaPage() {
     </div>
   );
 }
-
-    
