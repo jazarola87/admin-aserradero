@@ -74,7 +74,7 @@ export default function ComprasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Compras (Firebase)" description="Listado de todas las compras de madera desde Firebase.">
+      <PageTitle title="Registro de Compras" description="Listado de todas las compras de madera desde Firebase.">
         <Button asChild>
           <Link href="/compras/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
