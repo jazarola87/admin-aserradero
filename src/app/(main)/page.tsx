@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -13,8 +14,9 @@ import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
-import { getAllVentas } from "@/lib/firebase/services/ventasService";
 import { useToast } from "@/hooks/use-toast";
+
+const VENTAS_STORAGE_KEY = 'ventasList';
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
@@ -76,14 +78,19 @@ export default function DashboardPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [comprasData, ventasData, configData] = await Promise.all([
+      const [comprasData, configData] = await Promise.all([
         getAllCompras(),
-        getAllVentas(),
         getAppConfig()
       ]);
       setComprasList(comprasData);
-      setVentasList(ventasData);
       setConfig(configData);
+
+      let ventasData: Venta[] = [];
+      if (typeof window !== 'undefined') {
+        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+        ventasData = storedVentas ? JSON.parse(storedVentas) : [];
+        setVentasList(ventasData);
+      }
 
       if (fechaDesde === undefined && fechaHasta === undefined) {
         const allRecordDates: Date[] = [];
@@ -105,7 +112,7 @@ export default function DashboardPage() {
       console.error("Error loading dashboard data:", error);
       toast({
           title: "Error al cargar datos",
-          description: "No se pudieron cargar los datos desde Firebase. El dashboard puede ser incorrecto.",
+          description: "No se pudieron cargar los datos. El dashboard puede ser incorrecto.",
           variant: "destructive",
       });
     } finally {
@@ -379,3 +386,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

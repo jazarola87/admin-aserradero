@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -17,8 +18,9 @@ import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { getAllVentas, deleteVenta, updateVenta } from "@/lib/firebase/services/ventasService";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+
+const VENTAS_STORAGE_KEY = 'ventasList';
 
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -218,7 +220,7 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
               <AlertDialogHeader>
                   <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
-                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta de Firebase.
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -324,63 +326,54 @@ export default function VentasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
+    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    setVentas(sortedList);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedList));
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [ventasList, appConfig] = await Promise.all([
-        getAllVentas(),
-        getAppConfig()
-      ]);
-      setVentas(ventasList);
+      const appConfig = await getAppConfig();
       setConfig(appConfig);
+
+      if (typeof window !== 'undefined') {
+        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+        const dataToLoad: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
+        updateVentasListAndStorage(dataToLoad);
+      }
     } catch (error) {
        console.error("Error al cargar datos: ", error);
        toast({
          title: "Error al Cargar Datos",
-         description: "No se pudieron obtener los datos de ventas o configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
+         description: "No se pudieron obtener los datos de configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
          variant: "destructive",
        });
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, updateVentasListAndStorage]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
 
-  const handleDeleteVenta = async (idToDelete: string) => {
-    try {
-      await deleteVenta(idToDelete);
-      toast({
-        title: "Venta Eliminada",
-        description: "La venta ha sido eliminada exitosamente de Firebase.",
-      });
-      loadData(); // Recargar datos
-    } catch (error) {
-       console.error("Error al eliminar venta: ", error);
-       toast({
-         title: "Error al Eliminar",
-         description: "No se pudo eliminar la venta de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
-         variant: "destructive",
-       });
-    }
+  const handleDeleteVenta = (idToDelete: string) => {
+    const newList = ventas.filter(v => v.id !== idToDelete);
+    updateVentasListAndStorage(newList);
+    toast({
+      title: "Venta Eliminada",
+      description: "La venta ha sido eliminada exitosamente.",
+    });
   };
 
-  const handleUpdateVenta = async (ventaId: string, data: Partial<Venta>) => {
-    try {
-      await updateVenta(ventaId, data);
-      // No mostramos toast aquí porque la función de origen ya lo hace.
-      loadData(); // Recargar datos para reflejar el cambio.
-    } catch (error) {
-       console.error("Error al actualizar venta: ", error);
-       toast({
-         title: "Error al Actualizar",
-         description: "No se pudo actualizar la venta en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
-         variant: "destructive",
-       });
-    }
+  const handleUpdateVenta = (ventaId: string, data: Partial<Venta>) => {
+    const updatedList = ventas.map(v => v.id === ventaId ? { ...v, ...data } : v);
+    updateVentasListAndStorage(updatedList);
   };
 
   const filteredVentas = useMemo(() => {
@@ -395,7 +388,7 @@ export default function VentasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Ventas (Firebase)" description="Listado de todas las ventas de madera.">
+      <PageTitle title="Registro de Ventas" description="Listado de todas las ventas de madera.">
         <Button asChild>
           <Link href="/ventas/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -409,7 +402,7 @@ export default function VentasPage() {
           <CardTitle>Historial de Ventas</CardTitle>
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
-                {isLoading ? "Cargando ventas desde Firebase..." :
+                {isLoading ? "Cargando ventas..." :
                   (filteredVentas.length > 0
                   ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).`
                   : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda.")
@@ -432,9 +425,9 @@ export default function VentasPage() {
           {isLoading ? (
             <div className="text-center py-10 text-muted-foreground">
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-              <p>Cargando ventas desde Firebase...</p>
+              <p>Cargando datos...</p>
             </div>
-          ) : ventas.length === 0 && !searchTerm ? (
+          ) : config && ventas.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <DollarSign className="mx-auto h-12 w-12 mb-4" />
               <p>No hay ventas registradas.</p>
@@ -446,6 +439,11 @@ export default function VentasPage() {
             <div className="text-center py-10 text-muted-foreground">
              <p>No se encontraron ventas que coincidan con su búsqueda.</p>
            </div>
+          ) : !config ? (
+             <div className="text-center py-10 text-muted-foreground">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-destructive mb-4" />
+                <p>Cargando configuración necesaria...</p>
+            </div>
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredVentas.map((venta) => (
@@ -464,3 +462,5 @@ export default function VentasPage() {
     </div>
   );
 }
+
+    

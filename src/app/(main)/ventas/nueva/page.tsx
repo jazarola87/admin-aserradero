@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -27,10 +28,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { addVenta } from "@/lib/firebase/services/ventasService";
 import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
+
+const VENTAS_STORAGE_KEY = 'ventasList';
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -113,48 +115,50 @@ export default function NuevaVentaPage() {
         const appConfig = await getAppConfig();
         setConfig(appConfig);
 
-        const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
-        if (presupuestoParaVentaString) {
-          const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-          
-          const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
-              tipoMadera: d_presupuesto_item.tipoMadera,
-              unidades: Number(d_presupuesto_item.unidades) || undefined,
-              ancho: Number(d_presupuesto_item.ancho) || undefined,
-              alto: Number(d_presupuesto_item.alto) || undefined,
-              largo: Number(d_presupuesto_item.largo) || undefined,
-              precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
-              cepillado: d_presupuesto_item.cepillado ?? false,
-          }));
+        if (typeof window !== 'undefined') {
+          const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
+          if (presupuestoParaVentaString) {
+            const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
+            
+            const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
+                tipoMadera: d_presupuesto_item.tipoMadera,
+                unidades: Number(d_presupuesto_item.unidades) || undefined,
+                ancho: Number(d_presupuesto_item.ancho) || undefined,
+                alto: Number(d_presupuesto_item.alto) || undefined,
+                largo: Number(d_presupuesto_item.largo) || undefined,
+                precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
+                cepillado: d_presupuesto_item.cepillado ?? false,
+            }));
 
-          form.reset({
-            fecha: new Date(),
-            nombreComprador: presupuesto.nombreCliente,
-            telefonoComprador: presupuesto.telefonoCliente || "",
-            idOriginalPresupuesto: presupuesto.id,
-            detalles: [],
-          });
-          
-          replace(budgetItemsToMap);
+            form.reset({
+              fecha: new Date(),
+              nombreComprador: presupuesto.nombreCliente,
+              telefonoComprador: presupuesto.telefonoCliente || "",
+              idOriginalPresupuesto: presupuesto.id,
+              detalles: [],
+            });
+            
+            replace(budgetItemsToMap);
 
-          let currentLength = budgetItemsToMap.length;
-          while (currentLength < initialDetallesCount) {
-            append(createEmptyDetalle(), { shouldFocus: false });
-            currentLength++;
+            let currentLength = budgetItemsToMap.length;
+            while (currentLength < initialDetallesCount) {
+              append(createEmptyDetalle(), { shouldFocus: false });
+              currentLength++;
+            }
+            
+            form.trigger();
+            localStorage.removeItem('presupuestoParaVenta');
+            toast({
+              title: "Presupuesto Cargado para Venta",
+              description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
+            });
           }
-          
-          form.trigger();
-          localStorage.removeItem('presupuestoParaVenta');
-          toast({
-            title: "Presupuesto Cargado para Venta",
-            description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
-          });
         }
       } catch (error) {
          console.error("Error al cargar configuración inicial:", error);
           toast({
             title: "Error al Cargar Configuración",
-            description: "No se pudieron cargar los datos de configuración desde Firebase.",
+            description: "No se pudieron cargar los datos de configuración.",
             variant: "destructive",
           });
       } finally {
@@ -298,7 +302,8 @@ export default function NuevaVentaPage() {
     const finalCostoMadera = typeof data.costoMaderaManual === 'number' && !isNaN(data.costoMaderaManual) ? data.costoMaderaManual : calculatedCostoTotalMaderaVenta;
     const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
 
-    const nuevaVenta: Omit<Venta, 'id'> = {
+    const nuevaVenta: Venta = {
+      id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -313,21 +318,27 @@ export default function NuevaVentaPage() {
     };
     
     try {
-      await addVenta(nuevaVenta);
+        if (typeof window !== 'undefined') {
+            const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+            let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
+            ventasActuales.push(nuevaVenta);
+            localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
+
+            if (data.idOriginalPresupuesto) {
+                localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
+            }
+        }
+
       toast({
-        title: "Venta Registrada en Firebase",
+        title: "Venta Registrada",
         description: `Se ha registrado la venta a ${data.nombreComprador}.`,
       });
-
-      if (data.idOriginalPresupuesto) {
-        localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
-      }
       router.push('/ventas');
     } catch (error) {
-       console.error("Error al registrar venta en Firebase: ", error);
+       console.error("Error al registrar venta: ", error);
        toast({
          title: "Error al Registrar",
-         description: "No se pudo registrar la venta en Firebase.",
+         description: "No se pudo registrar la venta.",
          variant: "destructive",
        });
     } finally {
@@ -686,3 +697,5 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
+
+    

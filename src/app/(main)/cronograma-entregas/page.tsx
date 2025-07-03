@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -16,7 +17,8 @@ import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { getAllVentas } from "@/lib/firebase/services/ventasService";
+
+const VENTAS_STORAGE_KEY = 'ventasList';
 
 export default function CronogramaEntregasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -29,16 +31,18 @@ export default function CronogramaEntregasPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [ventasData, configData] = await Promise.all([
-        getAllVentas(),
-        getAppConfig()
-      ]);
-      setVentas(ventasData);
+      const configData = await getAppConfig();
       setConfig(configData);
+
+      if (typeof window !== 'undefined') {
+        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
+        const ventasData = storedVentas ? JSON.parse(storedVentas) : [];
+        setVentas(ventasData);
+      }
     } catch (error) {
        toast({
          title: "Error al Cargar Datos",
-         description: "No se pudieron obtener los datos de ventas o configuración.",
+         description: "No se pudieron obtener los datos de configuración.",
          variant: "destructive",
        });
     } finally {
@@ -144,7 +148,7 @@ export default function CronogramaEntregasPage() {
           {isLoading ? (
              <div className="text-center py-10 text-muted-foreground">
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
-              <p>Cargando datos desde Firebase...</p>
+              <p>Cargando datos...</p>
             </div>
           ) : ventasConEntregaEstimada.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
@@ -234,3 +238,5 @@ export default function CronogramaEntregasPage() {
     </div>
   );
 }
+
+    
