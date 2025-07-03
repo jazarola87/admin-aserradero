@@ -57,10 +57,12 @@ export default function LoginPage() {
       if (error.code) {
         switch (error.code) {
           case 'auth/invalid-credential':
-          case 'auth/wrong-password':
-          case 'auth/user-not-found':
-            errorMessage = "El correo electrónico o la contraseña son incorrectos. Por favor, verifíquelos e intente de nuevo.";
+            errorMessage = "Firebase reporta que el correo o contraseña son incorrectos. Por favor, verifíquelos, considere restablecer la contraseña en la consola de Firebase, y asegúrese de que el proyecto de Firebase esté configurado correctamente.";
             break;
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+             errorMessage = "El correo electrónico o la contraseña son incorrectos. Por favor, verifíquelos e intente de nuevo.";
+             break;
           case 'auth/operation-not-allowed':
             errorTitle = "Error de Configuración de Firebase";
             errorMessage = "El inicio de sesión por correo y contraseña no está habilitado. Por favor, actívelo en la consola de Firebase > Authentication > Sign-in method.";
