@@ -240,17 +240,35 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="text-xs h-8 px-2"
-                onClick={() => onUpdateVenta(venta.id, { sena: venta.totalVenta })}
-                title="Marcar como Cobrado Totalmente"
-              >
-                <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
-                <span className="hidden sm:inline">Cobrado</span>
-              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 px-2"
+                    title="Marcar como Cobrado Totalmente"
+                  >
+                    <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
+                    <span className="hidden sm:inline">Cobrado</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Marcar Venta como Cobrada?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción registrará el pago total para esta venta. El monto de la seña se igualará al total de ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.
+                      ¿Desea continuar?
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onUpdateVenta(venta.id, { sena: venta.totalVenta })}>
+                      Sí, Marcar Cobrada
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </>
           )}
 
