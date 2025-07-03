@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -31,8 +30,7 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
-
-const VENTAS_STORAGE_KEY = 'ventasList';
+import { addVenta } from "@/lib/firebase/services/ventasService";
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -302,8 +300,7 @@ export default function NuevaVentaPage() {
     const finalCostoMadera = typeof data.costoMaderaManual === 'number' && !isNaN(data.costoMaderaManual) ? data.costoMaderaManual : calculatedCostoTotalMaderaVenta;
     const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
 
-    const nuevaVenta: Venta = {
-      id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    const nuevaVentaData: Omit<Venta, 'id'> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -318,27 +315,22 @@ export default function NuevaVentaPage() {
     };
     
     try {
-        if (typeof window !== 'undefined') {
-            const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-            let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-            ventasActuales.push(nuevaVenta);
-            localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
+        await addVenta(nuevaVentaData);
 
-            if (data.idOriginalPresupuesto) {
-                localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
-            }
+        if (data.idOriginalPresupuesto && typeof window !== 'undefined') {
+            localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
         }
 
       toast({
-        title: "Venta Registrada",
+        title: "Venta Registrada en Firebase",
         description: `Se ha registrado la venta a ${data.nombreComprador}.`,
       });
       router.push('/ventas');
     } catch (error) {
-       console.error("Error al registrar venta: ", error);
+       console.error("Error al registrar venta en Firebase: ", error);
        toast({
          title: "Error al Registrar",
-         description: "No se pudo registrar la venta.",
+         description: "No se pudo registrar la venta en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
          variant: "destructive",
        });
     } finally {
@@ -697,5 +689,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-
-    

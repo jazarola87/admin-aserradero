@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -17,8 +16,7 @@ import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-
-const VENTAS_STORAGE_KEY = 'ventasList';
+import { getAllVentas } from "@/lib/firebase/services/ventasService";
 
 export default function CronogramaEntregasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
@@ -31,18 +29,16 @@ export default function CronogramaEntregasPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const configData = await getAppConfig();
+      const [configData, ventasData] = await Promise.all([
+        getAppConfig(),
+        getAllVentas()
+      ]);
       setConfig(configData);
-
-      if (typeof window !== 'undefined') {
-        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        const ventasData = storedVentas ? JSON.parse(storedVentas) : [];
-        setVentas(ventasData);
-      }
+      setVentas(ventasData);
     } catch (error) {
        toast({
          title: "Error al Cargar Datos",
-         description: "No se pudieron obtener los datos de configuración.",
+         description: "No se pudieron obtener los datos de configuración o ventas. " + (error instanceof Error ? error.message : ""),
          variant: "destructive",
        });
     } finally {
@@ -238,5 +234,3 @@ export default function CronogramaEntregasPage() {
     </div>
   );
 }
-
-    

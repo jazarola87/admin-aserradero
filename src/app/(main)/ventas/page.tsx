@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -19,8 +18,7 @@ import { es } from "date-fns/locale";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-
-const VENTAS_STORAGE_KEY = 'ventasList';
+import { getAllVentas, deleteVenta, updateVenta } from "@/lib/firebase/services/ventasService";
 
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -326,54 +324,61 @@ export default function VentasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
-    const sortedList = newList.sort((a, b) => b.fecha.localeCompare(a.fecha));
-    setVentas(sortedList);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedList));
-    }
-  }, []);
-
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const appConfig = await getAppConfig();
+      const [appConfig, ventasData] = await Promise.all([
+        getAppConfig(),
+        getAllVentas()
+      ]);
       setConfig(appConfig);
-
-      if (typeof window !== 'undefined') {
-        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        const dataToLoad: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-        updateVentasListAndStorage(dataToLoad);
-      }
+      setVentas(ventasData);
     } catch (error) {
        console.error("Error al cargar datos: ", error);
        toast({
          title: "Error al Cargar Datos",
-         description: "No se pudieron obtener los datos de configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
+         description: "No se pudieron obtener los datos de ventas o configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
          variant: "destructive",
        });
     } finally {
       setIsLoading(false);
     }
-  }, [toast, updateVentasListAndStorage]);
+  }, [toast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
 
-  const handleDeleteVenta = (idToDelete: string) => {
-    const newList = ventas.filter(v => v.id !== idToDelete);
-    updateVentasListAndStorage(newList);
-    toast({
-      title: "Venta Eliminada",
-      description: "La venta ha sido eliminada exitosamente.",
-    });
+  const handleDeleteVenta = async (idToDelete: string) => {
+    try {
+        await deleteVenta(idToDelete);
+        toast({
+            title: "Venta Eliminada",
+            description: "La venta ha sido eliminada exitosamente de Firebase.",
+        });
+        loadData(); // Recargar datos
+    } catch (error) {
+        toast({
+            title: "Error al Eliminar",
+            description: "No se pudo eliminar la venta de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+            variant: "destructive",
+        });
+    }
   };
 
-  const handleUpdateVenta = (ventaId: string, data: Partial<Venta>) => {
-    const updatedList = ventas.map(v => v.id === ventaId ? { ...v, ...data } : v);
-    updateVentasListAndStorage(updatedList);
+  const handleUpdateVenta = async (ventaId: string, data: Partial<Venta>) => {
+    try {
+        await updateVenta(ventaId, data);
+        toast({ title: "Venta Actualizada", description: `La venta ha sido actualizada.` });
+        loadData(); // Recargar datos
+    } catch (error) {
+        toast({
+            title: "Error al Actualizar",
+            description: "No se pudo actualizar la venta. " + (error instanceof Error ? error.message : "Error desconocido"),
+            variant: "destructive",
+        });
+    }
   };
 
   const filteredVentas = useMemo(() => {
@@ -462,5 +467,3 @@ export default function VentasPage() {
     </div>
   );
 }
-
-    

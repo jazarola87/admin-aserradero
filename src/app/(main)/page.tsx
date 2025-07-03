@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
@@ -15,8 +14,9 @@ import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
 import { useToast } from "@/hooks/use-toast";
+import { getAllVentas, addVenta as addVentaToFirebase } from "@/lib/firebase/services/ventasService";
 
-const VENTAS_STORAGE_KEY = 'ventasList';
+const VENTAS_MIGRATION_KEY = 'ventasMigrationCompleted';
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
@@ -76,21 +76,60 @@ export default function DashboardPage() {
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
   const loadData = useCallback(async () => {
+    const performMigration = async () => {
+      if (typeof window === 'undefined') return;
+
+      const migrationCompleted = localStorage.getItem(VENTAS_MIGRATION_KEY);
+      if (migrationCompleted === 'true') {
+        console.log("La migración de ventas ya fue completada.");
+        return;
+      }
+
+      const storedVentasString = localStorage.getItem('ventasList');
+      if (!storedVentasString) {
+        console.log("No hay ventas en localStorage para migrar.");
+        localStorage.setItem(VENTAS_MIGRATION_KEY, 'true');
+        return;
+      }
+      
+      try {
+        const localVentas: Venta[] = JSON.parse(storedVentasString);
+        if (!Array.isArray(localVentas) || localVentas.length === 0) {
+            console.log("No hay ventas válidas en localStorage para migrar.");
+            localStorage.setItem(VENTAS_MIGRATION_KEY, 'true');
+            return;
+        }
+
+        toast({ title: "Iniciando backup de ventas locales a Firebase...", description: `Se encontraron ${localVentas.length} registros.` });
+
+        const migrationPromises = localVentas.map(venta => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { id, ...ventaData } = venta; // Exclude local ID before sending to Firebase
+          return addVentaToFirebase(ventaData);
+        });
+
+        await Promise.all(migrationPromises);
+
+        toast({ title: "Backup completado exitosamente", description: `${localVentas.length} registros de ventas fueron guardados en Firebase.` });
+        localStorage.setItem(VENTAS_MIGRATION_KEY, 'true');
+      } catch (error) {
+        console.error("Error durante la migración de ventas:", error);
+        toast({ title: "Error en el backup de ventas", description: "No se pudieron guardar los registros en Firebase. Revise la consola.", variant: "destructive" });
+      }
+    };
+
     setIsLoading(true);
     try {
-      const [comprasData, configData] = await Promise.all([
+      await performMigration();
+
+      const [comprasData, configData, ventasData] = await Promise.all([
         getAllCompras(),
-        getAppConfig()
+        getAppConfig(),
+        getAllVentas()
       ]);
       setComprasList(comprasData);
       setConfig(configData);
-
-      let ventasData: Venta[] = [];
-      if (typeof window !== 'undefined') {
-        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        ventasData = storedVentas ? JSON.parse(storedVentas) : [];
-        setVentasList(ventasData);
-      }
+      setVentasList(ventasData);
 
       if (fechaDesde === undefined && fechaHasta === undefined) {
         const allRecordDates: Date[] = [];
@@ -112,7 +151,7 @@ export default function DashboardPage() {
       console.error("Error loading dashboard data:", error);
       toast({
           title: "Error al cargar datos",
-          description: "No se pudieron cargar los datos. El dashboard puede ser incorrecto.",
+          description: "No se pudieron cargar los datos. El dashboard puede ser incorrecto. " + (error instanceof Error ? error.message : ""),
           variant: "destructive",
       });
     } finally {
@@ -386,5 +425,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

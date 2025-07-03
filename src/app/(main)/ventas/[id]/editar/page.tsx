@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -31,8 +30,8 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import type { VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
+import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService";
 
-const VENTAS_STORAGE_KEY = 'ventasList';
 const initialDetallesCount = 15; 
 
 const ventaDetalleSchema = z.object({
@@ -107,54 +106,51 @@ export default function EditarVentaPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const appConfig = await getAppConfig();
+        const [appConfig, ventaAEditar] = await Promise.all([
+          getAppConfig(),
+          getVentaById(ventaId)
+        ]);
         setConfig(appConfig);
 
-        if (typeof window !== 'undefined') {
-            const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-            const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-            const ventaAEditar = ventasActuales.find(v => v.id === ventaId);
+        if (ventaAEditar) {
+            const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
+                tipoMadera: d.tipoMadera,
+                unidades: Number(d.unidades) || undefined,
+                ancho: Number(d.ancho) || undefined,
+                alto: Number(d.alto) || undefined,
+                largo: Number(d.largo) || undefined,
+                precioPorPie: Number(d.precioPorPie) || undefined,
+                cepillado: d.cepillado ?? false,
+            }));
+            
+            form.reset({
+              fecha: ventaAEditar.fecha && isValid(parseISO(ventaAEditar.fecha)) ? parseISO(ventaAEditar.fecha) : new Date(),
+              nombreComprador: ventaAEditar.nombreComprador,
+              telefonoComprador: ventaAEditar.telefonoComprador || "",
+              fechaEntregaEstimada: ventaAEditar.fechaEntregaEstimada && isValid(parseISO(ventaAEditar.fechaEntregaEstimada)) ? parseISO(ventaAEditar.fechaEntregaEstimada) : undefined,
+              sena: ventaAEditar.sena ?? undefined,
+              costoOperario: ventaAEditar.costoOperario ?? undefined,
+              idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
+              detalles: [], 
+              totalVentaManual: ventaAEditar.totalVenta,
+              costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot,
+              costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot,
+            });
+            
+            replace(loadedDetails); 
 
-            if (ventaAEditar) {
-              const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
-                  tipoMadera: d.tipoMadera,
-                  unidades: Number(d.unidades) || undefined,
-                  ancho: Number(d.ancho) || undefined,
-                  alto: Number(d.alto) || undefined,
-                  largo: Number(d.largo) || undefined,
-                  precioPorPie: Number(d.precioPorPie) || undefined,
-                  cepillado: d.cepillado ?? false,
-              }));
-              
-              form.reset({
-                fecha: ventaAEditar.fecha && isValid(parseISO(ventaAEditar.fecha)) ? parseISO(ventaAEditar.fecha) : new Date(),
-                nombreComprador: ventaAEditar.nombreComprador,
-                telefonoComprador: ventaAEditar.telefonoComprador || "",
-                fechaEntregaEstimada: ventaAEditar.fechaEntregaEstimada && isValid(parseISO(ventaAEditar.fechaEntregaEstimada)) ? parseISO(ventaAEditar.fechaEntregaEstimada) : undefined,
-                sena: ventaAEditar.sena ?? undefined,
-                costoOperario: ventaAEditar.costoOperario ?? undefined,
-                idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
-                detalles: [], 
-                totalVentaManual: ventaAEditar.totalVenta,
-                costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot,
-                costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot,
-              });
-              
-              replace(loadedDetails); 
-
-              let currentLength = loadedDetails.length;
-              while (currentLength < initialDetallesCount) {
-                append(createEmptyDetalle(), { shouldFocus: false });
-                currentLength++;
-              }
-              form.trigger();
-            } else {
-              toast({ title: "Error", description: "Venta no encontrada para editar.", variant: "destructive" });
-              router.push('/ventas');
+            let currentLength = loadedDetails.length;
+            while (currentLength < initialDetallesCount) {
+              append(createEmptyDetalle(), { shouldFocus: false });
+              currentLength++;
             }
+            form.trigger();
+        } else {
+            toast({ title: "Error", description: "Venta no encontrada en Firebase.", variant: "destructive" });
+            router.push('/ventas');
         }
       } catch(error) {
-        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos de la venta o la configuración.", variant: "destructive" });
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos de la venta o la configuración. " + (error instanceof Error ? error.message : "Error desconocido"), variant: "destructive" });
         router.push('/ventas');
       } finally {
         setIsLoading(false);
@@ -291,8 +287,7 @@ export default function EditarVentaPage() {
     const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
 
 
-    const ventaActualizada: Venta = {
-      id: ventaId,
+    const ventaActualizadaData: Partial<Omit<Venta, 'id'>> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -307,25 +302,15 @@ export default function EditarVentaPage() {
     };
 
     try {
-        if (typeof window !== 'undefined') {
-            const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-            let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-            const index = ventasActuales.findIndex(v => v.id === ventaId);
-            if (index !== -1) {
-                ventasActuales[index] = ventaActualizada;
-            } else {
-                ventasActuales.push(ventaActualizada);
-            }
-            localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
-        }
+        await updateVenta(ventaId, ventaActualizadaData);
 
        toast({
-        title: "Venta Actualizada",
+        title: "Venta Actualizada en Firebase",
         description: `Se ha actualizado la venta para ${data.nombreComprador}.`,
       });
       router.push('/ventas');
     } catch(error) {
-       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la venta.", variant: "destructive" });
+       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la venta en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"), variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -678,5 +663,3 @@ export default function EditarVentaPage() {
     </div>
   );
 }
-
-    

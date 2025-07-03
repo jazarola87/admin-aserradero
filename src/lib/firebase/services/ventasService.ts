@@ -42,25 +42,33 @@ const mapDocToVenta = (document: any): Venta => {
 };
 
 export async function getAllVentas(): Promise<Venta[]> {
-  if (!db) {
-    console.error("ventasService: Firestore (db) is not initialized.");
-    throw new Error("La base de datos no está disponible.");
+    if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+      console.error("ventasService: Firestore (db) is not initialized correctly.");
+      throw new Error("La base de datos no está disponible.");
   }
   try {
     const ventasCollection = collection(db, VENTAS_COLLECTION);
-    // Remove server-side ordering to avoid index issues, sort on the client
-    const querySnapshot = await getDocs(ventasCollection);
+    const q = query(ventasCollection, orderBy('fecha', 'desc'));
+    const querySnapshot = await getDocs(q);
     const ventasList = querySnapshot.docs.map(mapDocToVenta);
-    // Sort on client side
-    return ventasList.sort((a, b) => b.fecha.localeCompare(a.fecha));
+    return ventasList;
   } catch (error) {
     console.error("Error fetching all ventas: ", error);
+    // If the error is due to a missing index, we can try fetching without ordering.
+    if (error instanceof Error && (error.message.includes('firestore/failed-precondition') || error.message.includes('needs an index'))) {
+        console.warn("Fetching ventas without ordering due to missing index.");
+        const ventasCollection = collection(db, VENTAS_COLLECTION);
+        const querySnapshot = await getDocs(ventasCollection);
+        const ventasList = querySnapshot.docs.map(mapDocToVenta);
+        return ventasList.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort on client-side
+    }
     throw new Error("No se pudieron obtener las ventas.");
   }
 }
 
+
 export async function getVentaById(id: string): Promise<Venta | null> {
-  if (!db) {
+  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -79,7 +87,7 @@ export async function getVentaById(id: string): Promise<Venta | null> {
 }
 
 export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
-  if (!db) {
+  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -92,7 +100,7 @@ export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
 }
 
 export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id'>>): Promise<void> {
-  if (!db) {
+  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -105,7 +113,7 @@ export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id
 }
 
 export async function deleteVenta(id: string): Promise<void> {
-  if (!db) {
+  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
     throw new Error("La base de datos no está disponible.");
   }
   try {
