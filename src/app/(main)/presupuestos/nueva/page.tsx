@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -49,9 +49,16 @@ const presupuestoFormSchema = z.object({
   detalles: z.array(itemDetalleSchema)
     .min(1, "Debe agregar al menos un detalle.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'),
+      (arr) => arr.some(d => 
+        d.tipoMadera &&
+        d.unidades &&
+        d.alto &&
+        d.ancho &&
+        d.largo &&
+        typeof d.precioPorPie === 'number'
+      ),
       {
-        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
+        message: "Debe ingresar al menos un artículo completo (con tipo, unidades, y todas las dimensiones).",
       }
     ),
 });
@@ -136,13 +143,15 @@ export default function NuevoPresupuestoPage() {
     return subtotal;
   };
   
-  const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
-      const pies = calcularPiesTablares(detalle);
-      return acc + calcularSubtotal(detalle, pies);
-    }
-    return acc;
-  }, 0);
+  const totalGeneralPresupuesto = useMemo(() => {
+    return watchedDetalles.reduce((acc, detalle) => {
+      if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
+        const pies = calcularPiesTablares(detalle);
+        return acc + calcularSubtotal(detalle, pies);
+      }
+      return acc;
+    }, 0);
+  }, [watchedDetalles, config]);
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
@@ -156,56 +165,66 @@ export default function NuevoPresupuestoPage() {
 
   async function onSubmit(data: PresupuestoFormValues) {
     setIsSubmitting(true);
-    const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
-    ).map((d_form, index) => {
-      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
-      const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotal(d, pies);
-      const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
-      return { 
-        ...d, 
-        unidades: Number(d.unidades),
-        ancho: Number(d.ancho),
-        alto: Number(d.alto),
-        largo: Number(d.largo),
-        precioPorPie: Number(d.precioPorPie),
-        piesTablares: pies, 
-        subTotal: sub, 
-        valorUnitario: valorUnit, 
-        id: `pd-new-${Date.now()}-${index}`
-      } as PresupuestoDetalle;
-    });
-
-    if (processedDetalles.length === 0) {
-      toast({
-        title: "Error en el Presupuesto",
-        description: "No hay artículos válidos para registrar.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-      return;
-    }
-
-    const nuevoPresupuestoData: Omit<Presupuesto, 'id'> = {
-      fecha: format(data.fecha, "yyyy-MM-dd"), 
-      nombreCliente: data.nombreCliente,
-      telefonoCliente: data.telefonoCliente,
-      detalles: processedDetalles,
-      totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
-    };
-    
     try {
+      const processedDetalles = data.detalles
+        .filter(d => 
+            d.tipoMadera && 
+            d.unidades && 
+            d.alto && 
+            d.ancho && 
+            d.largo && 
+            typeof d.precioPorPie === 'number'
+        )
+        .map((d, index) => {
+            const pies = calcularPiesTablares(d);
+            const sub = calcularSubtotal(d, pies);
+            const valorUnit = d.unidades! > 0 && sub > 0 ? sub / d.unidades! : 0;
+            
+            return {
+                id: `pd-new-${Date.now()}-${index}`,
+                tipoMadera: d.tipoMadera!,
+                unidades: d.unidades!,
+                ancho: d.ancho!,
+                alto: d.alto!,
+                largo: d.largo!,
+                precioPorPie: d.precioPorPie!,
+                cepillado: d.cepillado ?? false,
+                piesTablares: pies,
+                subTotal: sub,
+                valorUnitario: valorUnit,
+            } as PresupuestoDetalle;
+        });
+
+      if (processedDetalles.length === 0) {
+        toast({
+          title: "Formulario Incompleto",
+          description: "Debe completar al menos una fila con todos los datos requeridos (tipo, unidades, dimensiones).",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const nuevoPresupuestoData: Omit<Presupuesto, 'id'> = {
+        fecha: format(data.fecha, "yyyy-MM-dd"), 
+        nombreCliente: data.nombreCliente,
+        telefonoCliente: data.telefonoCliente,
+        detalles: processedDetalles,
+        totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
+      };
+      
       await addPresupuesto(nuevoPresupuestoData);
       toast({
         title: "Presupuesto Registrado en Firebase",
         description: `Se ha registrado el presupuesto para ${data.nombreCliente}.`,
       });
       router.push('/presupuestos');
+
     } catch (error) {
+       console.error("Error al registrar presupuesto:", error);
        toast({
         title: "Error al Registrar",
-        description: "No se pudo registrar el presupuesto en Firebase. " + (error instanceof Error ? error.message : ""),
+        description: "No se pudo registrar el presupuesto en Firebase. " + (error instanceof Error ? error.message : "Error desconocido."),
         variant: "destructive",
       });
     } finally {

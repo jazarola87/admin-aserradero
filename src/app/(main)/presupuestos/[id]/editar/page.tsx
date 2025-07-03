@@ -51,9 +51,16 @@ const presupuestoFormSchema = z.object({
   detalles: z.array(itemDetalleSchema)
     .min(1, "Debe agregar al menos un detalle.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'),
+      (arr) => arr.some(d => 
+        d.tipoMadera &&
+        d.unidades &&
+        d.alto &&
+        d.ancho &&
+        d.largo &&
+        typeof d.precioPorPie === 'number'
+      ),
       {
-        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
+        message: "Debe ingresar al menos un artículo completo (con tipo, unidades, y todas las dimensiones).",
       }
     ),
 });
@@ -168,7 +175,7 @@ export default function EditarPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
+    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -189,52 +196,66 @@ export default function EditarPresupuestoPage() {
     if(!presupuestoId) return;
     setIsSubmitting(true);
 
-    const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
-    ).map((d_form, index) => {
-      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
-      const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotal(d, pies);
-      const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
-      return { 
-        ...d, 
-        unidades: Number(d.unidades),
-        ancho: Number(d.ancho),
-        alto: Number(d.alto),
-        largo: Number(d.largo),
-        precioPorPie: Number(d.precioPorPie),
-        piesTablares: pies, 
-        subTotal: sub, 
-        valorUnitario: valorUnit, 
-        id: `pd-edit-${Date.now()}-${index}`
-      } as PresupuestoDetalle;
-    });
-
-    if (processedDetalles.length === 0) {
-      toast({ title: "Error en el Presupuesto", description: "No hay artículos válidos para guardar.", variant: "destructive" });
-      setIsSubmitting(false);
-      return;
-    }
-
-    const presupuestoActualizadoData: Partial<Omit<Presupuesto, 'id'>> = {
-      fecha: format(data.fecha, "yyyy-MM-dd"), 
-      nombreCliente: data.nombreCliente,
-      telefonoCliente: data.telefonoCliente,
-      detalles: processedDetalles,
-      totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
-    };
-
     try {
-        await updatePresupuesto(presupuestoId, presupuestoActualizadoData);
-        toast({
-            title: "Presupuesto Actualizado",
-            description: `Se ha actualizado el presupuesto para ${data.nombreCliente} en Firebase.`,
+      const processedDetalles = data.detalles
+        .filter(d => 
+            d.tipoMadera && 
+            d.unidades && 
+            d.alto && 
+            d.ancho && 
+            d.largo && 
+            typeof d.precioPorPie === 'number'
+        )
+        .map((d, index) => {
+            const pies = calcularPiesTablares(d);
+            const sub = calcularSubtotal(d, pies);
+            const valorUnit = d.unidades! > 0 && sub > 0 ? sub / d.unidades! : 0;
+            
+            return {
+                id: `pd-edit-${Date.now()}-${index}`,
+                tipoMadera: d.tipoMadera!,
+                unidades: d.unidades!,
+                ancho: d.ancho!,
+                alto: d.alto!,
+                largo: d.largo!,
+                precioPorPie: d.precioPorPie!,
+                cepillado: d.cepillado ?? false,
+                piesTablares: pies,
+                subTotal: sub,
+                valorUnitario: valorUnit,
+            } as PresupuestoDetalle;
         });
-        router.push('/presupuestos');
+
+      if (processedDetalles.length === 0) {
+        toast({ 
+            title: "Error en el Presupuesto", 
+            description: "No hay artículos válidos para guardar. Asegúrese de que al menos una fila esté completa.", 
+            variant: "destructive" 
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const presupuestoActualizadoData: Partial<Omit<Presupuesto, 'id'>> = {
+        fecha: format(data.fecha, "yyyy-MM-dd"), 
+        nombreCliente: data.nombreCliente,
+        telefonoCliente: data.telefonoCliente,
+        detalles: processedDetalles,
+        totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
+      };
+
+      await updatePresupuesto(presupuestoId, presupuestoActualizadoData);
+      toast({
+          title: "Presupuesto Actualizado",
+          description: `Se ha actualizado el presupuesto para ${data.nombreCliente} en Firebase.`,
+      });
+      router.push('/presupuestos');
+
     } catch (error) {
+        console.error("Error al actualizar presupuesto:", error);
         toast({
             title: "Error al Actualizar",
-            description: "No se pudo actualizar el presupuesto en Firebase. " + (error instanceof Error ? error.message : ""),
+            description: "No se pudo actualizar el presupuesto en Firebase. " + (error instanceof Error ? error.message : "Error desconocido."),
             variant: "destructive",
         });
     } finally {
