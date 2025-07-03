@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -236,7 +237,7 @@ export default function PreciosVentaPage() {
                   />
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button type="button" variant="destructive" size="icon" className="shrink-0" onClick={(e) => e.preventDefault()}>
+                      <Button type="button" variant="destructive" size="icon" className="shrink-0">
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Eliminar tipo y precio</span>
                       </Button>
