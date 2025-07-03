@@ -167,39 +167,31 @@ export default function NuevaVentaPage() {
   const calculatedTotalVentaGeneral = useMemo(() => {
     if (!config) return 0;
     return watchedDetalles.reduce((acc, detalle) => {
-      if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number' && !isNaN(Number(detalle.precioPorPie))) {
-        const pies = calcularPiesTablares(detalle);
-        return acc + calcularSubtotalDetalle(detalle, pies);
-      }
-      return acc;
+      const pies = calcularPiesTablares(detalle);
+      return acc + calcularSubtotalDetalle(detalle, pies);
     }, 0);
   }, [watchedDetalles, config]);
 
   const calculatedCostoTotalMaderaVenta = useMemo(() => {
     if (!config || !config.costosMaderaMetroCubico) return 0;
     return watchedDetalles.reduce((acc, detalle) => {
-      if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
-        const piesTablaresArticulo = calcularPiesTablares(detalle);
-        if (piesTablaresArticulo > 0) {
-          const costoMaderaConfig = config.costosMaderaMetroCubico!.find(c => c.tipoMadera === detalle.tipoMadera);
-          const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
-        }
-      }
-      return acc;
+      const piesTablaresArticulo = calcularPiesTablares(detalle);
+      if (piesTablaresArticulo <= 0 || !detalle.tipoMadera) return acc;
+      
+      const costoMaderaConfig = config.costosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+      const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+      return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
     }, 0);
   }, [watchedDetalles, config]);
 
   const calculatedCostoTotalAserrioVenta = useMemo(() => {
     if (!config) return 0;
-    const costoOperativoBase = (Number(config.precioLitroNafta) * 6) + (Number(config.precioAfiladoSierra) * 3);
+    const costoOperativoBase = (Number(config.precioLitroNafta) || 0) * 6 + (Number(config.precioAfiladoSierra) || 0) * 3;
     const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado)) ? costoOperativoAjustado / 600 : 0;
+
     const totalPiesTablaresVenta = watchedDetalles.reduce((acc, detalle) => {
-      if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
-        return acc + calcularPiesTablares(detalle);
-      }
-      return acc;
+      return acc + calcularPiesTablares(detalle);
     }, 0);
     return totalPiesTablaresVenta * costoAserrioPorPie;
   }, [watchedDetalles, config]);
