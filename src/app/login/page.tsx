@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, LogIn } from "lucide-react";
-import { signInWithEmailAndPassword } from "@/lib/firebase/services/authService";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
 import { firebaseConfig } from "@/lib/firebase/config";
 
@@ -43,7 +44,7 @@ export default function LoginPage() {
   async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(data.email, data.password);
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       // The AuthProvider will handle redirection on successful login
       toast({
         title: "Inicio de Sesión Exitoso",
@@ -57,8 +58,6 @@ export default function LoginPage() {
       if (error.code) {
         switch (error.code) {
           case 'auth/invalid-credential':
-            errorMessage = "Firebase reporta que el correo o contraseña son incorrectos. Por favor, verifíquelos, considere restablecer la contraseña en la consola de Firebase, y asegúrese de que el proyecto de Firebase esté configurado correctamente.";
-            break;
           case 'auth/user-not-found':
           case 'auth/wrong-password':
              errorMessage = "El correo electrónico o la contraseña son incorrectos. Por favor, verifíquelos e intente de nuevo.";

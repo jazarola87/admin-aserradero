@@ -24,7 +24,8 @@ import { NAV_ITEMS, type NavItem } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
 import { PanelLeft, ImageOff, LogOut } from "lucide-react";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { signOut } from "@/lib/firebase/services/authService";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 import { useToast } from "@/hooks/use-toast";
 
 function SidebarNav() {
@@ -77,7 +78,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const handleSignOut = async () => {
     try {
-        await signOut();
+        await signOut(auth);
         toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
         // AuthProvider will handle the redirect.
     } catch (error) {
