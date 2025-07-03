@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -30,17 +31,6 @@ const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number =
     return unidades * alto * ancho * largo * 0.2734;
 };
 
-const getCostoMaderaParaVentaItem = (detalle: Partial<VentaDetalle>, config: Configuracion): number => {
-  if (!detalle.tipoMadera) return 0;
-  const piesTablaresArticulo = calcularPiesTablaresVentaItem(detalle);
-  if (piesTablaresArticulo <= 0) return 0;
-
-  const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
-  const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-  return (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
-};
-
-
 interface VentaItemProps {
   venta: Venta;
   config: Configuracion;
@@ -59,26 +49,42 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
 
 
   const costoTotalMaderaVenta = useMemo(() => {
-    if (typeof venta.costoMaderaVentaSnapshot === 'number') {
+    if (typeof venta.costoMaderaVentaSnapshot === 'number' && venta.costoMaderaVentaSnapshot > 0) {
       return venta.costoMaderaVentaSnapshot;
     }
-    let costoTotal = 0;
-    (venta.detalles || []).forEach(detalle => {
-       costoTotal += getCostoMaderaParaVentaItem(detalle, config);
-    });
-    return costoTotal;
+    
+    if (!config || !config.costosMaderaMetroCubico) return 0;
+    const costosMap = new Map(config.costosMaderaMetroCubico.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
+
+    return (venta.detalles || []).reduce((totalCosto, detalle) => {
+      const piesTablares = calcularPiesTablaresVentaItem(detalle);
+      if (piesTablares === 0 || !detalle.tipoMadera) return totalCosto;
+
+      const costoPorMetroCubico = Number(costosMap.get(detalle.tipoMadera)) || 0;
+      if (costoPorMetroCubico === 0) return totalCosto;
+      
+      const costoDelItem = (costoPorMetroCubico / 200) * piesTablares;
+      return totalCosto + costoDelItem;
+    }, 0);
+
   }, [venta.detalles, venta.costoMaderaVentaSnapshot, config]);
 
   const costoTotalAserrioVenta = useMemo(() => {
-     if (typeof venta.costoAserrioVentaSnapshot === 'number') {
+     if (typeof venta.costoAserrioVentaSnapshot === 'number' && venta.costoAserrioVentaSnapshot > 0) {
       return venta.costoAserrioVentaSnapshot;
     }
+    
+    if (!config) return 0;
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
 
+    if (precioNafta === 0 || precioAfilado === 0) return 0;
+
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+    const costoAserrioPorPie = costoOperativoAjustado / 600;
+
+    if (costoAserrioPorPie === 0 || !isFinite(costoAserrioPorPie)) return 0;
 
     const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
       return acc + calcularPiesTablaresVentaItem(detalle);

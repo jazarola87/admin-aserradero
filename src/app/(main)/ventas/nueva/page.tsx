@@ -32,7 +32,6 @@ import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta, Configuracio
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
 import { addVenta } from "@/lib/firebase/services/ventasService";
-import { defaultConfig } from "@/lib/config-data";
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().optional(),
@@ -160,7 +159,7 @@ export default function NuevaVentaPage() {
     if (isNaN(precioPorPie) || piesTablares === 0) return 0;
     let subtotal = piesTablares * precioPorPie;
     if (detalle?.cepillado) {
-      subtotal += piesTablares * (config?.precioCepilladoPorPie || 0);
+      subtotal += piesTablares * (Number(config?.precioCepilladoPorPie) || 0);
     }
     return subtotal;
   };
@@ -174,38 +173,42 @@ export default function NuevaVentaPage() {
   }, [watchedDetalles, config]);
 
   const calculatedCostoTotalMaderaVenta = useMemo(() => {
-    if (!config) return 0;
-    const costosConfig = config.costosMaderaMetroCubico || [];
-    return watchedDetalles.reduce((acc, detalle) => {
-      const piesTablaresArticulo = calcularPiesTablares(detalle);
-      if (piesTablaresArticulo <= 0 || !detalle.tipoMadera) return acc;
-      
-      let costoMaderaConfig = costosConfig.find(c => c.tipoMadera === detalle.tipoMadera);
-      
-      if (!costoMaderaConfig || costoMaderaConfig.costoPorMetroCubico <= 0) {
-        const fallbackCostoConfig = defaultConfig.costosMaderaMetroCubico?.find(c => c.tipoMadera === detalle.tipoMadera);
-        if (fallbackCostoConfig && fallbackCostoConfig.costoPorMetroCubico > 0) {
-          costoMaderaConfig = fallbackCostoConfig;
-        }
-      }
-      
-      const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-      return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+    if (!config || !config.costosMaderaMetroCubico) return 0;
+    
+    const costosMap = new Map(config.costosMaderaMetroCubico.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
+
+    return watchedDetalles.reduce((totalCosto, detalle) => {
+        if (!detalle.tipoMadera) return totalCosto;
+
+        const piesTablares = calcularPiesTablares(detalle);
+        if (piesTablares === 0) return totalCosto;
+
+        const costoPorMetroCubico = Number(costosMap.get(detalle.tipoMadera)) || 0;
+        if (costoPorMetroCubico === 0) return totalCosto;
+
+        const costoDelItem = (costoPorMetroCubico / 200) * piesTablares;
+        return totalCosto + costoDelItem;
     }, 0);
   }, [watchedDetalles, config]);
 
   const calculatedCostoTotalAserrioVenta = useMemo(() => {
     if (!config) return 0;
-    const precioNafta = (Number(config.precioLitroNafta) > 0 ? Number(config.precioLitroNafta) : Number(defaultConfig.precioLitroNafta)) || 0;
-    const precioAfilado = (Number(config.precioAfiladoSierra) > 0 ? Number(config.precioAfiladoSierra) : Number(defaultConfig.precioAfiladoSierra)) || 0;
-    
-    const costoOperativoBase = precioNafta * 6 + precioAfilado * 3;
-    const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado)) ? costoOperativoAjustado / 600 : 0;
 
-    const totalPiesTablaresVenta = watchedDetalles.reduce((acc, detalle) => {
-      return acc + calcularPiesTablares(detalle);
+    const precioNafta = Number(config.precioLitroNafta) || 0;
+    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+
+    if (precioNafta === 0 || precioAfilado === 0) return 0;
+
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoOperativoAjustado = costoOperativoBase * 1.38;
+    const costoAserrioPorPie = costoOperativoAjustado / 600;
+
+    if (costoAserrioPorPie === 0 || !isFinite(costoAserrioPorPie)) return 0;
+
+    const totalPiesTablaresVenta = watchedDetalles.reduce((totalPies, detalle) => {
+        return totalPies + calcularPiesTablares(detalle);
     }, 0);
+
     return totalPiesTablaresVenta * costoAserrioPorPie;
   }, [watchedDetalles, config]);
 
