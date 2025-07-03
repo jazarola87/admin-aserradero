@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -408,10 +407,17 @@ export default function VentasPage() {
     let tempVentas = [...ventas];
 
     if (estadoCobroFilter !== "todos") {
+      if (estadoCobroFilter === 'pendiente-de-cobro') {
+        tempVentas = tempVentas.filter(venta => {
+          const estado = getEstadoCobroSimple(venta);
+          return estado === 'parcialmente-cobrado' || estado === 'pendiente';
+        });
+      } else {
         tempVentas = tempVentas.filter(venta => {
             const estado = getEstadoCobroSimple(venta);
             return estado === estadoCobroFilter;
         });
+      }
     }
 
     if (searchTerm) {
@@ -454,8 +460,7 @@ export default function VentasPage() {
                 <SelectContent>
                   <SelectItem value="todos">Todos los Estados</SelectItem>
                   <SelectItem value="cobrado">Cobrado</SelectItem>
-                  <SelectItem value="parcialmente-cobrado">Parcialmente Cobrado</SelectItem>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="pendiente-de-cobro">Pendiente de Cobro</SelectItem>
                 </SelectContent>
               </Select>
 
