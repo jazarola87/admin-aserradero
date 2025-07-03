@@ -1,10 +1,9 @@
-
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers, Package } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Users, ArchiveRestore, ArchiveX, CalendarDays, Layers, Package, Loader2 } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -12,8 +11,9 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
-import { initialConfigData } from "@/lib/config-data";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
+import { getAllVentas } from "@/lib/firebase/services/ventasService";
 import { useToast } from "@/hooks/use-toast";
 
 // Helper to calculate board feet for a single sale item
@@ -28,6 +28,9 @@ const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
 
 // Helper to get wood cost for an entire Venta object
 const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number => {
+  if (typeof venta.costoMaderaVentaSnapshot === 'number') {
+    return venta.costoMaderaVentaSnapshot;
+  }
   return (venta.detalles || []).reduce((itemSum, detalle) => {
     if (!detalle.tipoMadera) return itemSum;
     const piesTablaresArticulo = calcularPiesTablaresItem(detalle);
@@ -41,12 +44,14 @@ const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number =>
 
 // Helper to get sawmill cost for an entire Venta object
 const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number => {
+  if (typeof venta.costoAserrioVentaSnapshot === 'number') {
+    return venta.costoAserrioVentaSnapshot;
+  }
   const precioNafta = Number(config.precioLitroNafta) || 0;
   const precioAfilado = Number(config.precioAfiladoSierra) || 0;
 
   const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
   const costoOperativoAjustado = costoOperativoBase * 1.38;
-  // Ensure costoAserrioPorPie is 0 if costoOperativoAjustado is 0, to prevent NaN or Infinity
   const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
 
 
@@ -61,70 +66,56 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
 
-  useEffect(() => {
-    async function loadData() {
-        try {
-            // Fetch Compras from Firebase
-            const comprasFromFirebase = await getAllCompras();
-            setComprasList(comprasFromFirebase);
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [comprasData, ventasData, configData] = await Promise.all([
+        getAllCompras(),
+        getAllVentas(),
+        getAppConfig()
+      ]);
+      setComprasList(comprasData);
+      setVentasList(ventasData);
+      setConfig(configData);
 
-            // Keep Ventas from localStorage for now
-            if (typeof window !== 'undefined') {
-                const storedVentas = localStorage.getItem('ventasList');
-                let loadedVentas: Venta[] = [];
-                if (storedVentas) {
-                    try {
-                        const parsed = JSON.parse(storedVentas);
-                        if (Array.isArray(parsed)) loadedVentas = parsed.filter(v => v.fecha && isValid(parseISO(v.fecha)));
-                    } catch (e) { console.error("Error parsing ventas from localStorage", e); }
-                }
-                setVentasList(loadedVentas);
-            }
-        } catch (error) {
-            console.error("Error loading data for dashboard:", error);
-            toast({
-                title: "Error al cargar datos",
-                description: "No se pudieron cargar los datos de compras desde Firebase. El stock puede ser incorrecto.",
-                variant: "destructive",
-            });
-        } finally {
-            setDataLoaded(true);
+      if (fechaDesde === undefined && fechaHasta === undefined) {
+        const allRecordDates: Date[] = [];
+        comprasData.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha))});
+        ventasData.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha))});
+
+        if (allRecordDates.length > 0) {
+          allRecordDates.sort((a, b) => a.getTime() - b.getTime());
+          setFechaDesde(allRecordDates[0]);
+          setFechaHasta(allRecordDates[allRecordDates.length - 1]);
+        } else {
+          const today = new Date();
+          setFechaDesde(startOfMonth(today));
+          setFechaHasta(endOfMonth(today));
         }
+      }
+
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      toast({
+          title: "Error al cargar datos",
+          description: "No se pudieron cargar los datos desde Firebase. El dashboard puede ser incorrecto.",
+          variant: "destructive",
+      });
+    } finally {
+        setIsLoading(false);
     }
-    loadData();
-  }, [toast]);
+  }, [toast, fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    // Only proceed if data has been loaded (or attempted to load)
-    if (!dataLoaded) {
-      return;
-    }
-
-    // Only set initial dates if they haven't been set yet by any means.
-    // This means `fechaDesde` and `fechaHasta` are still in their initial `undefined` state.
-    if (fechaDesde === undefined && fechaHasta === undefined) {
-      const allRecordDates: Date[] = [];
-      comprasList.forEach(c => { if (c.fecha && isValid(parseISO(c.fecha))) allRecordDates.push(parseISO(c.fecha))});
-      ventasList.forEach(v => { if (v.fecha && isValid(parseISO(v.fecha))) allRecordDates.push(parseISO(v.fecha))});
-
-      if (allRecordDates.length > 0) {
-        allRecordDates.sort((a, b) => a.getTime() - b.getTime());
-        setFechaDesde(allRecordDates[0]);
-        setFechaHasta(allRecordDates[allRecordDates.length - 1]);
-      } else {
-        // Default to current month if no records after loading
-        const today = new Date();
-        setFechaDesde(startOfMonth(today));
-        setFechaHasta(endOfMonth(today));
-      }
-    }
-  }, [comprasList, ventasList, dataLoaded, fechaDesde, fechaHasta]);
+    loadData();
+  }, [loadData]);
 
 
   const filteredComprasList = useMemo(() => {
@@ -160,13 +151,11 @@ export default function DashboardPage() {
   }, [filteredComprasList]);
 
   const costoMaderaRecuperado = useMemo(() => {
+    if (!config) return 0;
     return filteredVentasList.reduce((sum, venta) => {
-      const costoMaderaEstaVenta = typeof venta.costoMaderaVentaSnapshot === 'number' 
-        ? venta.costoMaderaVentaSnapshot 
-        : getCostoMaderaParaVenta(venta, initialConfigData);
-      return sum + (Number(costoMaderaEstaVenta) || 0);
+      return sum + getCostoMaderaParaVenta(venta, config);
     }, 0);
-  }, [filteredVentasList, initialConfigData]);
+  }, [filteredVentasList, config]);
   
   const saldoMaderaARecuperar = useMemo(() => { 
     return valorTotalCompras - costoMaderaRecuperado;
@@ -174,26 +163,24 @@ export default function DashboardPage() {
 
 
   const gananciaNetaSocios = useMemo(() => {
+    if (!config) return 0;
     let totalGananciaNetaFiltrada = 0;
     filteredVentasList.forEach(venta => {
-      const costoMaderaEstaVenta = typeof venta.costoMaderaVentaSnapshot === 'number'
-        ? venta.costoMaderaVentaSnapshot
-        : getCostoMaderaParaVenta(venta, initialConfigData);
-      const costoAserrioEstaVenta = typeof venta.costoAserrioVentaSnapshot === 'number'
-        ? venta.costoAserrioVentaSnapshot
-        : getCostoAserrioParaVenta(venta, initialConfigData);
+      const costoMaderaEstaVenta = getCostoMaderaParaVenta(venta, config);
+      const costoAserrioEstaVenta = getCostoAserrioParaVenta(venta, config);
       const costoOperarioEstaVenta = Number(venta.costoOperario) || 0;
       
       const gananciaNetaEstaVenta = (Number(venta.totalVenta) || 0) - (Number(costoMaderaEstaVenta) || 0) - (Number(costoAserrioEstaVenta) || 0) - costoOperarioEstaVenta;
       totalGananciaNetaFiltrada += gananciaNetaEstaVenta;
     });
     return totalGananciaNetaFiltrada > 0 ? totalGananciaNetaFiltrada / 2 : 0; 
-  }, [filteredVentasList, initialConfigData]);
+  }, [filteredVentasList, config]);
 
   const stockPorTipoMadera = useMemo(() => {
+    if (!config) return [];
     const stockMap: { [key: string]: { compradosM3: number; vendidosPies: number } } = {};
 
-    (initialConfigData.preciosMadera || []).forEach(pm => {
+    (config.preciosMadera || []).forEach(pm => {
       stockMap[pm.tipoMadera] = { compradosM3: 0, vendidosPies: 0 };
     });
     
@@ -224,17 +211,26 @@ export default function DashboardPage() {
         stockM3: data.compradosM3 - vendidosM3,
       };
     }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); 
-  }, [comprasList, ventasList, initialConfigData.preciosMadera]);
+  }, [comprasList, ventasList, config]);
 
 
   const displayDateRange = useMemo(() => {
     const from = fechaDesde ? format(fechaDesde, "PPP", { locale: es }) : "N/A";
     const to = fechaHasta ? format(fechaHasta, "PPP", { locale: es }) : "N/A";
-    if (from === "N/A" && to === "N/A" && !dataLoaded) return "Cargando rango de fechas...";
-    if (from === "N/A" && to === "N/A" && dataLoaded) return "No hay registros para definir un rango";
+    if (from === "N/A" && to === "N/A" && isLoading) return "Cargando rango de fechas...";
+    if (from === "N/A" && to === "N/A" && !isLoading) return "No hay registros para definir un rango";
     return `${from} - ${to}`;
-  }, [fechaDesde, fechaHasta, dataLoaded]);
+  }, [fechaDesde, fechaHasta, isLoading]);
 
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando datos del dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -383,4 +379,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-    

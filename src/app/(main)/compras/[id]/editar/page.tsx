@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -24,11 +23,11 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import type { Compra } from "@/types";
+import type { Compra, Configuracion } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getCompraById, updateCompra } from "@/lib/firebase/services/comprasService";
-import { initialConfigData } from "@/lib/config-data";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -62,6 +61,7 @@ export default function EditarCompraPage() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [config, setConfig] = useState<Configuracion | null>(null);
 
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
@@ -86,10 +86,15 @@ export default function EditarCompraPage() {
       return;
     }
 
-    async function fetchCompra() {
+    async function fetchData() {
       setIsLoading(true);
       try {
-        const compraAEditar = await getCompraById(compraId);
+        const [compraAEditar, appConfig] = await Promise.all([
+          getCompraById(compraId),
+          getAppConfig()
+        ]);
+        setConfig(appConfig);
+
         if (compraAEditar) {
           let fechaParseada = new Date();
           if(compraAEditar.fecha && isValid(parseISO(compraAEditar.fecha))) {
@@ -112,18 +117,14 @@ export default function EditarCompraPage() {
             telefonoProveedor: compraAEditar.telefonoProveedor ?? "",
           });
         } else {
-          toast({
-            title: "Error",
-            description: "Compra no encontrada en Firebase.",
-            variant: "destructive",
-          });
+          toast({ title: "Error", description: "Compra no encontrada en Firebase.", variant: "destructive" });
           router.push('/compras');
         }
       } catch (error) {
-          console.error("Error al cargar compra desde Firebase: ", error);
+          console.error("Error al cargar datos: ", error);
           toast({
-            title: "Error al Cargar Compra",
-            description: "No se pudo obtener la compra de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+            title: "Error al Cargar Datos",
+            description: "No se pudieron obtener los datos de la compra o configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
             variant: "destructive",
           });
           router.push('/compras');
@@ -132,7 +133,7 @@ export default function EditarCompraPage() {
       }
     }
     
-    fetchCompra();
+    fetchData();
   }, [compraId, form, router, toast]);
 
   async function onSubmit(data: CompraFormValues) {
@@ -233,19 +234,19 @@ export default function EditarCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting}>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting || isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccione un tipo de madera" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {(initialConfigData.preciosMadera || []).map((madera) => (
+                        {config?.preciosMadera.map((madera) => (
                           <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                             {madera.tipoMadera}
                           </SelectItem>
                         ))}
-                        {(initialConfigData.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                        {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormMessage />

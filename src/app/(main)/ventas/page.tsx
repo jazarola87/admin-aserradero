@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -10,18 +9,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, ChevronDown, DollarSign, Pencil, CircleCheckBig } from "lucide-react";
+import { PlusCircle, Trash2, Search, DollarSign, Pencil, CircleCheckBig, Loader2 } from "lucide-react";
 import type { Venta, VentaDetalle, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
-import { initialConfigData } from "@/lib/config-data";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import * as AccordionPrimitive from "@radix-ui/react-accordion"; // Import for AccordionPrimitive.Header
-
-const VENTAS_STORAGE_KEY = 'ventasList';
+import { getAllVentas, deleteVenta, updateVenta } from "@/lib/firebase/services/ventasService";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -46,13 +43,12 @@ const getCostoMaderaParaVentaItem = (detalle: Partial<VentaDetalle>, config: Con
 
 interface VentaItemProps {
   venta: Venta;
+  config: Configuracion;
   onDelete: (id: string) => void;
-  onMarkAsPaid: (id: string) => void;
-  onIngresarSena: (ventaId: string, montoSeña: number) => void;
+  onUpdateVenta: (id: string, data: Partial<Venta>) => void;
 }
 
-function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemProps) {
-  const config = initialConfigData; 
+function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
   const [isSenaDialogOpen, setIsSenaDialogOpen] = useState(false);
   const [senaInputValue, setSenaInputValue] = useState<string>(venta.sena?.toString() || "");
   const { toast } = useToast();
@@ -126,7 +122,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
   const handleGuardarSena = () => {
     const monto = parseFloat(senaInputValue);
     if (!isNaN(monto) && monto >= 0) {
-      onIngresarSena(venta.id, monto);
+      onUpdateVenta(venta.id, { sena: monto });
       setIsSenaDialogOpen(false);
       toast({ title: "Seña Actualizada", description: `Seña para la venta ID ${venta.id} actualizada a $${monto.toFixed(2)}` });
     } else {
@@ -136,11 +132,9 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
 
   return (
     <AccordionItem value={venta.id} key={venta.id}>
-      {/* Use AccordionPrimitive.Header directly for more control if needed, or just style the div */}
       <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
         <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
-          {/* Content for the trigger button - NO OTHER BUTTONS HERE */}
-          <div className="flex items-center justify-between w-full"> {/* Inner div for layout within the trigger */}
+          <div className="flex items-center justify-between w-full">
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
               <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
               <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto max-w-[250px] sm:max-w-xs text-left">
@@ -151,15 +145,9 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
               </span>
             </div>
             <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-            {/* The default chevron from AccordionTrigger component will be used.
-                If you want to customize it, you'd use asChild and provide your own,
-                but ensure that child is NOT a button.
-                The class "data-[state=open]:[&>svg]:rotate-180" targets the default SVG.
-            */}
           </div>
         </AccordionTrigger>
 
-        {/* Action buttons are SIBLINGS to AccordionTrigger */}
         <div className="flex items-center space-x-1 shrink-0">
           {!isFullyPaid && (
             <>
@@ -204,7 +192,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
                 variant="outline" 
                 size="sm" 
                 className="text-xs h-8 px-2"
-                onClick={() => onMarkAsPaid(venta.id)}
+                onClick={() => onUpdateVenta(venta.id, { sena: venta.totalVenta })}
                 title="Marcar como Cobrado Totalmente"
               >
                 <CircleCheckBig className="mr-1 h-3.5 w-3.5 text-primary" />
@@ -230,7 +218,7 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
               <AlertDialogHeader>
                   <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                   <AlertDialogDescription>
-                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta.
+                  Esta acción no se puede deshacer. Esto eliminará permanentemente la venta de Firebase.
                   </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -331,89 +319,68 @@ function VentaItem({ venta, onDelete, onMarkAsPaid, onIngresarSena }: VentaItemP
 
 export default function VentasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
+  const [config, setConfig] = useState<Configuracion | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  const updateVentasListAndStorage = useCallback((newList: Venta[]) => {
-    const sortedList = newList.sort((a, b) => {
-      if (!a.fecha || !b.fecha) return 0; 
-      const dateA = parseISO(a.fecha);
-      const dateB = parseISO(b.fecha);
-      return dateB.getTime() - dateA.getTime();
-    });
-    setVentas(sortedList);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(sortedList));
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [ventasList, appConfig] = await Promise.all([
+        getAllVentas(),
+        getAppConfig()
+      ]);
+      setVentas(ventasList);
+      setConfig(appConfig);
+    } catch (error) {
+       console.error("Error al cargar datos: ", error);
+       toast({
+         title: "Error al Cargar Datos",
+         description: "No se pudieron obtener los datos de ventas o configuración. " + (error instanceof Error ? error.message : "Error desconocido"),
+         variant: "destructive",
+       });
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    let isMounted = true;
-    if (typeof window !== 'undefined') {
-      const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      let dataToLoad: Venta[] = []; 
+    loadData();
+  }, [loadData]);
 
-      if (storedVentas) {
-        try {
-          const parsedVentas = JSON.parse(storedVentas);
-          if(Array.isArray(parsedVentas)) {
-            dataToLoad = parsedVentas.filter(v => v.fecha && isValid(parseISO(v.fecha)));
-          }
-        } catch (e) {
-          console.error("Error parsing ventas from localStorage", e);
-        }
-      }
-      if (isMounted) {
-        const sortedData = dataToLoad.sort((a, b) => {
-            if (!a.fecha || !b.fecha) return 0;
-            const dateA = parseISO(a.fecha);
-            const dateB = parseISO(b.fecha);
-            return dateB.getTime() - dateA.getTime();
-        });
-        setVentas(sortedData);
-        if (!storedVentas && dataToLoad.length === 0) { 
-          localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify([]));
-        }
-      }
+
+  const handleDeleteVenta = async (idToDelete: string) => {
+    try {
+      await deleteVenta(idToDelete);
+      toast({
+        title: "Venta Eliminada",
+        description: "La venta ha sido eliminada exitosamente de Firebase.",
+      });
+      loadData(); // Recargar datos
+    } catch (error) {
+       console.error("Error al eliminar venta: ", error);
+       toast({
+         title: "Error al Eliminar",
+         description: "No se pudo eliminar la venta de Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+         variant: "destructive",
+       });
     }
-    return () => {
-      isMounted = false;
-    };
-  }, []); 
-
-  const handleDeleteVenta = (idToDelete: string) => {
-    const newList = ventas.filter(venta => venta.id !== idToDelete);
-    updateVentasListAndStorage(newList);
-    toast({
-      title: "Venta Eliminada",
-      description: "La venta ha sido eliminada exitosamente.",
-      variant: "default",
-    });
   };
 
-  const handleMarkAsPaid = (idToMark: string) => {
-    const newList = ventas.map(venta => {
-      if (venta.id === idToMark) {
-        const totalVentaNum = Number(venta.totalVenta) || 0;
-        return { ...venta, sena: totalVentaNum };
-      }
-      return venta;
-    });
-    updateVentasListAndStorage(newList);
-    toast({
-      title: "Venta Actualizada",
-      description: "La venta ha sido marcada como cobrada.",
-    });
-  };
-
-  const handleIngresarSena = (ventaId: string, montoSeña: number) => {
-    const newList = ventas.map(v => {
-      if (v.id === ventaId) {
-        return { ...v, sena: montoSeña };
-      }
-      return v;
-    });
-    updateVentasListAndStorage(newList);
+  const handleUpdateVenta = async (ventaId: string, data: Partial<Venta>) => {
+    try {
+      await updateVenta(ventaId, data);
+      // No mostramos toast aquí porque la función de origen ya lo hace.
+      loadData(); // Recargar datos para reflejar el cambio.
+    } catch (error) {
+       console.error("Error al actualizar venta: ", error);
+       toast({
+         title: "Error al Actualizar",
+         description: "No se pudo actualizar la venta en Firebase. " + (error instanceof Error ? error.message : "Error desconocido"),
+         variant: "destructive",
+       });
+    }
   };
 
   const filteredVentas = useMemo(() => {
@@ -428,7 +395,7 @@ export default function VentasPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Ventas" description="Listado de todas las ventas de madera.">
+      <PageTitle title="Registro de Ventas (Firebase)" description="Listado de todas las ventas de madera.">
         <Button asChild>
           <Link href="/ventas/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -442,9 +409,11 @@ export default function VentasPage() {
           <CardTitle>Historial de Ventas</CardTitle>
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
-                {filteredVentas.length > 0
-                ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s). (Ordenadas por fecha descendente)`
-                : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda."}
+                {isLoading ? "Cargando ventas desde Firebase..." :
+                  (filteredVentas.length > 0
+                  ? `Mostrando ${filteredVentas.length} de ${ventas.length} venta(s).`
+                  : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda.")
+                }
             </CardDescription>
             <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -454,12 +423,18 @@ export default function VentasPage() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-8 w-full sm:w-[300px]"
+                  disabled={isLoading}
                 />
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {ventas.length === 0 && !searchTerm ? (
+          {isLoading ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+              <p>Cargando ventas desde Firebase...</p>
+            </div>
+          ) : ventas.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <DollarSign className="mx-auto h-12 w-12 mb-4" />
               <p>No hay ventas registradas.</p>
@@ -477,9 +452,9 @@ export default function VentasPage() {
                 <VentaItem 
                   key={venta.id} 
                   venta={venta} 
+                  config={config!}
                   onDelete={handleDeleteVenta} 
-                  onMarkAsPaid={handleMarkAsPaid}
-                  onIngresarSena={handleIngresarSena} 
+                  onUpdateVenta={handleUpdateVenta}
                 />
               ))}
             </Accordion>
@@ -489,5 +464,3 @@ export default function VentasPage() {
     </div>
   );
 }
-
-    

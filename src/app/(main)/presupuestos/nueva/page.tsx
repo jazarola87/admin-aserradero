@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -19,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -28,14 +27,14 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data"; 
-import type { Presupuesto, PresupuestoDetalle } from "@/types";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
+import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter } from "next/navigation";
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional(),
+  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
@@ -60,7 +59,7 @@ const presupuestoFormSchema = z.object({
 
 type PresupuestoFormValues = z.infer<typeof presupuestoFormSchema>;
 
-const createEmptyDetalle = (): Partial<z.infer<typeof itemDetalleSchema>> => ({ // Return Partial for createEmptyDetalle
+const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
   tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
@@ -76,22 +75,38 @@ const initialDetallesCount = 15;
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
   const router = useRouter(); 
+  const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
     defaultValues: {
-      fecha: new Date(), // Set directly here
+      fecha: new Date(), 
       nombreCliente: "",
       telefonoCliente: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
 
-  // useEffect(() => { // No longer needed if fecha is set in defaultValues
-  //   if (!form.getValues('fecha')) {
-  //     form.setValue('fecha', new Date());
-  //   }
-  // }, [form]);
+  useEffect(() => {
+    async function loadConfig() {
+      setIsLoading(true);
+      try {
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
+      } catch (error) {
+        toast({
+          title: "Error al Cargar Configuración",
+          description: "No se pudieron obtener los tipos de madera y precios.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadConfig();
+  }, [toast]);
+
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -111,12 +126,12 @@ export default function NuevoPresupuestoPage() {
   };
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
-    const precioPorPie = Number(detalle.precioPorPie); // Removed || 0
-    if (isNaN(precioPorPie) || piesTablares === 0) return 0; // Check if precioPorPie is NaN
+    const precioPorPie = Number(detalle.precioPorPie) || 0;
+    if (piesTablares === 0) return 0;
 
     let subtotal = piesTablares * precioPorPie;
-    if (detalle.cepillado) {
-      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
+    if (detalle.cepillado && config) {
+      subtotal += piesTablares * (config.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
@@ -131,7 +146,7 @@ export default function NuevoPresupuestoPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
-    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
+    const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
     } else {
@@ -198,6 +213,15 @@ export default function NuevoPresupuestoPage() {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
+  
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -300,12 +324,12 @@ export default function NuevoPresupuestoPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {initialConfigData.preciosMadera.map(madera => (
+                                      {config?.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -315,25 +339,24 @@ export default function NuevoPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          {/* Columna Precio/Pie Oculta - El FormField para precioPorPie se elimina de aquí */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -349,7 +372,7 @@ export default function NuevoPresupuestoPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && (
+                            {!isRowEffectivelyEmpty(currentDetalle) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -373,8 +396,8 @@ export default function NuevoPresupuestoPage() {
               <div className="text-xl font-semibold">
                 Total General: <span className="text-primary">${totalGeneralPresupuesto.toFixed(2)}</span>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-                <Save className="mr-2 h-4 w-4" />
+              <Button type="submit" size="lg" disabled={form.formState.isSubmitting || isLoading}>
+                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 {form.formState.isSubmitting ? "Registrando..." : "Registrar Presupuesto"}
               </Button>
             </CardFooter>
@@ -384,4 +407,3 @@ export default function NuevoPresupuestoPage() {
     </div>
   );
 }
-

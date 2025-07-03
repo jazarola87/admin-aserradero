@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -18,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
@@ -27,12 +26,11 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data";
-import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta } from "@/types";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { addVenta } from "@/lib/firebase/services/ventasService";
+import type { Presupuesto, VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
-
-const VENTAS_STORAGE_KEY = 'ventasList';
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().min(1, { message: "Debe seleccionar un tipo."}).optional(),
@@ -82,6 +80,9 @@ const initialDetallesCount = 15;
 export default function NuevaVentaPage() {
   const { toast } = useToast();
   const router = useRouter();
+  const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -104,63 +105,63 @@ export default function NuevaVentaPage() {
     control: form.control,
     name: "detalles",
   });
-
+  
   useEffect(() => {
-    const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
-    if (presupuestoParaVentaString) {
+    async function loadInitialData() {
+      setIsLoading(true);
       try {
-        const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-        
-        const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
-            tipoMadera: d_presupuesto_item.tipoMadera,
-            unidades: Number(d_presupuesto_item.unidades) || undefined,
-            ancho: Number(d_presupuesto_item.ancho) || undefined,
-            alto: Number(d_presupuesto_item.alto) || undefined,
-            largo: Number(d_presupuesto_item.largo) || undefined,
-            precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
-            cepillado: d_presupuesto_item.cepillado ?? false,
-        }));
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
 
-        form.reset({
-          fecha: new Date(),
-          nombreComprador: presupuesto.nombreCliente,
-          telefonoComprador: presupuesto.telefonoCliente || "",
-          idOriginalPresupuesto: presupuesto.id,
-          fechaEntregaEstimada: undefined,
-          sena: undefined,
-          costoOperario: undefined,
-          detalles: [], // Reset with empty, then populate
-          totalVentaManual: undefined,
-          costoMaderaManual: undefined,
-          costoAserrioManual: undefined,
-        });
-        
-        replace(budgetItemsToMap); // Replace the empty array with mapped items
+        const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
+        if (presupuestoParaVentaString) {
+          const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
+          
+          const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
+              tipoMadera: d_presupuesto_item.tipoMadera,
+              unidades: Number(d_presupuesto_item.unidades) || undefined,
+              ancho: Number(d_presupuesto_item.ancho) || undefined,
+              alto: Number(d_presupuesto_item.alto) || undefined,
+              largo: Number(d_presupuesto_item.largo) || undefined,
+              precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
+              cepillado: d_presupuesto_item.cepillado ?? false,
+          }));
 
-        let currentLength = budgetItemsToMap.length;
-        while (currentLength < initialDetallesCount) {
-          append(createEmptyDetalle(), { shouldFocus: false });
-          currentLength++;
+          form.reset({
+            fecha: new Date(),
+            nombreComprador: presupuesto.nombreCliente,
+            telefonoComprador: presupuesto.telefonoCliente || "",
+            idOriginalPresupuesto: presupuesto.id,
+            detalles: [],
+          });
+          
+          replace(budgetItemsToMap);
+
+          let currentLength = budgetItemsToMap.length;
+          while (currentLength < initialDetallesCount) {
+            append(createEmptyDetalle(), { shouldFocus: false });
+            currentLength++;
+          }
+          
+          form.trigger();
+          localStorage.removeItem('presupuestoParaVenta');
+          toast({
+            title: "Presupuesto Cargado para Venta",
+            description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
+          });
         }
-        
-        form.trigger();
-
-        toast({
-          title: "Presupuesto Cargado para Venta",
-          description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados. Fecha actualizada.`,
-        });
       } catch (error) {
-        console.error("Error al cargar presupuesto desde localStorage:", error);
-        toast({
-          title: "Error al Cargar Presupuesto",
-          description: "No se pudieron cargar los datos. Por favor, ingréselos manualmente.",
-          variant: "destructive",
-        });
+         console.error("Error al cargar configuración inicial:", error);
+          toast({
+            title: "Error al Cargar Configuración",
+            description: "No se pudieron cargar los datos de configuración desde Firebase.",
+            variant: "destructive",
+          });
       } finally {
-        localStorage.removeItem('presupuestoParaVenta');
+        setIsLoading(false);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadInitialData();
   }, [form, replace, append, toast]);
 
 
@@ -170,7 +171,6 @@ export default function NuevaVentaPage() {
   const watchedTotalVentaManual = form.watch("totalVentaManual");
   const watchedCostoMaderaManual = form.watch("costoMaderaManual");
   const watchedCostoAserrioManual = form.watch("costoAserrioManual");
-
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -183,78 +183,70 @@ export default function NuevaVentaPage() {
 
   const calcularSubtotalDetalle = (
     detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
-    piesTablares: number,
-    precioCepilladoConfigValue: number
+    piesTablares: number
   ): number => {
     const precioPorPie = Number(detalle?.precioPorPie);
     if (isNaN(precioPorPie) || piesTablares === 0) return 0;
-
     let subtotal = piesTablares * precioPorPie;
     if (detalle?.cepillado) {
-      subtotal += piesTablares * precioCepilladoConfigValue;
+      subtotal += piesTablares * (config?.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
   
-  const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
-  const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
-  const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
-  const currentPrecioAfiladoSierra = Number(initialConfigData.precioAfiladoSierra) || 0;
-  
-  let calculatedTotalVentaGeneral = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedTotalVentaGeneral = useMemo(() => {
+    if (!config) return 0;
+    return watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number' && !isNaN(Number(detalle.precioPorPie))) {
         const pies = calcularPiesTablares(detalle);
-        calculatedTotalVentaGeneral += calcularSubtotalDetalle(detalle, pies, currentPrecioCepilladoPorPie);
+        return acc + calcularSubtotalDetalle(detalle, pies);
       }
-    });
-  }
+      return acc;
+    }, 0);
+  }, [watchedDetalles, config]);
 
-  let calculatedCostoTotalMaderaVenta = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedCostoTotalMaderaVenta = useMemo(() => {
+    if (!config || !config.costosMaderaMetroCubico) return 0;
+    return watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
         const piesTablaresArticulo = calcularPiesTablares(detalle);
         if (piesTablaresArticulo > 0) {
-          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoMaderaConfig = config.costosMaderaMetroCubico!.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          calculatedCostoTotalMaderaVenta += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
+          return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo;
         }
       }
-    });
-  }
+      return acc;
+    }, 0);
+  }, [watchedDetalles, config]);
 
-  const costoOperativoBase = (currentPrecioLitroNafta * 6) + (currentPrecioAfiladoSierra * 3);
-  const costoOperativoAjustado = costoOperativoBase * 1.38;
-  const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
-  
-  let totalPiesTablaresVentaParaAserrio = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedCostoTotalAserrioVenta = useMemo(() => {
+    if (!config) return 0;
+    const costoOperativoBase = (Number(config.precioLitroNafta) * 6) + (Number(config.precioAfiladoSierra) * 3);
+    const costoOperativoAjustado = costoOperativoBase * 1.38;
+    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+    const totalPiesTablaresVenta = watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
-        totalPiesTablaresVentaParaAserrio += calcularPiesTablares(detalle);
+        return acc + calcularPiesTablares(detalle);
       }
-    });
-  }
-  const calculatedCostoTotalAserrioVenta = totalPiesTablaresVentaParaAserrio * costoAserrioPorPie;
-  
+      return acc;
+    }, 0);
+    return totalPiesTablaresVenta * costoAserrioPorPie;
+  }, [watchedDetalles, config]);
+
   const displayTotalVenta = typeof watchedTotalVentaManual === 'number' && !isNaN(watchedTotalVentaManual) ? watchedTotalVentaManual : calculatedTotalVentaGeneral;
   const displayCostoMadera = typeof watchedCostoMaderaManual === 'number' && !isNaN(watchedCostoMaderaManual) ? watchedCostoMaderaManual : calculatedCostoTotalMaderaVenta;
   const displayCostoAserrio = typeof watchedCostoAserrioManual === 'number' && !isNaN(watchedCostoAserrioManual) ? watchedCostoAserrioManual : calculatedCostoTotalAserrioVenta;
   const costoOperarioActual = Number(watchedCostoOperario) || 0;
-
   const gananciaNetaEstimada = displayTotalVenta - displayCostoMadera - displayCostoAserrio - costoOperarioActual;
-
   const valorJavier = displayCostoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const valorLucas = displayCostoAserrio + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-
   const senaActual = Number(watchedSena) || 0;
   const saldoPendiente = displayTotalVenta - senaActual;
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
-    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
+    const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true, shouldDirty: true });
     } else {
@@ -263,13 +255,20 @@ export default function NuevaVentaPage() {
     form.trigger(`detalles.${index}`);
   };
 
-  function onSubmit(data: VentaFormValues) {
+  async function onSubmit(data: VentaFormValues) {
+    setIsSubmitting(true);
+    if (!config) {
+      toast({ title: "Error", description: "La configuración de la aplicación no está cargada.", variant: "destructive"});
+      setIsSubmitting(false);
+      return;
+    }
+
     const processedDetalles = (data.detalles || []).filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, idx) => {
       const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotalDetalle(d, pies, currentPrecioCepilladoPorPie);
+      const sub = calcularSubtotalDetalle(d, pies);
       const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
       return {
         ...d,
@@ -288,9 +287,10 @@ export default function NuevaVentaPage() {
     if (processedDetalles.length === 0) {
       toast({
         title: "Error en la Venta",
-        description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
+        description: "No hay artículos válidos para registrar.",
         variant: "destructive",
       });
+      setIsSubmitting(false);
       return;
     }
 
@@ -298,8 +298,7 @@ export default function NuevaVentaPage() {
     const finalCostoMadera = typeof data.costoMaderaManual === 'number' && !isNaN(data.costoMaderaManual) ? data.costoMaderaManual : calculatedCostoTotalMaderaVenta;
     const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
 
-    const nuevaVenta: Venta = {
-      id: `venta-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+    const nuevaVenta: Omit<Venta, 'id'> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -312,32 +311,43 @@ export default function NuevaVentaPage() {
       costoMaderaVentaSnapshot: finalCostoMadera,
       costoAserrioVentaSnapshot: finalCostoAserrio,
     };
+    
+    try {
+      await addVenta(nuevaVenta);
+      toast({
+        title: "Venta Registrada en Firebase",
+        description: `Se ha registrado la venta a ${data.nombreComprador}.`,
+      });
 
-    if (typeof window !== 'undefined') {
-        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-        ventasActuales.push(nuevaVenta);
-        ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-        localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
-    }
-
-    toast({
-      title: "Venta Registrada",
-      description: `Se ha registrado la venta a ${data.nombreComprador}. Total: $${nuevaVenta.totalVenta?.toFixed(2)}`,
-    });
-
-    if (data.idOriginalPresupuesto) {
-      if (typeof window !== 'undefined') {
+      if (data.idOriginalPresupuesto) {
         localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
       }
+      router.push('/ventas');
+    } catch (error) {
+       console.error("Error al registrar venta en Firebase: ", error);
+       toast({
+         title: "Error al Registrar",
+         description: "No se pudo registrar la venta en Firebase.",
+         variant: "destructive",
+       });
+    } finally {
+      setIsSubmitting(false);
     }
-    router.push('/ventas');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -467,7 +477,7 @@ export default function NuevaVentaPage() {
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
-                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
+                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares);
                       const valorUnitario = ((Number(currentDetalle?.unidades) || 0) > 0 && subTotal > 0) ? subTotal / (Number(currentDetalle.unidades)) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
@@ -489,12 +499,12 @@ export default function NuevaVentaPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {initialConfigData.preciosMadera.map(madera => (
+                                      {config?.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -542,7 +552,7 @@ export default function NuevaVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isEffectivelyEmpty || fields.length > 1) && (
+                            {(!isRowEffectivelyEmpty(currentDetalle) || fields.length > 1) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -665,9 +675,9 @@ export default function NuevaVentaPage() {
                   </>
                 )}
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting} className="mt-4">
-                <Save className="mr-2 h-4 w-4" />
-                {form.formState.isSubmitting ? "Registrando..." : "Registrar Venta"}
+              <Button type="submit" size="lg" disabled={isSubmitting || isLoading} className="mt-4">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {isSubmitting ? "Registrando..." : "Registrar Venta"}
               </Button>
             </CardFooter>
           </Card>
@@ -676,4 +686,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-

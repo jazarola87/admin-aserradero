@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -19,17 +18,17 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data"; 
-import type { Presupuesto, PresupuestoDetalle } from "@/types";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
+import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
@@ -61,7 +60,7 @@ const presupuestoFormSchema = z.object({
 
 type PresupuestoFormValues = z.infer<typeof presupuestoFormSchema>;
 
-const createEmptyDetalle = (): Partial<z.infer<typeof itemDetalleSchema>> => ({ // Return Partial for createEmptyDetalle
+const createEmptyDetalle = (): Partial<z.infer<typeof itemDetalleSchema>> => ({
   tipoMadera: undefined,
   unidades: undefined,
   ancho: undefined,
@@ -77,7 +76,8 @@ export default function EditarPresupuestoPage() {
   const router = useRouter();
   const params = useParams();
   const presupuestoId = params.id as string;
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [config, setConfig] = useState<Configuracion | null>(null);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -95,49 +95,55 @@ export default function EditarPresupuestoPage() {
   });
 
    useEffect(() => {
-    if (presupuestoId && typeof window !== 'undefined') {
-        setIsLoadingData(true);
-        const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-        const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
-        const presupuestoAEditar = presupuestosActuales.find(p => p.id === presupuestoId);
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
 
-        if (presupuestoAEditar) {
-            const loadedDetails = (presupuestoAEditar.detalles || []).map(d => ({
-                tipoMadera: d.tipoMadera,
-                unidades: Number(d.unidades) || undefined,
-                ancho: Number(d.ancho) || undefined,
-                alto: Number(d.alto) || undefined,
-                largo: Number(d.largo) || undefined,
-                precioPorPie: Number(d.precioPorPie) || undefined,
-                cepillado: d.cepillado ?? false,
-            }));
-            
-            form.reset({
-                fecha: presupuestoAEditar.fecha ? parseISO(presupuestoAEditar.fecha) : new Date(),
-                nombreCliente: presupuestoAEditar.nombreCliente,
-                telefonoCliente: presupuestoAEditar.telefonoCliente || "",
-                detalles: [], // Reset with empty, then populate
-            });
-            
-            replace(loadedDetails); // Replace the empty array with mapped items
+        if (presupuestoId) {
+            const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+            const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
+            const presupuestoAEditar = presupuestosActuales.find(p => p.id === presupuestoId);
 
-            let currentLength = loadedDetails.length;
-            while (currentLength < initialDetallesCount) {
-                append(createEmptyDetalle(), { shouldFocus: false });
-                currentLength++;
+            if (presupuestoAEditar) {
+                const loadedDetails = (presupuestoAEditar.detalles || []).map(d => ({
+                    tipoMadera: d.tipoMadera,
+                    unidades: Number(d.unidades) || undefined,
+                    ancho: Number(d.ancho) || undefined,
+                    alto: Number(d.alto) || undefined,
+                    largo: Number(d.largo) || undefined,
+                    precioPorPie: Number(d.precioPorPie) || undefined,
+                    cepillado: d.cepillado ?? false,
+                }));
+                
+                form.reset({
+                    fecha: presupuestoAEditar.fecha && isValid(parseISO(presupuestoAEditar.fecha)) ? parseISO(presupuestoAEditar.fecha) : new Date(),
+                    nombreCliente: presupuestoAEditar.nombreCliente,
+                    telefonoCliente: presupuestoAEditar.telefonoCliente || "",
+                    detalles: [],
+                });
+                
+                replace(loadedDetails);
+
+                let currentLength = loadedDetails.length;
+                while (currentLength < initialDetallesCount) {
+                    append(createEmptyDetalle(), { shouldFocus: false });
+                    currentLength++;
+                }
+                form.trigger();
+            } else {
+                toast({ title: "Error", description: "Presupuesto no encontrado para editar.", variant: "destructive" });
+                router.push('/presupuestos');
             }
-            form.trigger(); // Trigger validation after reset and repopulation
-        } else {
-            toast({
-              title: "Error",
-              description: "Presupuesto no encontrado para editar.",
-              variant: "destructive",
-            });
-            router.push('/presupuestos');
         }
-        setIsLoadingData(false);
+      } catch (error) {
+        toast({ title: "Error", description: "No se pudo cargar la configuración de la aplicación.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadData();
   }, [presupuestoId, form, router, toast, replace, append]);
 
 
@@ -154,12 +160,12 @@ export default function EditarPresupuestoPage() {
   };
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
-    const precioPorPie = Number(detalle.precioPorPie); // Removed || 0
-    if (isNaN(precioPorPie) || piesTablares === 0) return 0; // Check if precioPorPie is NaN
+    const precioPorPie = Number(detalle.precioPorPie);
+    if (isNaN(precioPorPie) || piesTablares === 0) return 0; 
 
     let subtotal = piesTablares * precioPorPie;
-    if (detalle.cepillado) {
-      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
+    if (detalle.cepillado && config) {
+      subtotal += piesTablares * (config.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
@@ -174,7 +180,7 @@ export default function EditarPresupuestoPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
-    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
+    const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
     } else {
@@ -202,16 +208,12 @@ export default function EditarPresupuestoPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `pd-bulk-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
+        id: `pd-edit-${Date.now()}-${index}`
       } as PresupuestoDetalle;
     });
 
     if (processedDetalles.length === 0) {
-      toast({
-        title: "Error en el Presupuesto",
-        description: "No hay artículos válidos para guardar. Asegúrese de completar tipo de madera, unidades y precio.",
-        variant: "destructive",
-      });
+      toast({ title: "Error en el Presupuesto", description: "No hay artículos válidos para guardar.", variant: "destructive" });
       return;
     }
 
@@ -248,8 +250,13 @@ export default function EditarPresupuestoPage() {
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
 
-  if (isLoadingData) {
-    return <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><p>Cargando datos del presupuesto...</p></div>;
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando datos del presupuesto...</p>
+      </div>
+    );
   }
 
   return (
@@ -272,7 +279,7 @@ export default function EditarPresupuestoPage() {
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                            {field.value && isValid(field.value) ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -353,12 +360,12 @@ export default function EditarPresupuestoPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {initialConfigData.preciosMadera.map(madera => (
+                                      {config?.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -386,7 +393,6 @@ export default function EditarPresupuestoPage() {
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          {/* Columna Precio/Pie Oculta */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -402,7 +408,7 @@ export default function EditarPresupuestoPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {!isEffectivelyEmpty && (
+                            {!isRowEffectivelyEmpty(currentDetalle) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -426,8 +432,8 @@ export default function EditarPresupuestoPage() {
               <div className="text-xl font-semibold">
                 Total General: <span className="text-primary">${totalGeneralPresupuesto.toFixed(2)}</span>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-                <Save className="mr-2 h-4 w-4" />
+              <Button type="submit" size="lg" disabled={form.formState.isSubmitting || isLoading}>
+                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 {form.formState.isSubmitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </CardFooter>
@@ -437,4 +443,3 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
-

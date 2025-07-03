@@ -1,12 +1,11 @@
-
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarClock, ChevronDown, Download } from "lucide-react";
+import { CalendarClock, ChevronDown, Download, Loader2 } from "lucide-react";
 import type { Venta, VentaDetalle, Configuracion } from "@/types"; 
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -16,36 +15,40 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
-import { initialConfigData } from "@/lib/config-data";
-
-
-const VENTAS_STORAGE_KEY = 'ventasList';
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { getAllVentas } from "@/lib/firebase/services/ventasService";
 
 export default function CronogramaEntregasPage() {
   const [ventas, setVentas] = useState<Venta[]>([]);
+  const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const [selectedVentaForPdf, setSelectedVentaForPdf] = useState<Venta | null>(null);
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
 
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [ventasData, configData] = await Promise.all([
+        getAllVentas(),
+        getAppConfig()
+      ]);
+      setVentas(ventasData);
+      setConfig(configData);
+    } catch (error) {
+       toast({
+         title: "Error al Cargar Datos",
+         description: "No se pudieron obtener los datos de ventas o configuración.",
+         variant: "destructive",
+       });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      if (storedVentas) {
-        try {
-          const parsedVentas = JSON.parse(storedVentas);
-          if (Array.isArray(parsedVentas)) {
-            // Ensure dates are valid and sort
-            const validVentas = parsedVentas.filter(v => v.fecha && isValid(parseISO(v.fecha)));
-            validVentas.sort((a,b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
-            setVentas(validVentas);
-          }
-        } catch (e) {
-          console.error("Error parsing ventas from localStorage", e);
-        }
-      }
-    }
-  }, []);
+    loadData();
+  }, [loadData]);
 
   const ventasConEntregaEstimada = useMemo(() => {
     return ventas
@@ -58,26 +61,28 @@ export default function CronogramaEntregasPage() {
   }, [ventas]);
 
   const downloadVentaPDF = async (venta: Venta) => {
+    if (!config) {
+      toast({ title: "Error", description: "La configuración no se ha cargado.", variant: "destructive"});
+      return;
+    }
     const uniqueId = `pdf-venta-${venta.id}-${Date.now()}`;
     setSelectedVentaForPdf(venta);
     setPdfTargetId(uniqueId);
 
     toast({ title: "Generando PDF...", description: "Por favor espere." });
 
-    // Delay to allow React to render the hidden PDF component
     setTimeout(async () => {
       const inputElement = document.getElementById(uniqueId);
       if (inputElement) {
         try {
-          // Ensure all images within the element are loaded before capturing
           const images = Array.from(inputElement.getElementsByTagName('img'));
           await Promise.all(images.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); // Already loaded
+            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
             return new Promise(resolve => { 
               img.onload = resolve; 
               img.onerror = () => { 
                 console.warn(`Failed to load image for PDF: ${img.src}`);
-                resolve(null); // Resolve even if an image fails, to not block PDF generation
+                resolve(null);
               };
             });
           }));
@@ -88,24 +93,16 @@ export default function CronogramaEntregasPage() {
           
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
-          const margin = 10; // 1cm margin
+          const margin = 10;
           const availableWidth = pdfWidth - 2 * margin;
           const availableHeight = pdfHeight - 2 * margin;
-
-          const imgOriginalWidth = canvas.width;
-          const imgOriginalHeight = canvas.height;
-          const aspectRatio = imgOriginalWidth / imgOriginalHeight;
-          
-          // Calculate rendered image size to fit within available space while maintaining aspect ratio
+          const aspectRatio = canvas.width / canvas.height;
           let imgRenderWidth = availableWidth;
           let imgRenderHeight = availableWidth / aspectRatio;
-
           if (imgRenderHeight > availableHeight) {
             imgRenderHeight = availableHeight;
             imgRenderWidth = imgRenderHeight * aspectRatio;
           }
-          
-          // Center the image on the page
           const imgX = margin + (availableWidth - imgRenderWidth) / 2;
           const imgY = margin;
 
@@ -119,9 +116,9 @@ export default function CronogramaEntregasPage() {
       } else {
         toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
       }
-      setSelectedVentaForPdf(null); // Clean up state
+      setSelectedVentaForPdf(null);
       setPdfTargetId(null);
-    }, 300); // Adjust timeout if needed for complex rendering
+    }, 300);
   };
 
 
@@ -136,13 +133,20 @@ export default function CronogramaEntregasPage() {
         <CardHeader>
           <CardTitle>Ventas Programadas</CardTitle>
           <CardDescription>
-            {ventasConEntregaEstimada.length > 0
+            {isLoading ? "Cargando entregas..." : 
+              ventasConEntregaEstimada.length > 0
               ? `Mostrando ${ventasConEntregaEstimada.length} venta(s) con fecha de entrega programada.`
-              : "No hay ventas con fecha de entrega estimada."}
+              : "No hay ventas con fecha de entrega estimada."
+            }
           </CardDescription>
         </CardHeader>
         <CardContent> 
-          {ventasConEntregaEstimada.length === 0 ? (
+          {isLoading ? (
+             <div className="text-center py-10 text-muted-foreground">
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+              <p>Cargando datos desde Firebase...</p>
+            </div>
+          ) : ventasConEntregaEstimada.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <CalendarClock className="mx-auto h-12 w-12 mb-4" />
               <p>No hay entregas programadas en los registros de ventas.</p>
@@ -217,11 +221,11 @@ export default function CronogramaEntregasPage() {
           )}
         </CardContent>
       </Card>
-      {selectedVentaForPdf && pdfTargetId && (
+      {selectedVentaForPdf && config && pdfTargetId && (
         <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
           <GenericOrderPDFDocument
             order={selectedVentaForPdf}
-            config={initialConfigData}
+            config={config}
             elementId={pdfTargetId}
             documentType="Venta"
           />

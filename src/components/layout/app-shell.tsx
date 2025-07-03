@@ -1,10 +1,9 @@
-
 "use client";
 
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import Image from "next/image"; // Import next/image
+import Image from "next/image";
 import {
   SidebarProvider,
   Sidebar,
@@ -23,7 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { NAV_ITEMS, type NavItem } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
 import { PanelLeft, ImageOff } from "lucide-react";
-import { initialConfigData } from "@/lib/config-data"; // Import config data
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 function SidebarNav() {
   const pathname = usePathname();
@@ -52,37 +51,29 @@ function SidebarNav() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  
-  // Use state to hold dynamic config values to trigger re-render if they change
-  // However, initialConfigData itself is not a stateful source.
-  // For AppShell to truly react to initialConfigData changes from other pages,
-  // a global state/context would be needed. This reads it on mount/re-render of AppShell.
+  const pathname = usePathname();
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
   const [nombreAserradero, setNombreAserradero] = React.useState<string>("");
 
   React.useEffect(() => {
-    setLogoUrl(initialConfigData.logoUrl);
-    setNombreAserradero(initialConfigData.nombreAserradero);
-  }, []); // Re-run if initialConfigData reference changes (though it won't without a state manager)
-          // Or add a dependency that forces re-check, e.g. pathname for navigation
-
-
-  const isValidHttpUrl = (string: string | undefined) => {
-    if (!string) return false;
-    let url;
-    try {
-      url = new URL(string);
-    } catch (_) {
-      return false;  
+    async function fetchConfig() {
+      try {
+        const config = await getAppConfig();
+        setLogoUrl(config.logoUrl);
+        setNombreAserradero(config.nombreAserradero);
+      } catch (error) {
+        console.error("AppShell: Could not fetch app config", error);
+        // Fallback to a default name if config fails
+        setNombreAserradero("Aserradero");
+      }
     }
-    return url.protocol === "http:" || url.protocol === "https:";
-  }
+    fetchConfig();
+  }, [pathname]); // Re-fetch on route change to ensure data is fresh
 
   const isDataUri = (string: string | undefined) => {
     if (!string) return false;
     return string.startsWith('data:image');
   }
-
 
   return (
     <SidebarProvider open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
@@ -93,25 +84,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <SidebarHeader className="p-4">
           <Link href="/" className="flex items-center gap-2 overflow-hidden">
-            {logoUrl && (isDataUri(logoUrl) || isValidHttpUrl(logoUrl)) ? (
+            {logoUrl && isDataUri(logoUrl) ? (
               <Image 
                 src={logoUrl} 
                 alt="Logo Aserradero" 
                 width={32} 
                 height={32} 
                 className="h-8 w-8 object-contain shrink-0"
-                onError={() => {
-                  // Fallback if image fails to load, e.g. set to use default logo
-                  // For simplicity, we won't implement a dynamic fallback state here
-                  // but in a real app, you might set a flag to render SawmillLogo
-                  console.warn("Failed to load custom logo from URL:", logoUrl);
-                }}
               />
             ) : (
               <SawmillLogo className="h-8 w-8 text-primary shrink-0" />
             )}
             <span className="text-lg font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden truncate">
-              {nombreAserradero || "Aserradero"}
+              {nombreAserradero || "Cargando..."}
             </span>
           </Link>
         </SidebarHeader>

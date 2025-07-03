@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Bot, Loader2, Send } from "lucide-react";
 import { consultarAsistente, type AsistenteConsultasInput, type AsistenteConsultasOutput } from "@/ai/flows/asistente-consultas-flow";
 import type { Compra, Venta, VentaDetalle } from "@/types";
+import { getAllCompras } from "@/lib/firebase/services/comprasService";
+import { getAllVentas } from "@/lib/firebase/services/ventasService";
 
 const formSchema = z.object({
   prompt: z.string().min(5, {
@@ -57,36 +58,29 @@ const simplifyCompra = (compra: Compra) => ({
 export default function AsistenteVirtualPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   const [respuestaAsistente, setRespuestaAsistente] = useState<string | null>(null);
-
-  // Estos estados almacenarán los datos simplificados listos para el flujo
   const [comprasDataParaFlujo, setComprasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyCompra>>>([]);
   const [ventasDataParaFlujo, setVentasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyVenta>>>([]);
 
   useEffect(() => {
-    // Cargar y simplificar datos de localStorage al montar el componente
-    if (typeof window !== 'undefined') {
-      const storedCompras = localStorage.getItem('comprasList');
-      const storedVentas = localStorage.getItem('ventasList');
-      if (storedCompras) {
-        try {
-          const parsedCompras: Compra[] = JSON.parse(storedCompras);
-          setComprasDataParaFlujo(parsedCompras.map(simplifyCompra));
-        } catch (e) { 
-          console.error("Error parsing compras data for assistant:", e); 
-          toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de compras.", variant: "destructive" });
-        }
-      }
-      if (storedVentas) {
-         try {
-          const parsedVentas: Venta[] = JSON.parse(storedVentas);
-          setVentasDataParaFlujo(parsedVentas.map(simplifyVenta));
-        } catch (e) { 
-          console.error("Error parsing ventas data for assistant:", e); 
-          toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de ventas.", variant: "destructive" });
-        }
+    async function loadData() {
+      setIsLoadingData(true);
+      try {
+        const [compras, ventas] = await Promise.all([
+          getAllCompras(),
+          getAllVentas()
+        ]);
+        setComprasDataParaFlujo(compras.map(simplifyCompra));
+        setVentasDataParaFlujo(ventas.map(simplifyVenta));
+      } catch (e) { 
+        console.error("Error cargando datos para el asistente:", e); 
+        toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de Firebase para el asistente.", variant: "destructive" });
+      } finally {
+        setIsLoadingData(false);
       }
     }
+    loadData();
   }, [toast]);
 
   const form = useForm<FormValues>({
@@ -103,7 +97,7 @@ export default function AsistenteVirtualPage() {
     if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0) {
         toast({
             title: "No hay datos cargados",
-            description: "No hay datos de compras o ventas en el sistema para consultar. Por favor, registre algunas operaciones primero.",
+            description: "No hay datos de compras o ventas en el sistema para consultar.",
             variant: "destructive",
         });
         setIsLoading(false);
@@ -117,36 +111,20 @@ export default function AsistenteVirtualPage() {
         ventasData: ventasDataParaFlujo,
       };
       
-      console.log("Enviando al asistente:", JSON.stringify({prompt: inputData.prompt, numCompras: inputData.comprasData.length, numVentas: inputData.ventasData.length}));
-
       const result = await consultarAsistente(inputData);
       setRespuestaAsistente(result.respuesta);
       
       if (result.respuesta.startsWith("Ocurrió un error") || result.respuesta.startsWith("El asistente no pudo procesar")) {
-        toast({
-            title: "Respuesta del Asistente",
-            description: result.respuesta, // Muestra el error específico del flujo
-            variant: "destructive",
-            duration: 7000,
-        });
+        toast({ title: "Respuesta del Asistente", description: result.respuesta, variant: "destructive", duration: 7000 });
       } else {
-        toast({
-            title: "Respuesta Recibida",
-            description: "El asistente ha procesado tu consulta.",
-        });
+        toast({ title: "Respuesta Recibida", description: "El asistente ha procesado tu consulta." });
       }
 
     } catch (error: any) {
       console.error("Error al consultar al asistente (cliente):", error);
       let clientErrorMessage = "No se pudo obtener una respuesta del asistente. Intente de nuevo.";
-      if (error.message) {
-        clientErrorMessage += ` Error: ${error.message}`;
-      }
-      toast({
-        title: "Error de Comunicación",
-        description: clientErrorMessage,
-        variant: "destructive",
-      });
+      if (error.message) clientErrorMessage += ` Error: ${error.message}`;
+      toast({ title: "Error de Comunicación", description: clientErrorMessage, variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -156,7 +134,7 @@ export default function AsistenteVirtualPage() {
     <div className="container mx-auto py-6">
       <PageTitle
         title="Asistente Virtual de Datos"
-        description="Realice consultas en lenguaje natural sobre sus registros de compras y ventas. El asistente utilizará los datos actualmente guardados en la aplicación."
+        description="Realice consultas en lenguaje natural sobre sus registros de compras y ventas de Firebase."
       />
       <div className="grid md:grid-cols-3 gap-8">
         <Card className="md:col-span-1">
@@ -180,19 +158,16 @@ export default function AsistenteVirtualPage() {
                           placeholder="Ej: ¿Total de ventas de Roble el mes pasado?"
                           className="min-h-[100px]"
                           {...field}
+                          disabled={isLoadingData || isLoading}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={isLoading} className="w-full">
-                  {isLoading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="mr-2 h-4 w-4" />
-                  )}
-                  {isLoading ? "Procesando..." : "Enviar Consulta"}
+                <Button type="submit" disabled={isLoading || isLoadingData} className="w-full">
+                  {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  {isLoading ? "Procesando..." : (isLoadingData ? "Cargando datos..." : "Enviar Consulta")}
                 </Button>
               </form>
             </Form>
@@ -204,13 +179,19 @@ export default function AsistenteVirtualPage() {
             <CardTitle>Respuesta del Asistente</CardTitle>
           </CardHeader>
           <CardContent className="min-h-[200px] flex items-center justify-center">
-            {isLoading && (
+            {isLoadingData && (
+              <div className="text-center">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">Cargando datos desde Firebase...</p>
+              </div>
+            )}
+            {isLoading && !isLoadingData && (
               <div className="text-center">
                 <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
                 <p className="text-muted-foreground">El asistente está pensando...</p>
               </div>
             )}
-            {!isLoading && !respuestaAsistente && (
+            {!isLoading && !isLoadingData && !respuestaAsistente && (
               <div className="text-center text-muted-foreground">
                 <Bot className="mx-auto h-12 w-12 mb-4" />
                 <p>La respuesta del asistente aparecerá aquí.</p>
@@ -219,7 +200,7 @@ export default function AsistenteVirtualPage() {
                  }
               </div>
             )}
-            {respuestaAsistente && !isLoading && (
+            {respuestaAsistente && !isLoading && !isLoadingData && (
               <div className="w-full text-left space-y-4 p-4 bg-muted rounded-md whitespace-pre-wrap text-sm">
                 <p>{respuestaAsistente}</p>
               </div>

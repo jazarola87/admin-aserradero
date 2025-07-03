@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Lightbulb, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { sugerirPrecio, type SugerirPrecioInput, type SugerirPrecioOutput } from "@/ai/flows/precio-sugerido";
-import { cn } from "@/lib/utils"; // Added import for cn
+import { cn } from "@/lib/utils";
 
 const asistenteFormSchema = z.object({
   tipoMadera: z.string().min(2, {
@@ -33,7 +32,7 @@ const asistenteFormSchema = z.object({
   precioMercadoPromedioPorPie: z.coerce.number().positive({
     message: "El precio de mercado promedio por pie debe ser un número positivo.",
   }),
-  margenGananciaDeseado: z.coerce.number().min(0).max(1, { // Represented as a decimal, e.g., 0.2 for 20%
+  margenGananciaDeseado: z.coerce.number().min(0).max(1, { 
     message: "El margen de ganancia debe estar entre 0 (0%) y 1 (100%).",
   }),
 });
@@ -48,7 +47,7 @@ export default function AsistentePreciosPage() {
   const form = useForm<AsistenteFormValues>({
     resolver: zodResolver(asistenteFormSchema),
     defaultValues: {
-      margenGananciaDeseado: 0.2, // Default 20%
+      margenGananciaDeseado: 0.2,
     },
   });
 
@@ -56,15 +55,9 @@ export default function AsistentePreciosPage() {
     setIsLoading(true);
     setSugerencia(null);
     try {
-      const inputData: SugerirPrecioInput = {
-        ...data,
-      };
+      const inputData: SugerirPrecioInput = { ...data };
       const result = await sugerirPrecio(inputData);
       setSugerencia(result);
-      toast({
-        title: "Sugerencia Generada",
-        description: "El asistente ha calculado un precio sugerido.",
-      });
     } catch (error) {
       console.error("Error al generar sugerencia:", error);
       toast({

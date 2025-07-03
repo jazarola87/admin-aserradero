@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -18,21 +17,21 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data";
-import type { VentaDetalle as VentaDetalleType, Venta } from "@/types";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService";
+import type { VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
 
-const VENTAS_STORAGE_KEY = 'ventasList';
 const initialDetallesCount = 15; 
 
 const ventaDetalleSchema = z.object({
@@ -83,22 +82,14 @@ export default function EditarVentaPage() {
   const router = useRouter();
   const params = useParams();
   const ventaId = params.id as string;
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [config, setConfig] = useState<Configuracion | null>(null);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
-      fecha: new Date(), 
-      nombreComprador: "",
-      telefonoComprador: "",
-      fechaEntregaEstimada: undefined,
-      sena: undefined,
-      costoOperario: undefined,
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-      idOriginalPresupuesto: undefined,
-      totalVentaManual: undefined,
-      costoMaderaManual: undefined,
-      costoAserrioManual: undefined,
+      fecha: new Date(),
     },
   });
 
@@ -108,60 +99,65 @@ export default function EditarVentaPage() {
   });
 
   useEffect(() => {
-    if (ventaId && typeof window !== 'undefined') {
-      setIsLoadingData(true);
-      const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-      const ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-      const ventaAEditar = ventasActuales.find(v => v.id === ventaId);
-
-      if (ventaAEditar) {
-        const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
-            tipoMadera: d.tipoMadera,
-            unidades: Number(d.unidades) || undefined,
-            ancho: Number(d.ancho) || undefined,
-            alto: Number(d.alto) || undefined,
-            largo: Number(d.largo) || undefined,
-            precioPorPie: Number(d.precioPorPie) || undefined,
-            cepillado: d.cepillado ?? false,
-        }));
-        
-        form.reset({
-          fecha: ventaAEditar.fecha ? parseISO(ventaAEditar.fecha) : new Date(),
-          nombreComprador: ventaAEditar.nombreComprador,
-          telefonoComprador: ventaAEditar.telefonoComprador || "",
-          fechaEntregaEstimada: ventaAEditar.fechaEntregaEstimada ? parseISO(ventaAEditar.fechaEntregaEstimada) : undefined,
-          sena: ventaAEditar.sena ?? undefined,
-          costoOperario: ventaAEditar.costoOperario ?? undefined,
-          idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
-          detalles: [], 
-          totalVentaManual: ventaAEditar.totalVenta, // Initialize with current total
-          costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot,
-          costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot,
-        });
-        
-        replace(loadedDetails); 
-
-        let currentLength = loadedDetails.length;
-        while (currentLength < initialDetallesCount) {
-          append(createEmptyDetalle(), { shouldFocus: false });
-          currentLength++;
-        }
-        
-        form.trigger();
-
-
-      } else {
-        toast({
-          title: "Error",
-          description: "Venta no encontrada para editar.",
-          variant: "destructive",
-        });
-        router.push('/ventas');
-      }
-      setIsLoadingData(false);
+    if (!ventaId) {
+      router.push('/ventas');
+      return;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ventaId, form, router, toast, replace, append]); // Added replace and append
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [ventaAEditar, appConfig] = await Promise.all([
+          getVentaById(ventaId),
+          getAppConfig(),
+        ]);
+        setConfig(appConfig);
+
+        if (ventaAEditar) {
+          const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
+              tipoMadera: d.tipoMadera,
+              unidades: Number(d.unidades) || undefined,
+              ancho: Number(d.ancho) || undefined,
+              alto: Number(d.alto) || undefined,
+              largo: Number(d.largo) || undefined,
+              precioPorPie: Number(d.precioPorPie) || undefined,
+              cepillado: d.cepillado ?? false,
+          }));
+          
+          form.reset({
+            fecha: ventaAEditar.fecha && isValid(parseISO(ventaAEditar.fecha)) ? parseISO(ventaAEditar.fecha) : new Date(),
+            nombreComprador: ventaAEditar.nombreComprador,
+            telefonoComprador: ventaAEditar.telefonoComprador || "",
+            fechaEntregaEstimada: ventaAEditar.fechaEntregaEstimada && isValid(parseISO(ventaAEditar.fechaEntregaEstimada)) ? parseISO(ventaAEditar.fechaEntregaEstimada) : undefined,
+            sena: ventaAEditar.sena ?? undefined,
+            costoOperario: ventaAEditar.costoOperario ?? undefined,
+            idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
+            detalles: [], 
+            totalVentaManual: ventaAEditar.totalVenta,
+            costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot,
+            costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot,
+          });
+          
+          replace(loadedDetails); 
+
+          let currentLength = loadedDetails.length;
+          while (currentLength < initialDetallesCount) {
+            append(createEmptyDetalle(), { shouldFocus: false });
+            currentLength++;
+          }
+          form.trigger();
+        } else {
+          toast({ title: "Error", description: "Venta no encontrada para editar.", variant: "destructive" });
+          router.push('/ventas');
+        }
+      } catch(error) {
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos de la venta o la configuración.", variant: "destructive" });
+        router.push('/ventas');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [ventaId, form, router, toast, replace, append]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -182,60 +178,56 @@ export default function EditarVentaPage() {
 
   const calcularSubtotalDetalle = (
     detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
-    piesTablares: number,
-    precioCepilladoConfigValue: number
+    piesTablares: number
   ): number => {
     const precioPorPie = Number(detalle?.precioPorPie);
     if (isNaN(precioPorPie) || piesTablares === 0) return 0;
     let subtotal = piesTablares * precioPorPie;
-    if (detalle?.cepillado) {
-      subtotal += piesTablares * precioCepilladoConfigValue;
+    if (detalle?.cepillado && config) {
+      subtotal += piesTablares * config.precioCepilladoPorPie;
     }
     return subtotal;
   };
   
-  const currentPrecioCepilladoPorPie = Number(initialConfigData.precioCepilladoPorPie) || 0;
-  const currentCostosMaderaMetroCubico = Array.isArray(initialConfigData.costosMaderaMetroCubico) ? initialConfigData.costosMaderaMetroCubico : [];
-  const currentPrecioLitroNafta = Number(initialConfigData.precioLitroNafta) || 0;
-  const currentPrecioAfiladoSierra = Number(initialConfigData.precioAfiladoSierra) || 0;
-  
-  let calculatedTotalVentaGeneral = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedTotalVentaGeneral = useMemo(() => {
+    if (!config) return 0;
+    return watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0 && typeof (Number(detalle.precioPorPie)) === 'number' && !isNaN(Number(detalle.precioPorPie))) {
         const pies = calcularPiesTablares(detalle);
-        calculatedTotalVentaGeneral += calcularSubtotalDetalle(detalle, pies, currentPrecioCepilladoPorPie);
+        return acc + calcularSubtotalDetalle(detalle, pies);
       }
-    });
-  }
+      return acc;
+    }, 0);
+  }, [watchedDetalles, config]);
 
-  let calculatedCostoTotalMaderaVenta = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedCostoTotalMaderaVenta = useMemo(() => {
+    if (!config || !config.costosMaderaMetroCubico) return 0;
+    return watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
         const piesTablaresArticulo = calcularPiesTablares(detalle);
         if (piesTablaresArticulo > 0) {
-          const costoMaderaConfig = currentCostosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
+          const costoMaderaConfig = config.costosMaderaMetroCubico.find(c => c.tipoMadera === detalle.tipoMadera);
           const costoPorMetroCubicoDelTipo = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-          calculatedCostoTotalMaderaVenta += (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
+          return acc + (piesTablaresArticulo / 200) * costoPorMetroCubicoDelTipo; 
         }
       }
-    });
-  }
+      return acc;
+    }, 0);
+  }, [watchedDetalles, config]);
 
-  const costoOperativoBase = (currentPrecioLitroNafta * 6) + (currentPrecioAfiladoSierra * 3);
-  const costoOperativoAjustado = costoOperativoBase * 1.38;
-  const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
-  
-  let totalPiesTablaresVentaParaAserrio = 0;
-  if (Array.isArray(watchedDetalles)) {
-    watchedDetalles.forEach(detalle => {
+  const calculatedCostoTotalAserrioVenta = useMemo(() => {
+    if (!config) return 0;
+    const costoOperativoBase = (Number(config.precioLitroNafta) * 6) + (Number(config.precioAfiladoSierra) * 3);
+    const costoOperativoAjustado = costoOperativoBase * 1.38;
+    const costoAserrioPorPie = (costoOperativoAjustado > 0 && isFinite(costoOperativoAjustado) && costoOperativoAjustado !== 0) ? costoOperativoAjustado / 600 : 0;
+    const totalPiesTablaresVenta = watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && (Number(detalle.unidades) || 0) > 0) {
-        totalPiesTablaresVentaParaAserrio += calcularPiesTablares(detalle);
+        return acc + calcularPiesTablares(detalle);
       }
-    });
-  }
-  const calculatedCostoTotalAserrioVenta = totalPiesTablaresVentaParaAserrio * costoAserrioPorPie;
+      return acc;
+    }, 0);
+    return totalPiesTablaresVenta * costoAserrioPorPie;
+  }, [watchedDetalles, config]);
 
   const displayTotalVenta = typeof watchedTotalVentaManual === 'number' && !isNaN(watchedTotalVentaManual) ? watchedTotalVentaManual : calculatedTotalVentaGeneral;
   const displayCostoMadera = typeof watchedCostoMaderaManual === 'number' && !isNaN(watchedCostoMaderaManual) ? watchedCostoMaderaManual : calculatedCostoTotalMaderaVenta;
@@ -250,7 +242,7 @@ export default function EditarVentaPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
-    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
+    const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true, shouldDirty: true });
     } else {
@@ -259,15 +251,16 @@ export default function EditarVentaPage() {
     form.trigger(`detalles.${index}`);
   };
 
-  function onSubmit(data: VentaFormValues) {
-    if (!ventaId) return;
+  async function onSubmit(data: VentaFormValues) {
+    if (!ventaId || !config) return;
+    setIsSubmitting(true);
 
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && (Number(d_form.unidades) || 0) > 0 && typeof (Number(d_form.precioPorPie)) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, idx) => {
       const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
       const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotalDetalle(d, pies, currentPrecioCepilladoPorPie);
+      const sub = calcularSubtotalDetalle(d, pies);
       const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
       return { 
         ...d,
@@ -279,16 +272,13 @@ export default function EditarVentaPage() {
         piesTablares: pies, 
         subTotal: sub, 
         valorUnitario: valorUnit, 
-        id: `vd-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}` 
+        id: `vd-edit-${Date.now()}-${idx}` 
       } as VentaDetalleType;
     });
 
     if (processedDetalles.length === 0) {
-      toast({
-        title: "Error en la Venta",
-        description: "No hay artículos válidos para guardar. Asegúrese de completar tipo de madera, unidades y precio.",
-        variant: "destructive",
-      });
+      toast({ title: "Error en la Venta", description: "No hay artículos válidos para guardar.", variant: "destructive" });
+      setIsSubmitting(false);
       return;
     }
     
@@ -297,8 +287,7 @@ export default function EditarVentaPage() {
     const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
 
 
-    const ventaActualizada: Venta = {
-      id: ventaId, 
+    const ventaActualizada: Partial<Omit<Venta, 'id'>> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
       telefonoComprador: data.telefonoComprador,
@@ -312,24 +301,18 @@ export default function EditarVentaPage() {
       costoAserrioVentaSnapshot: finalCostoAserrio, 
     };
 
-    if (typeof window !== 'undefined') {
-        const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-        let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-        const index = ventasActuales.findIndex(v => v.id === ventaId);
-        if (index !== -1) {
-          ventasActuales[index] = ventaActualizada;
-        } else {
-          ventasActuales.push(ventaActualizada);
-        }
-        ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-        localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
+    try {
+      await updateVenta(ventaId, ventaActualizada);
+       toast({
+        title: "Venta Actualizada en Firebase",
+        description: `Se ha actualizado la venta para ${data.nombreComprador}.`,
+      });
+      router.push('/ventas');
+    } catch(error) {
+       toast({ title: "Error al Actualizar", description: "No se pudo actualizar la venta en Firebase.", variant: "destructive" });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast({
-      title: "Venta Actualizada",
-      description: `Se ha actualizado la venta para ${data.nombreComprador}.`,
-    });
-    router.push('/ventas');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
@@ -337,8 +320,8 @@ export default function EditarVentaPage() {
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
 
-  if (isLoadingData) {
-    return <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><p>Cargando datos de la venta...</p></div>;
+  if (isLoading) {
+    return <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" /><p>Cargando datos de la venta...</p></div>;
   }
 
   return (
@@ -469,7 +452,7 @@ export default function EditarVentaPage() {
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
-                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares, currentPrecioCepilladoPorPie);
+                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares);
                       const valorUnitario = ((Number(currentDetalle?.unidades) || 0) > 0 && subTotal > 0) ? subTotal / (Number(currentDetalle.unidades)) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
@@ -492,12 +475,12 @@ export default function EditarVentaPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {initialConfigData.preciosMadera.map(madera => (
+                                      {config?.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -545,7 +528,7 @@ export default function EditarVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isEffectivelyEmpty || fields.length > 1) && (
+                            {(!isRowEffectivelyEmpty || fields.length > 1) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -668,9 +651,9 @@ export default function EditarVentaPage() {
                   </>
                 )}
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting} className="mt-4">
-                <Save className="mr-2 h-4 w-4" />
-                {form.formState.isSubmitting ? "Guardando..." : "Guardar Cambios"}
+              <Button type="submit" size="lg" disabled={isSubmitting || isLoading} className="mt-4">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {isSubmitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </Card>
@@ -679,4 +662,3 @@ export default function EditarVentaPage() {
     </div>
   );
 }
-

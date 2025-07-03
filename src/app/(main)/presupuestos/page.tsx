@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -11,40 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil } from "lucide-react"; // ChevronDown removed as it's default in Trigger
-import type { Presupuesto } from "@/types";
+import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil } from "lucide-react";
+import type { Presupuesto, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
-import { initialConfigData } from '@/lib/config-data';
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-
-const PREDEFINED_MOCK_PRESUPUESTOS: Presupuesto[] = [
-  { 
-    id: "pres001", 
-    fecha: "2024-07-25", 
-    nombreCliente: "Ana Gómez", 
-    telefonoCliente: "555-1122",
-    detalles: [
-      { id: "pd001", tipoMadera: "Pino", unidades: 15, ancho: 4, alto: 2, largo: 3.05, precioPorPie: 2.50, cepillado: false, piesTablares: 100, subTotal: 250, valorUnitario: 16.67 },
-      { id: "pd002", tipoMadera: "Eucalipto", unidades: 8, ancho: 6, alto: 3, largo: 3.66, precioPorPie: 3.00, cepillado: true, piesTablares: 144, subTotal: 504, valorUnitario: 63.00 },
-    ],
-    totalPresupuesto: 754,
-  },
-  { 
-    id: "pres002", 
-    fecha: "2024-07-26", 
-    nombreCliente: "Empresa Constructora XYZ", 
-    detalles: [
-      { id: "pd003", tipoMadera: "Roble", unidades: 50, ancho: 8, alto: 4, largo: 4.88, precioPorPie: 5.00, cepillado: false, piesTablares: 2133.33, subTotal: 10666.65, valorUnitario: 213.33 },
-    ],
-    totalPresupuesto: 10666.65,
-  },
-];
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
@@ -53,14 +28,16 @@ export default function PresupuestosPage() {
   const router = useRouter();
   
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
+  const [config, setConfig] = useState<Configuracion | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
 
   const updatePresupuestosListAndStorage = useCallback((newList: Presupuesto[]) => {
     const sortedList = newList.sort((a, b) => {
-        const dateA = parseISO(a.fecha);
-        const dateB = parseISO(b.fecha);
+        const dateA = a.fecha ? parseISO(a.fecha) : 0;
+        const dateB = b.fecha ? parseISO(b.fecha) : 0;
+        if (!dateA || !dateB) return 0;
         return dateB.getTime() - dateA.getTime();
     });
     setPresupuestos(sortedList);
@@ -70,29 +47,32 @@ export default function PresupuestosPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let dataToLoad = PREDEFINED_MOCK_PRESUPUESTOS; 
-      if (storedPresupuestos) {
-        try {
-          const parsed = JSON.parse(storedPresupuestos);
-          if (Array.isArray(parsed)) {
-            dataToLoad = parsed;
-          }
-        } catch (e) {
-          console.error("Error parsing presupuestos from localStorage", e);
-          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime())));
-        }
+    async function loadData() {
+      try {
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
+      } catch (e) {
+        toast({ title: "Error", description: "No se pudo cargar la configuración de la aplicación.", variant: "destructive" });
       }
-      const sortedData = dataToLoad.sort((a, b) => parseISO(b.fecha).getTime() - parseISO(a.fecha).getTime());
-      setPresupuestos(sortedData);
-      if (!storedPresupuestos && dataToLoad.length > 0) { 
-          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedData));
-      } else if (!storedPresupuestos && dataToLoad.length === 0) {
-          localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify([]));
+
+      if (typeof window !== 'undefined') {
+        const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
+        let dataToLoad: Presupuesto[] = []; 
+        if (storedPresupuestos) {
+          try {
+            const parsed = JSON.parse(storedPresupuestos);
+            if (Array.isArray(parsed)) {
+              dataToLoad = parsed;
+            }
+          } catch (e) {
+            console.error("Error parsing presupuestos from localStorage", e);
+          }
+        }
+        updatePresupuestosListAndStorage(dataToLoad);
       }
     }
-  }, []);
+    loadData();
+  }, [toast, updatePresupuestosListAndStorage]);
 
 
   useEffect(() => {
@@ -100,18 +80,7 @@ export default function PresupuestosPage() {
       const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
       if (budgetToDeleteId) {
         const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-        let currentList: Presupuesto[] = [];
-        if (currentListFromStorage) {
-          try {
-            currentList = JSON.parse(currentListFromStorage);
-          } catch (e) {
-            console.error("Error parsing presupuestos from localStorage for delete operation", e);
-            currentList = [...presupuestos]; 
-          }
-        } else {
-           currentList = [...presupuestos]; 
-        }
-
+        let currentList: Presupuesto[] = currentListFromStorage ? JSON.parse(currentListFromStorage) : [];
         const newList = currentList.filter(p => p.id !== budgetToDeleteId);
         updatePresupuestosListAndStorage(newList); 
         localStorage.removeItem('budgetToDeleteId');
@@ -121,7 +90,7 @@ export default function PresupuestosPage() {
         });
       }
     }
-  }, [toast, presupuestos, updatePresupuestosListAndStorage]); 
+  }, [toast, updatePresupuestosListAndStorage]); 
 
 
   const handleDeletePresupuesto = (idToDelete: string) => {
@@ -135,13 +104,15 @@ export default function PresupuestosPage() {
   };
 
   const handlePasarAVenta = (presupuesto: Presupuesto) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
-    }
+    localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
     router.push('/ventas/nueva');
   };
 
   const downloadPDF = async (presupuesto: Presupuesto) => {
+    if (!config) {
+      toast({ title: "Error", description: "La configuración no se ha cargado todavía.", variant: "destructive"});
+      return;
+    }
     const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; 
     setSelectedPresupuestoForPdf(presupuesto);
     setPdfTargetId(uniqueId);
@@ -157,47 +128,27 @@ export default function PresupuestosPage() {
             if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); 
             return new Promise(resolve => { 
               img.onload = resolve; 
-              img.onerror = () => { 
-                console.warn(`Failed to load image for PDF: ${img.src}`);
-                resolve(null); 
-              };
+              img.onerror = () => { console.warn(`Failed to load image for PDF: ${img.src}`); resolve(null); };
             });
           }));
 
-          const canvas = await html2canvas(inputElement, { 
-            scale: 2, 
-            useCORS: true, 
-            logging: false,
-           });
+          const canvas = await html2canvas(inputElement, { scale: 2, useCORS: true, logging: false });
           const imgData = canvas.toDataURL('image/png');
-          
-          const pdf = new jsPDF({
-            orientation: 'p',
-            unit: 'mm',
-            format: 'a4',
-          });
-  
+          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
           const margin = 10; 
           const availableWidth = pdfWidth - 2 * margin;
           const availableHeight = pdfHeight - 2 * margin;
-
-          const imgOriginalWidth = canvas.width;
-          const imgOriginalHeight = canvas.height;
-          const aspectRatio = imgOriginalWidth / imgOriginalHeight;
-          
+          const aspectRatio = canvas.width / canvas.height;
           let imgRenderWidth = availableWidth;
           let imgRenderHeight = availableWidth / aspectRatio;
-   
            if (imgRenderHeight > availableHeight) {
              imgRenderHeight = availableHeight;
              imgRenderWidth = imgRenderHeight * aspectRatio;
            }
-          
           const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
           const imgY = margin;
-  
           pdf.addImage(imgData, 'PNG', imgX, imgY, imgRenderWidth, imgRenderHeight);
           pdf.save(`presupuesto-${presupuesto.id}-${presupuesto.nombreCliente.replace(/\s+/g, '_')}.pdf`);
           toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
@@ -360,11 +311,11 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
-      {selectedPresupuestoForPdf && pdfTargetId && (
+      {selectedPresupuestoForPdf && config && pdfTargetId && (
         <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
           <GenericOrderPDFDocument
             order={selectedPresupuestoForPdf}
-            config={initialConfigData}
+            config={config}
             elementId={pdfTargetId}
             documentType="Presupuesto"
           />
@@ -373,4 +324,3 @@ export default function PresupuestosPage() {
     </div>
   );
 }
-

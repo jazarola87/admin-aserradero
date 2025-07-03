@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -25,11 +24,11 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
-import type { Compra } from "@/types";
+import type { Compra, Configuracion } from "@/types";
 import { useRouter } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addCompra } from "@/lib/firebase/services/comprasService";
-import { initialConfigData } from "@/lib/config-data";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 const compraFormSchema = z.object({
   fecha: z.date({
@@ -59,6 +58,8 @@ export default function NuevaCompraPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [config, setConfig] = useState<Configuracion | null>(null);
 
   const form = useForm<CompraFormValues>({
     resolver: zodResolver(compraFormSchema),
@@ -72,6 +73,25 @@ export default function NuevaCompraPage() {
       costo: 0,
     },
   });
+
+  useEffect(() => {
+    async function loadConfig() {
+      setIsLoading(true);
+      try {
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
+      } catch (error) {
+         toast({
+           title: "Error al Cargar Configuración",
+           description: "No se pudieron obtener los tipos de madera. Intente recargar la página.",
+           variant: "destructive",
+         });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadConfig();
+  }, [toast]);
 
   const watchedVolumen = form.watch("volumen");
   const watchedPrecioPorMetroCubico = form.watch("precioPorMetroCubico");
@@ -110,6 +130,16 @@ export default function NuevaCompraPage() {
       setIsSubmitting(false);
     }
   }
+  
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
+  }
+
 
   return (
     <div className="container mx-auto py-6">
@@ -172,19 +202,19 @@ export default function NuevaCompraPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Tipo de Madera</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting}>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value} disabled={isSubmitting || isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Seleccione un tipo de madera" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {(initialConfigData.preciosMadera || []).map((madera) => (
+                        {config?.preciosMadera.map((madera) => (
                           <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                             {madera.tipoMadera}
                           </SelectItem>
                         ))}
-                         {(initialConfigData.preciosMadera || []).length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                         {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                       </SelectContent>
                     </Select>
                     <FormDescription>Especifique el tipo de madera adquirida.</FormDescription>
@@ -266,7 +296,7 @@ export default function NuevaCompraPage() {
                 )}
               />
               <div className="flex justify-end">
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || isLoading}>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   {isSubmitting ? "Registrando..." : "Registrar Compra"}
                 </Button>

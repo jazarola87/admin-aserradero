@@ -1,8 +1,7 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,14 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { Save } from "lucide-react";
+import { Save, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { initialConfigData, updateConfigData } from "@/lib/config-data";
+import { getAppConfig, updateAppConfig } from "@/lib/firebase/services/configuracionService";
 import type { Configuracion, CostoMaderaMetroCubico } from "@/types";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 const costoMaderaMetroCubicoSchema = z.object({
-  tipoMadera: z.string(), // This will be read-only from initialConfigData.preciosMadera
+  tipoMadera: z.string(), // This will be read-only from config.preciosMadera
   costoPorMetroCubico: z.coerce.number().nonnegative("El costo debe ser no negativo.").optional(),
 });
 
@@ -43,62 +42,92 @@ type CostosOperativosFormValues = Pick<Configuracion, 'precioLitroNafta' | 'prec
 
 export default function CostosOperativosPage() {
   const { toast } = useToast();
-
-  const defaultCostosMadera = useMemo(() => {
-    const preciosMaderaTipos = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
-    const existingCostosMap = new Map(initialConfigData.costosMaderaMetroCubico?.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
-
-    return preciosMaderaTipos.map(tipo => ({
-      tipoMadera: tipo,
-      costoPorMetroCubico: existingCostosMap.get(tipo) ?? undefined, // Use undefined for empty
-    }));
-  }, []);
-
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [tiposMaderaVenta, setTiposMaderaVenta] = useState<string[]>([]);
 
   const form = useForm<CostosOperativosFormValues>({
     resolver: zodResolver(costosOperativosFormSchema),
     defaultValues: {
-      precioLitroNafta: initialConfigData.precioLitroNafta ?? undefined,
-      precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? undefined,
-      costosMaderaMetroCubico: defaultCostosMadera,
+      precioLitroNafta: undefined,
+      precioAfiladoSierra: undefined,
+      costosMaderaMetroCubico: [],
     },
   });
-
-  const { fields, append, remove } = useFieldArray({
+  
+  const { fields, replace } = useFieldArray({
     control: form.control,
     name: "costosMaderaMetroCubico",
   });
-  
+
   useEffect(() => {
-    const updatedDefaultCostos = initialConfigData.preciosMadera.map(pm => {
-        const existing = initialConfigData.costosMaderaMetroCubico?.find(c => c.tipoMadera === pm.tipoMadera);
-        return {
-            tipoMadera: pm.tipoMadera,
-            costoPorMetroCubico: existing?.costoPorMetroCubico ?? undefined,
-        };
-    });
+    async function fetchConfig() {
+      setIsLoading(true);
+      try {
+        const config = await getAppConfig();
+        
+        setTiposMaderaVenta(config.preciosMadera.map(pm => pm.tipoMadera));
 
-    form.reset({
-        precioLitroNafta: initialConfigData.precioLitroNafta ?? undefined,
-        precioAfiladoSierra: initialConfigData.precioAfiladoSierra ?? undefined,
-        costosMaderaMetroCubico: updatedDefaultCostos,
-    });
-  }, [initialConfigData.preciosMadera, initialConfigData.costosMaderaMetroCubico, form]);
+        const costosExistentesMap = new Map(config.costosMaderaMetroCubico?.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
+
+        const costosMaderaParaForm = config.preciosMadera.map(pm => ({
+          tipoMadera: pm.tipoMadera,
+          costoPorMetroCubico: costosExistentesMap.get(pm.tipoMadera) ?? undefined,
+        }));
+
+        form.reset({
+          precioLitroNafta: config.precioLitroNafta ?? undefined,
+          precioAfiladoSierra: config.precioAfiladoSierra ?? undefined,
+          costosMaderaMetroCubico: costosMaderaParaForm,
+        });
+
+      } catch (error) {
+         toast({
+          title: "Error al Cargar Configuración",
+          description: "No se pudo obtener la configuración desde Firebase.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchConfig();
+  }, [form, toast]);
 
 
-  function onSubmit(data: CostosOperativosFormValues) {
-    const updatePayload: Partial<Configuracion> = {
-        ...data,
-        costosMaderaMetroCubico: (data.costosMaderaMetroCubico || []).map(c => ({
-            ...c,
-            costoPorMetroCubico: c.costoPorMetroCubico === undefined || isNaN(Number(c.costoPorMetroCubico)) ? 0 : Number(c.costoPorMetroCubico)
-        }))
-    };
-    updateConfigData(updatePayload);
-    toast({
-      title: "Costos Operativos Guardados",
-      description: "Los cambios en los costos operativos han sido guardados exitosamente.",
-    });
+  async function onSubmit(data: CostosOperativosFormValues) {
+    setIsSubmitting(true);
+    try {
+      const updatePayload: Partial<Configuracion> = {
+          ...data,
+          costosMaderaMetroCubico: (data.costosMaderaMetroCubico || []).map(c => ({
+              ...c,
+              costoPorMetroCubico: c.costoPorMetroCubico === undefined || isNaN(Number(c.costoPorMetroCubico)) ? 0 : Number(c.costoPorMetroCubico)
+          }))
+      };
+      await updateAppConfig(updatePayload);
+      toast({
+        title: "Costos Operativos Guardados",
+        description: "Los cambios se han guardado en Firebase.",
+      });
+    } catch(error) {
+       toast({
+        title: "Error al Guardar",
+        description: "No se pudo guardar la configuración en Firebase.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
   }
 
   return (
@@ -184,9 +213,9 @@ export default function CostosOperativosPage() {
               </section>
 
               <div className="flex justify-end">
-                <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-                  <Save className="mr-2 h-4 w-4" />
-                  {form.formState.isSubmitting ? "Guardando..." : "Guardar Costos Operativos"}
+                <Button type="submit" size="lg" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {isSubmitting ? "Guardando..." : "Guardar Costos Operativos"}
                 </Button>
               </div>
             </form>
@@ -196,4 +225,3 @@ export default function CostosOperativosPage() {
     </div>
   );
 }
-

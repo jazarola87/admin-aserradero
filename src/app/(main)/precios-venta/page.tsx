@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,12 +18,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { Save, PlusCircle, Trash2, Image as ImageIcon } from "lucide-react";
+import { Save, PlusCircle, Trash2, Image as ImageIcon, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
-import { initialConfigData, updateConfigData } from "@/lib/config-data"; 
+import { getAppConfig, updateAppConfig } from "@/lib/firebase/services/configuracionService"; 
 import type { Configuracion } from "@/types"; 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const precioMaderaSchema = z.object({
   tipoMadera: z.string().min(1, "El tipo de madera es requerido."),
@@ -44,32 +43,57 @@ const preciosVentaFormSchema = z.object({
   }),
 });
 
-type PreciosVentaFormValues = Omit<Configuracion, 'precioLitroNafta' | 'precioAfiladoSierra' | 'costosMaderaMetroCubico'>;
+type PreciosVentaFormValues = z.infer<typeof preciosVentaFormSchema>;
 
 
 export default function PreciosVentaPage() {
   const { toast } = useToast();
-  const [logoPreview, setLogoPreview] = useState<string | undefined>(initialConfigData.logoUrl);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [logoPreview, setLogoPreview] = useState<string | undefined>(undefined);
 
   const form = useForm<PreciosVentaFormValues>({
     resolver: zodResolver(preciosVentaFormSchema),
     defaultValues: {
-        nombreAserradero: initialConfigData.nombreAserradero,
-        logoUrl: initialConfigData.logoUrl,
-        lemaEmpresa: initialConfigData.lemaEmpresa,
-        preciosMadera: initialConfigData.preciosMadera,
-        precioCepilladoPorPie: initialConfigData.precioCepilladoPorPie,
+      nombreAserradero: "",
+      logoUrl: "",
+      lemaEmpresa: "",
+      preciosMadera: [],
+      precioCepilladoPorPie: 0,
     },
   });
+
+  useEffect(() => {
+    async function fetchConfig() {
+      setIsLoading(true);
+      try {
+        const config = await getAppConfig();
+        form.reset({
+          nombreAserradero: config.nombreAserradero,
+          logoUrl: config.logoUrl,
+          lemaEmpresa: config.lemaEmpresa,
+          preciosMadera: config.preciosMadera,
+          precioCepilladoPorPie: config.precioCepilladoPorPie,
+        });
+        setLogoPreview(config.logoUrl);
+      } catch (error) {
+        toast({
+          title: "Error al Cargar Configuración",
+          description: "No se pudo obtener la configuración desde Firebase. Se usarán valores por defecto.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchConfig();
+  }, [form, toast]);
+
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "preciosMadera",
   });
-
-  React.useEffect(() => {
-    setLogoPreview(form.getValues("logoUrl"));
-  }, [form]);
 
   const handleLogoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -84,12 +108,32 @@ export default function PreciosVentaPage() {
     }
   };
 
-  function onSubmit(data: PreciosVentaFormValues) {
-    updateConfigData(data); 
-    toast({
-      title: "Precios de Venta Guardados",
-      description: "Los cambios en los precios de venta y datos de la empresa han sido guardados.",
-    });
+  async function onSubmit(data: PreciosVentaFormValues) {
+    setIsSubmitting(true);
+    try {
+      await updateAppConfig(data);
+      toast({
+        title: "Precios de Venta Guardados",
+        description: "Los cambios se han guardado en Firebase.",
+      });
+    } catch(error) {
+       toast({
+        title: "Error al Guardar",
+        description: "No se pudo guardar la configuración en Firebase.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
   }
 
   return (
@@ -212,9 +256,9 @@ export default function PreciosVentaPage() {
               />
               
               <div className="flex justify-end">
-                <Button type="submit" size="lg">
-                  <Save className="mr-2 h-4 w-4" />
-                  Guardar Precios de Venta
+                <Button type="submit" size="lg" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {isSubmitting ? "Guardando..." : "Guardar Precios de Venta"}
                 </Button>
               </div>
             </form>

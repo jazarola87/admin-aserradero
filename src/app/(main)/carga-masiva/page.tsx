@@ -1,20 +1,18 @@
-
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Download, UploadCloud, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { initialConfigData } from "@/lib/config-data";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { addVenta } from "@/lib/firebase/services/ventasService";
+import { addCompra } from "@/lib/firebase/services/comprasService";
 import * as XLSX from 'xlsx';
 import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { format, isValid, parseISO } from "date-fns";
-
-const COMPRAS_STORAGE_KEY = 'comprasList';
-const VENTAS_STORAGE_KEY = 'ventasList';
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
@@ -78,6 +76,13 @@ export default function CargaMasivaPage() {
   const [comprasFile, setComprasFile] = useState<File | null>(null);
   const [ventasFile, setVentasFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [config, setConfig] = useState<Configuracion | null>(null);
+
+  useEffect(() => {
+    getAppConfig()
+      .then(setConfig)
+      .catch(() => toast({ title: "Error", description: "No se pudo cargar la configuración de la aplicación.", variant: "destructive" }));
+  }, [toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, type: 'compras' | 'ventas') => {
     const file = event.target.files?.[0];
@@ -91,7 +96,11 @@ export default function CargaMasivaPage() {
   };
 
   const handleProformaDownload = (type: 'compras' | 'ventas') => {
-    const validTimberTypes = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
+    if (!config) {
+      toast({ title: "Error", description: "La configuración no se ha cargado todavía. Intente de nuevo en un momento.", variant: "destructive" });
+      return;
+    }
+    const validTimberTypes = config.preciosMadera.map(pm => pm.tipoMadera);
     let data: any[][] = [];
     let filename = "";
 
@@ -130,7 +139,7 @@ export default function CargaMasivaPage() {
         "Largo (m, Artículo)",
         "Precio Por Pie ($) (Artículo)",
         "Cepillado (Si/No, Artículo)",
-        "Precio Cepillado Por Pie ($) (Artículo, Opcional)", // Nueva columna
+        "Precio Cepillado Por Pie ($) (Artículo, Opcional)",
         "Costo Madera Estimado ($) (Artículo, Informativo)",
         "Costo Aserrío Estimado ($) (Artículo, Informativo)"
       ];
@@ -146,13 +155,13 @@ export default function CargaMasivaPage() {
       const exampleRow1 = [
         'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', 50.00, 25.00,
         exampleItem1.tipoMadera, exampleItem1.unidades, exampleItem1.ancho, exampleItem1.alto, exampleItem1.largo, exampleItem1.precioPorPie, 'Si',
-        exampleItem1.precioCepilladoEspecifico?.toFixed(2) || "", // Precio cepillado ejemplo
+        exampleItem1.precioCepilladoEspecifico?.toFixed(2) || "",
         150.25, 30.70
       ];
       const exampleRow2 = [
         'VENTA001', '2024-02-10', 'Ana Torres', '555-9876', '2024-02-20', "", "",
         exampleItem2.tipoMadera, exampleItem2.unidades, exampleItem2.ancho, exampleItem2.alto, exampleItem2.largo, exampleItem2.precioPorPie, 'No',
-        "", // Sin precio cepillado si no está cepillado
+        "",
         80.50, 15.30
       ];
       data.push(headers);
@@ -183,44 +192,44 @@ export default function CargaMasivaPage() {
       toast({ title: "Error", description: "Por favor, seleccione un archivo para cargar.", variant: "destructive" });
       return;
     }
+    if (!config) {
+      toast({ title: "Error", description: "La configuración no está cargada. Intente de nuevo.", variant: "destructive" });
+      return;
+    }
 
     setIsProcessing(true);
     let processedCount = 0;
     let errorCount = 0;
     const errorRows: { row: number; message: string; data: any }[] = [];
     let jsonData: any[] = [];
+    const newRecords: Array<Omit<Compra, 'id'> | Omit<Venta, 'id'>> = [];
 
 
-    try {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        try {
-          const arrayBuffer = event.target?.result;
-          if (!arrayBuffer) {
-            throw new Error("No se pudo leer el archivo.");
-          }
-          const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
-          const worksheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[worksheetName];
-          jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const arrayBuffer = event.target?.result;
+        if (!arrayBuffer) throw new Error("No se pudo leer el archivo.");
+        
+        const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+        const worksheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[worksheetName];
+        jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
-          if (type === 'compras') {
-            const validTimberTypes = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
-            const nuevasCompras: Compra[] = [];
+        if (type === 'compras') {
+          const validTimberTypes = config.preciosMadera.map(pm => pm.tipoMadera);
 
-            jsonData.forEach((row, index) => {
-              if (!row["Fecha (YYYY-MM-DD)"] || !row["Proveedor"]) {
-                return; // Skip empty or incomplete rows
-              }
+          jsonData.forEach((row, index) => {
+            if (!row["Fecha (YYYY-MM-DD)"] || !row["Proveedor"]) return;
 
-              try {
-                const fechaRaw = row["Fecha (YYYY-MM-DD)"];
+            try {
+              const fechaRaw = row["Fecha (YYYY-MM-DD)"];
                 let fechaCompra: string;
                 if (fechaRaw instanceof Date && isValid(fechaRaw)) {
                     fechaCompra = format(fechaRaw, "yyyy-MM-dd");
                 } else if (typeof fechaRaw === 'string' && isValid(parseISO(fechaRaw))) {
                     fechaCompra = format(parseISO(fechaRaw), "yyyy-MM-dd");
-                } else if (typeof fechaRaw === 'number') { // Excel date number
+                } else if (typeof fechaRaw === 'number') {
                     const d = XLSX.SSF.parse_date_code(fechaRaw);
                     if (d) fechaCompra = format(new Date(d.y, d.m - 1, d.d, d.H, d.M, d.S), "yyyy-MM-dd");
                     else throw new Error("Formato de fecha inválido.");
@@ -228,64 +237,44 @@ export default function CargaMasivaPage() {
                     throw new Error("Formato de fecha inválido.");
                 }
 
-                const tipoMadera = String(row["Tipo de Madera"] || "").trim();
-                if (!validTimberTypes.includes(tipoMadera)) {
-                  throw new Error(`Tipo de madera '${tipoMadera}' no es válido.`);
-                }
-                const volumen = parseFloat(String(row["Volumen (m³)"] || "0"));
-                const precioPorMetroCubico = parseFloat(String(row["Precio por Metro Cúbico ($)"] || "0"));
-                if (isNaN(volumen) || volumen <= 0) throw new Error("Volumen inválido.");
-                if (isNaN(precioPorMetroCubico) || precioPorMetroCubico <= 0) throw new Error("Precio por m³ inválido.");
+              const tipoMadera = String(row["Tipo de Madera"] || "").trim();
+              if (!validTimberTypes.includes(tipoMadera)) throw new Error(`Tipo de madera '${tipoMadera}' no es válido.`);
+              const volumen = parseFloat(String(row["Volumen (m³)"] || "0"));
+              const precioPorMetroCubico = parseFloat(String(row["Precio por Metro Cúbico ($)"] || "0"));
+              if (isNaN(volumen) || volumen <= 0) throw new Error("Volumen inválido.");
+              if (isNaN(precioPorMetroCubico) || precioPorMetroCubico <= 0) throw new Error("Precio por m³ inválido.");
+              const proveedor = String(row["Proveedor"] || "").trim();
+              if (!proveedor) throw new Error("Proveedor es requerido.");
 
-                const proveedor = String(row["Proveedor"] || "").trim();
-                if (!proveedor) throw new Error("Proveedor es requerido.");
-
-                const nuevaCompra: Compra = {
-                  id: `compra-bulk-${Date.now()}-${index}`,
-                  fecha: fechaCompra,
-                  tipoMadera,
-                  volumen,
-                  precioPorMetroCubico,
-                  costo: volumen * precioPorMetroCubico,
-                  proveedor,
-                  telefonoProveedor: String(row["Telefono Proveedor (Opcional)"] || "").trim() || undefined,
-                };
-                nuevasCompras.push(nuevaCompra);
-                processedCount++;
-              } catch (e: any) {
-                errorCount++;
-                errorRows.push({ row: index + 2, message: e.message || "Error desconocido", data: row });
-              }
-            });
-
-            if (nuevasCompras.length > 0) {
-              const storedCompras = localStorage.getItem(COMPRAS_STORAGE_KEY);
-              let comprasActuales: Compra[] = storedCompras ? JSON.parse(storedCompras) : [];
-              comprasActuales.push(...nuevasCompras);
-              comprasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-              localStorage.setItem(COMPRAS_STORAGE_KEY, JSON.stringify(comprasActuales));
+              const nuevaCompra: Omit<Compra, 'id'> = {
+                fecha: fechaCompra, tipoMadera, volumen, precioPorMetroCubico,
+                costo: volumen * precioPorMetroCubico,
+                proveedor,
+                telefonoProveedor: String(row["Telefono Proveedor (Opcional)"] || "").trim() || undefined,
+              };
+              newRecords.push(nuevaCompra);
+              processedCount++;
+            } catch (e: any) {
+              errorCount++;
+              errorRows.push({ row: index + 2, message: e.message || "Error desconocido", data: row });
             }
+          });
 
-          } else if (type === 'ventas') {
-            const validTimberTypes = initialConfigData.preciosMadera.map(pm => pm.tipoMadera);
-            const ventasAgrupadas: { [key: string]: any[] } = {};
-            jsonData.forEach((row, index) => {
-                const idVenta = String(row["ID Venta (Agrupar filas con mismo ID para una sola venta)"] || "").trim();
-                if (!idVenta) {
-                    return;
-                }
-                if (!ventasAgrupadas[idVenta]) {
-                    ventasAgrupadas[idVenta] = [];
-                }
-                ventasAgrupadas[idVenta].push({ ...row, originalRowIndex: index + 2 });
-            });
+        } else if (type === 'ventas') {
+          const validTimberTypes = config.preciosMadera.map(pm => pm.tipoMadera);
+          const ventasAgrupadas: { [key: string]: any[] } = {};
+          jsonData.forEach((row, index) => {
+              const idVenta = String(row["ID Venta (Agrupar filas con mismo ID para una sola venta)"] || "").trim();
+              if (!idVenta) return;
+              if (!ventasAgrupadas[idVenta]) ventasAgrupadas[idVenta] = [];
+              ventasAgrupadas[idVenta].push({ ...row, originalRowIndex: index + 2 });
+          });
 
-            const nuevasVentas: Venta[] = [];
-            for (const idVenta in ventasAgrupadas) {
-                const group = ventasAgrupadas[idVenta];
-                const firstRow = group[0];
-                try {
-                    const fechaRaw = firstRow["Fecha (YYYY-MM-DD)"];
+          for (const idVenta in ventasAgrupadas) {
+              const group = ventasAgrupadas[idVenta];
+              const firstRow = group[0];
+              try {
+                  const fechaRaw = firstRow["Fecha (YYYY-MM-DD)"];
                     let fechaVenta: string;
                     if (fechaRaw instanceof Date && isValid(fechaRaw)) {
                         fechaVenta = format(fechaRaw, "yyyy-MM-dd");
@@ -299,186 +288,133 @@ export default function CargaMasivaPage() {
                         throw new Error("Formato de fecha de venta inválido.");
                     }
 
-                    let fechaEntregaEstimada: string | undefined = undefined;
-                    const fechaEntregaRaw = firstRow["Fecha Entrega Estimada (YYYY-MM-DD, Opcional)"];
-                    if (fechaEntregaRaw) {
-                        if (fechaEntregaRaw instanceof Date && isValid(fechaEntregaRaw)) {
-                            fechaEntregaEstimada = format(fechaEntregaRaw, "yyyy-MM-dd");
-                        } else if (typeof fechaEntregaRaw === 'string' && isValid(parseISO(fechaEntregaRaw))) {
-                            fechaEntregaEstimada = format(parseISO(fechaEntregaRaw), "yyyy-MM-dd");
-                        } else if (typeof fechaEntregaRaw === 'number') {
-                            const d = XLSX.SSF.parse_date_code(fechaEntregaRaw);
-                            if (d) fechaEntregaEstimada = format(new Date(d.y, d.m-1,d.d,d.H,d.M,d.S), "yyyy-MM-dd");
-                        }
-                    }
+                  let fechaEntregaEstimada: string | undefined = undefined;
+                  const fechaEntregaRaw = firstRow["Fecha Entrega Estimada (YYYY-MM-DD, Opcional)"];
+                  if (fechaEntregaRaw) {
+                      if (fechaEntregaRaw instanceof Date && isValid(fechaEntregaRaw)) fechaEntregaEstimada = format(fechaEntregaRaw, "yyyy-MM-dd");
+                      else if (typeof fechaEntregaRaw === 'string' && isValid(parseISO(fechaEntregaRaw))) fechaEntregaEstimada = format(parseISO(fechaEntregaRaw), "yyyy-MM-dd");
+                      else if (typeof fechaEntregaRaw === 'number') {
+                          const d = XLSX.SSF.parse_date_code(fechaEntregaRaw);
+                          if (d) fechaEntregaEstimada = format(new Date(d.y, d.m-1,d.d,d.H,d.M,d.S), "yyyy-MM-dd");
+                      }
+                  }
 
-                    const nombreComprador = String(firstRow["Nombre Comprador"] || "").trim();
-                    if (!nombreComprador) throw new Error ("Nombre del comprador es requerido.");
+                  const nombreComprador = String(firstRow["Nombre Comprador"] || "").trim();
+                  if (!nombreComprador) throw new Error ("Nombre del comprador es requerido.");
+                  const sena = parseFloat(String(firstRow["Seña ($) (Opcional, ingresar una vez por ID Venta)"] || "0"));
+                  const costoOperario = parseFloat(String(firstRow["Costo Operario ($) (Opcional, ingresar una vez por ID Venta)"] || "0"));
+                  
+                  let seEncontroCostoMaderaEnExcel = false, seEncontroCostoAserrioEnExcel = false;
+                  let acumuladoCostoMaderaExcel = 0, acumuladoCostoAserrioExcel = 0;
 
-                    const senaStr = String(firstRow["Seña ($) (Opcional, ingresar una vez por ID Venta)"] || "0");
-                    const sena = senaStr ? parseFloat(senaStr) : undefined;
-                    if (senaStr && isNaN(sena!)) throw new Error("Valor de Seña inválido.");
+                  const detallesVenta: VentaDetalle[] = group.map((itemRow, itemIndex) => {
+                      const tipoMaderaItem = String(itemRow["Tipo Madera (Artículo)"] || "").trim();
+                      if(!tipoMaderaItem) throw new Error(`Fila ${itemRow.originalRowIndex}: Tipo de madera del artículo es requerido.`);
+                      if (!validTimberTypes.includes(tipoMaderaItem)) throw new Error(`Fila ${itemRow.originalRowIndex}: Tipo de madera '${tipoMaderaItem}' no es válido.`);
+                      
+                      const unidades = parseInt(String(itemRow["Unidades (Artículo)"] || "0"), 10);
+                      const ancho = parseFloat(String(itemRow["Ancho (pulg, Artículo)"] || "0"));
+                      const alto = parseFloat(String(itemRow["Alto (pulg, Artículo)"] || "0"));
+                      const largo = parseFloat(String(itemRow["Largo (m, Artículo)"] || "0"));
+                      const precioPorPieItem = parseFloat(String(itemRow["Precio Por Pie ($) (Artículo)"] || "0"));
+                      const cepilladoStr = String(itemRow["Cepillado (Si/No, Artículo)"] || "No").trim().toLowerCase();
+                      if (isNaN(unidades) || unidades <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Unidades inválidas.`);
+                      if (!['si', 'no'].includes(cepilladoStr)) throw new Error(`Fila ${itemRow.originalRowIndex}: Valor de Cepillado debe ser 'Si' o 'No'.`);
 
-                    const costoOperarioStr = String(firstRow["Costo Operario ($) (Opcional, ingresar una vez por ID Venta)"] || "0");
-                    const costoOperario = costoOperarioStr ? parseFloat(costoOperarioStr) : undefined;
-                    if (costoOperarioStr && isNaN(costoOperario!)) throw new Error("Valor de Costo Operario inválido.");
+                      const cepillado = cepilladoStr === 'si';
+                      const piesTablares = calcularPiesTablaresVentaItem({ unidades, ancho, alto, largo });
+                      const precioCepilladoItemExcel = parseFloat(String(itemRow["Precio Cepillado Por Pie ($) (Artículo, Opcional)"] || "").trim());
+                      const precioCepilladoAplicable = (cepillado && !isNaN(precioCepilladoItemExcel) && precioCepilladoItemExcel >= 0) ? precioCepilladoItemExcel : config.precioCepilladoPorPie;
+                      const subTotal = calcularSubtotalVentaItem({ precioPorPie: precioPorPieItem, cepillado }, piesTablares, precioCepilladoAplicable);
 
-                    let acumuladoCostoMaderaExcel = 0;
-                    let acumuladoCostoAserrioExcel = 0;
-                    let seEncontroCostoMaderaEnExcel = false;
-                    let seEncontroCostoAserrioEnExcel = false;
+                      const costoMaderaItemExcel = parseFloat(String(itemRow["Costo Madera Estimado ($) (Artículo, Informativo)"] || "").trim());
+                      if (!isNaN(costoMaderaItemExcel) && costoMaderaItemExcel >= 0) {
+                          acumuladoCostoMaderaExcel += costoMaderaItemExcel;
+                          seEncontroCostoMaderaEnExcel = true;
+                      }
 
-                    const detallesVenta: VentaDetalle[] = group.map((itemRow, itemIndex) => {
-                        const tipoMaderaItem = String(itemRow["Tipo Madera (Artículo)"] || "").trim();
-                        if(!tipoMaderaItem) throw new Error(`Fila ${itemRow.originalRowIndex}: Tipo de madera del artículo es requerido.`);
-                        if (!validTimberTypes.includes(tipoMaderaItem)) {
-                          throw new Error(`Fila ${itemRow.originalRowIndex}: Tipo de madera '${tipoMaderaItem}' no es válido.`);
-                        }
-                        const unidades = parseInt(String(itemRow["Unidades (Artículo)"] || "0"), 10);
-                        const ancho = parseFloat(String(itemRow["Ancho (pulg, Artículo)"] || "0"));
-                        const alto = parseFloat(String(itemRow["Alto (pulg, Artículo)"] || "0"));
-                        const largo = parseFloat(String(itemRow["Largo (m, Artículo)"] || "0"));
-                        const precioPorPieItem = parseFloat(String(itemRow["Precio Por Pie ($) (Artículo)"] || "0"));
-                        const cepilladoStr = String(itemRow["Cepillado (Si/No, Artículo)"] || "No").trim().toLowerCase();
+                      const costoAserrioItemExcel = parseFloat(String(itemRow["Costo Aserrío Estimado ($) (Artículo, Informativo)"] || "").trim());
+                       if (!isNaN(costoAserrioItemExcel) && costoAserrioItemExcel >= 0) {
+                          acumuladoCostoAserrioExcel += costoAserrioItemExcel;
+                          seEncontroCostoAserrioEnExcel = true;
+                      }
 
-                        if (isNaN(unidades) || unidades <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Unidades inválidas.`);
-                        if (isNaN(ancho) || ancho <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Ancho inválido.`);
-                        if (isNaN(alto) || alto <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Alto inválido.`);
-                        if (isNaN(largo) || largo <=0) throw new Error(`Fila ${itemRow.originalRowIndex}: Largo inválido.`);
-                        if (isNaN(precioPorPieItem) || precioPorPieItem <0) throw new Error(`Fila ${itemRow.originalRowIndex}: Precio por pie inválido.`);
-                        if (!['si', 'no'].includes(cepilladoStr)) throw new Error(`Fila ${itemRow.originalRowIndex}: Valor de Cepillado debe ser 'Si' o 'No'.`);
+                      return {
+                          id: `vd-bulk-${Date.now()}-${itemIndex}`,
+                          tipoMadera: tipoMaderaItem, unidades, ancho, alto, largo, precioPorPie: precioPorPieItem, cepillado, piesTablares, subTotal,
+                          valorUnitario: unidades > 0 ? subTotal / unidades : 0,
+                      };
+                  });
+                  
+                  const costoMaderaSnapshot = seEncontroCostoMaderaEnExcel ? acumuladoCostoMaderaExcel : calcularCostoMaderaTotalParaVenta(detallesVenta, config);
+                  const costoAserrioSnapshot = seEncontroCostoAserrioEnExcel ? acumuladoCostoAserrioExcel : calcularCostoAserrioTotalParaVenta(detallesVenta, config);
 
-                        const cepillado = cepilladoStr === 'si';
-                        const piesTablares = calcularPiesTablaresVentaItem({ unidades, ancho, alto, largo });
-
-                        let precioCepilladoAplicable = 0;
-                        if (cepillado) {
-                            const precioCepilladoItemExcelStr = String(itemRow["Precio Cepillado Por Pie ($) (Artículo, Opcional)"] || "").trim();
-                            const precioCepilladoItemExcel = parseFloat(precioCepilladoItemExcelStr);
-                            if (precioCepilladoItemExcelStr && !isNaN(precioCepilladoItemExcel) && precioCepilladoItemExcel >= 0) {
-                                precioCepilladoAplicable = precioCepilladoItemExcel;
-                            } else {
-                                precioCepilladoAplicable = initialConfigData.precioCepilladoPorPie; // Fallback al global
-                            }
-                        }
-                        
-                        const subTotal = calcularSubtotalVentaItem({ precioPorPie: precioPorPieItem, cepillado }, piesTablares, precioCepilladoAplicable);
-
-                        const costoMaderaItemExcelStr = String(itemRow["Costo Madera Estimado ($) (Artículo, Informativo)"] || "").trim();
-                        const costoMaderaItemExcel = parseFloat(costoMaderaItemExcelStr);
-                        if (costoMaderaItemExcelStr && !isNaN(costoMaderaItemExcel) && costoMaderaItemExcel >= 0) {
-                            acumuladoCostoMaderaExcel += costoMaderaItemExcel;
-                            seEncontroCostoMaderaEnExcel = true;
-                        } else if (costoMaderaItemExcelStr && (isNaN(costoMaderaItemExcel) || costoMaderaItemExcel < 0)) {
-                            console.warn(`Fila ${itemRow.originalRowIndex}: Costo Madera Estimado inválido, se recalculará. Valor: '${costoMaderaItemExcelStr}'`);
-                        }
-
-                        const costoAserrioItemExcelStr = String(itemRow["Costo Aserrío Estimado ($) (Artículo, Informativo)"] || "").trim();
-                        const costoAserrioItemExcel = parseFloat(costoAserrioItemExcelStr);
-                         if (costoAserrioItemExcelStr && !isNaN(costoAserrioItemExcel) && costoAserrioItemExcel >= 0) {
-                            acumuladoCostoAserrioExcel += costoAserrioItemExcel;
-                            seEncontroCostoAserrioEnExcel = true;
-                        } else if (costoAserrioItemExcelStr && (isNaN(costoAserrioItemExcel) || costoAserrioItemExcel < 0)) {
-                            console.warn(`Fila ${itemRow.originalRowIndex}: Costo Aserrío Estimado inválido, se recalculará. Valor: '${costoAserrioItemExcelStr}'`);
-                        }
-
-                        return {
-                            id: `vd-bulk-${Date.now()}-${itemIndex}-${Math.random().toString(36).substring(2,7)}`,
-                            tipoMadera: tipoMaderaItem,
-                            unidades, ancho, alto, largo, precioPorPie: precioPorPieItem, cepillado,
-                            piesTablares,
-                            subTotal,
-                            valorUnitario: unidades > 0 ? subTotal / unidades : 0,
-                        };
-                    });
-
-                    const configActual = initialConfigData;
-                    const costoMaderaSnapshot = seEncontroCostoMaderaEnExcel
-                        ? acumuladoCostoMaderaExcel
-                        : calcularCostoMaderaTotalParaVenta(detallesVenta, configActual);
-
-                    const costoAserrioSnapshot = seEncontroCostoAserrioEnExcel
-                        ? acumuladoCostoAserrioExcel
-                        : calcularCostoAserrioTotalParaVenta(detallesVenta, configActual);
-
-                    const nuevaVenta: Venta = {
-                        id: `venta-bulk-${Date.now()}-${idVenta}`,
-                        fecha: fechaVenta,
-                        nombreComprador,
-                        telefonoComprador: String(firstRow["Telefono Comprador (Opcional)"] || "").trim() || undefined,
-                        fechaEntregaEstimada,
-                        sena: (sena !== undefined && !isNaN(sena)) ? sena : undefined,
-                        costoOperario: (costoOperario !== undefined && !isNaN(costoOperario)) ? costoOperario : undefined,
-                        detalles: detallesVenta,
-                        totalVenta: detallesVenta.reduce((sum, d) => sum + (d.subTotal || 0), 0),
-                        costoMaderaVentaSnapshot: costoMaderaSnapshot,
-                        costoAserrioVentaSnapshot: costoAserrioSnapshot,
-                    };
-                    nuevasVentas.push(nuevaVenta);
-                    processedCount++;
-                } catch (e: any) {
-                    errorCount++;
-                    errorRows.push({ row: firstRow.originalRowIndex, message: `Error procesando Venta ID ${idVenta}: ${e.message || "Error desconocido"}`, data: firstRow });
-                }
-            }
-             if (nuevasVentas.length > 0) {
-              const storedVentas = localStorage.getItem(VENTAS_STORAGE_KEY);
-              let ventasActuales: Venta[] = storedVentas ? JSON.parse(storedVentas) : [];
-              ventasActuales.push(...nuevasVentas);
-              ventasActuales.sort((a, b) => b.fecha.localeCompare(a.fecha));
-              localStorage.setItem(VENTAS_STORAGE_KEY, JSON.stringify(ventasActuales));
-            }
-          }
-
-          toast({
-            title: "Proceso de Carga Finalizado",
-            description: `${processedCount} registro(s) procesado(s) exitosamente. ${errorCount} registro(s) con errores.`,
-            variant: errorCount > 0 ? "destructive" : "default",
-            duration: errorCount > 0 ? 10000 : 5000,
-          });
-
-          if (errorCount > 0) {
-            console.error("Errores durante la carga masiva:", errorRows);
-            toast({
-                title: "Detalle de Errores",
-                description: "Algunos registros no pudieron ser procesados. Revise la consola del navegador (F12) para más detalles.",
-                variant: "destructive",
-                duration: 10000,
-            })
-          }
-
-        } catch (parseError: any) {
-          toast({ title: "Error de Procesamiento", description: `No se pudo procesar el archivo: ${parseError.message}`, variant: "destructive" });
-          errorCount = jsonData?.length || 1;
-        } finally {
-          setIsProcessing(false);
-          if (type === 'compras' && document.getElementById('compras-file-upload')) {
-            setComprasFile(null);
-            (document.getElementById('compras-file-upload') as HTMLInputElement).value = "";
-          }
-          if (type === 'ventas' && document.getElementById('ventas-file-upload')) {
-            setVentasFile(null);
-            (document.getElementById('ventas-file-upload') as HTMLInputElement).value = "";
+                  const nuevaVenta: Omit<Venta, 'id'> = {
+                      fecha: fechaVenta, nombreComprador,
+                      telefonoComprador: String(firstRow["Telefono Comprador (Opcional)"] || "").trim() || undefined,
+                      fechaEntregaEstimada,
+                      sena: !isNaN(sena) ? sena : undefined,
+                      costoOperario: !isNaN(costoOperario) ? costoOperario : undefined,
+                      detalles: detallesVenta,
+                      totalVenta: detallesVenta.reduce((sum, d) => sum + (d.subTotal || 0), 0),
+                      costoMaderaVentaSnapshot, costoAserrioVentaSnapshot,
+                  };
+                  newRecords.push(nuevaVenta);
+                  processedCount++;
+              } catch (e: any) {
+                  errorCount++;
+                  errorRows.push({ row: firstRow.originalRowIndex, message: `Error procesando Venta ID ${idVenta}: ${e.message || "Error desconocido"}`, data: firstRow });
+              }
           }
         }
-      };
-      reader.onerror = () => {
-        toast({ title: "Error de Lectura", description: "No se pudo leer el archivo seleccionado.", variant: "destructive" });
-        setIsProcessing(false);
-      };
-      reader.readAsArrayBuffer(file);
 
-    } catch (e: any) {
-      toast({ title: "Error Inesperado", description: e.message || "Ocurrió un error durante la carga.", variant: "destructive" });
+        // Save records to Firebase
+        if (newRecords.length > 0) {
+          const savePromises = newRecords.map(record => {
+            if ('proveedor' in record) { // It's a Compra
+              return addCompra(record);
+            } else { // It's a Venta
+              return addVenta(record);
+            }
+          });
+          await Promise.all(savePromises);
+        }
+
+        toast({
+          title: "Proceso de Carga Finalizado",
+          description: `${processedCount} registro(s) procesado(s) y guardado(s) en Firebase. ${errorCount} registro(s) con errores.`,
+          variant: errorCount > 0 ? "destructive" : "default",
+          duration: errorCount > 0 ? 10000 : 5000,
+        });
+
+        if (errorCount > 0) {
+          console.error("Errores durante la carga masiva:", errorRows);
+          toast({ title: "Detalle de Errores", description: "Revise la consola del navegador (F12) para más detalles.", variant: "destructive", duration: 10000 });
+        }
+
+      } catch (parseError: any) {
+        toast({ title: "Error de Procesamiento", description: `No se pudo procesar el archivo: ${parseError.message}`, variant: "destructive" });
+        errorCount = jsonData?.length || 1;
+      } finally {
+        setIsProcessing(false);
+        if (type === 'compras' && document.getElementById('compras-file-upload')) (document.getElementById('compras-file-upload') as HTMLInputElement).value = "";
+        if (type === 'ventas' && document.getElementById('ventas-file-upload')) (document.getElementById('ventas-file-upload') as HTMLInputElement).value = "";
+        setComprasFile(null);
+        setVentasFile(null);
+      }
+    };
+    reader.onerror = () => {
+      toast({ title: "Error de Lectura", description: "No se pudo leer el archivo seleccionado.", variant: "destructive" });
       setIsProcessing(false);
-    }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   return (
     <div className="container mx-auto py-6">
       <PageTitle
         title="Carga Masiva de Compras y Ventas"
-        description="Descargue las plantillas proforma (formato XLSX), complete sus datos y luego cargue los archivos para registrar múltiples operaciones a la vez."
+        description="Descargue las plantillas proforma (formato XLSX), complete sus datos y luego cargue los archivos para registrar múltiples operaciones a la vez en Firebase."
       />
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -486,32 +422,22 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Compras</CardTitle>
             <CardDescription>
-              Descargue la plantilla XLSX, complete sus datos de compra y luego cargue el archivo.
+              Descargue la plantilla, complete sus datos y cargue el archivo para guardarlo en Firebase.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => handleProformaDownload('compras')} variant="outline" className="w-full">
+            <Button onClick={() => handleProformaDownload('compras')} variant="outline" className="w-full" disabled={!config}>
               <Download className="mr-2 h-4 w-4" /> Descargar Proforma Compras (XLSX)
             </Button>
             <div className="space-y-2">
               <label htmlFor="compras-file-upload" className="text-sm font-medium">Subir Archivo de Compras (XLSX)</label>
-              <Input
-                id="compras-file-upload"
-                type="file"
-                accept=".xlsx,.csv"
-                onChange={(e) => handleFileChange(e, 'compras')}
-                disabled={isProcessing}
-              />
+              <Input id="compras-file-upload" type="file" accept=".xlsx" onChange={(e) => handleFileChange(e, 'compras')} disabled={isProcessing || !config} />
               {comprasFile && <p className="text-xs text-muted-foreground">Archivo seleccionado: {comprasFile.name}</p>}
             </div>
-            <Button onClick={() => handleUpload('compras')} className="w-full" disabled={!comprasFile || isProcessing}>
+            <Button onClick={() => handleUpload('compras')} className="w-full" disabled={!comprasFile || isProcessing || !config}>
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-              {isProcessing ? "Procesando Compras..." : "Procesar Compras"}
+              {isProcessing ? "Procesando..." : "Procesar Compras"}
             </Button>
-            <p className="text-xs text-muted-foreground pt-2">
-              Asegúrese de que los 'Tipos de Madera' en su archivo coincidan con los nombres exactos proporcionados en la plantilla.
-              Las filas que no contengan una Fecha y un Proveedor válidos serán omitidas.
-            </p>
           </CardContent>
         </Card>
 
@@ -519,39 +445,25 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Ventas</CardTitle>
             <CardDescription>
-              Descargue la plantilla XLSX, complete sus datos de venta y luego cargue el archivo.
+              Descargue la plantilla, complete sus datos y cargue el archivo para guardarlo en Firebase.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button onClick={() => handleProformaDownload('ventas')} variant="outline" className="w-full">
+            <Button onClick={() => handleProformaDownload('ventas')} variant="outline" className="w-full" disabled={!config}>
               <Download className="mr-2 h-4 w-4" /> Descargar Proforma Ventas (XLSX)
             </Button>
              <div className="space-y-2">
               <label htmlFor="ventas-file-upload" className="text-sm font-medium">Subir Archivo de Ventas (XLSX)</label>
-              <Input
-                id="ventas-file-upload"
-                type="file"
-                accept=".xlsx,.csv"
-                onChange={(e) => handleFileChange(e, 'ventas')}
-                disabled={isProcessing}
-              />
+              <Input id="ventas-file-upload" type="file" accept=".xlsx" onChange={(e) => handleFileChange(e, 'ventas')} disabled={isProcessing || !config} />
               {ventasFile && <p className="text-xs text-muted-foreground">Archivo seleccionado: {ventasFile.name}</p>}
             </div>
-            <Button onClick={() => handleUpload('ventas')} className="w-full" disabled={!ventasFile || isProcessing}>
+            <Button onClick={() => handleUpload('ventas')} className="w-full" disabled={!ventasFile || isProcessing || !config}>
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-              {isProcessing ? "Procesando Ventas..." : "Procesar Ventas"}
+              {isProcessing ? "Procesando..." : "Procesar Ventas"}
             </Button>
-            <p className="text-xs text-muted-foreground pt-2">
-              Asegúrese de que los 'Tipos de Madera (Artículo)' coincidan con los nombres exactos de la plantilla.
-              Para ventas con múltiples artículos, use el mismo 'ID Venta' para todas las filas correspondientes. Las filas sin 'ID Venta' serán omitidas.
-              Si completa "Precio Cepillado Por Pie ($) (Artículo, Opcional)", ese valor se usará para ese artículo; de lo contrario, se usará el precio de cepillado global del sistema.
-              Si completa "Costo Madera Estimado" y "Costo Aserrío Estimado", esos valores se usarán; de lo contrario, el sistema los calculará.
-            </p>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
-    
