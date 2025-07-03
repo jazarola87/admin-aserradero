@@ -44,8 +44,7 @@ const getCostoMaderaParaVenta = (venta: Venta, config: Configuracion): number =>
       if (piesTablares === 0) return totalCosto;
 
       const costoPorMetroCubico = Number(costosMap.get(detalle.tipoMadera)) || 0;
-      if (costoPorMetroCubico === 0) return totalCosto;
-
+      
       const costoDelItem = (costoPorMetroCubico / 200) * piesTablares;
       return totalCosto + costoDelItem;
   }, 0);
@@ -61,13 +60,11 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
   const precioNafta = Number(config.precioLitroNafta) || 0;
   const precioAfilado = Number(config.precioAfiladoSierra) || 0;
 
-  if (precioNafta === 0 || precioAfilado === 0) return 0;
-
   const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
   const costoOperativoAjustado = costoOperativoBase * 1.38;
   const costoAserrioPorPie = costoOperativoAjustado / 600;
 
-  if (costoAserrioPorPie === 0 || !isFinite(costoAserrioPorPie)) return 0;
+  if (!isFinite(costoAserrioPorPie)) return 0;
   
   const totalPiesTablaresVenta = (venta.detalles || []).reduce((acc, detalle) => {
     return acc + calcularPiesTablaresItem(detalle);
