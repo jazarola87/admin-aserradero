@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -68,9 +68,6 @@ const ventaFormSchema = z.object({
       }
     ),
   idOriginalPresupuesto: z.string().optional(), 
-  totalVentaManual: z.coerce.number().optional(),
-  costoMaderaManual: z.coerce.number().optional(),
-  costoAserrioManual: z.coerce.number().optional(),
 });
 
 type VentaFormValues = z.infer<typeof ventaFormSchema>;
@@ -93,6 +90,12 @@ export default function EditarVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [config, setConfig] = useState<Configuracion | null>(null);
+  
+  const [totals, setTotals] = useState({
+    totalVenta: 0,
+    costoMadera: 0,
+    costoAserrio: 0,
+  });
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -130,10 +133,6 @@ export default function EditarVentaPage() {
                 precioPorPie: Number(d.precioPorPie) || undefined,
                 cepillado: d.cepillado ?? false,
             }));
-
-            const totalVentaSnapshot = ventaAEditar.totalVenta;
-            const costoMaderaSnapshot = ventaAEditar.costoMaderaVentaSnapshot;
-            const costoAserrioSnapshot = ventaAEditar.costoAserrioVentaSnapshot;
             
             form.reset({
               fecha: ventaAEditar.fecha && isValid(parseISO(ventaAEditar.fecha)) ? parseISO(ventaAEditar.fecha) : new Date(),
@@ -144,9 +143,6 @@ export default function EditarVentaPage() {
               costoOperario: ventaAEditar.costoOperario ?? undefined,
               idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
               detalles: [], 
-              totalVentaManual: totalVentaSnapshot && totalVentaSnapshot > 0 ? totalVentaSnapshot : undefined,
-              costoMaderaManual: costoMaderaSnapshot && costoMaderaSnapshot > 0 ? costoMaderaSnapshot : undefined,
-              costoAserrioManual: costoAserrioSnapshot && costoAserrioSnapshot > 0 ? costoAserrioSnapshot : undefined,
             });
             
             replace(loadedDetails); 
@@ -175,87 +171,58 @@ export default function EditarVentaPage() {
   const watchedDetalles = form.watch("detalles");
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
-  const watchedTotalVentaManual = form.watch("totalVentaManual");
-  const watchedCostoMaderaManual = form.watch("costoMaderaManual");
-  const watchedCostoAserrioManual = form.watch("costoAserrioManual");
 
-  const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
+  const calcularPiesTablares = useCallback((detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
     const unidades = Number(detalle?.unidades) || 0;
     const alto = Number(detalle?.alto) || 0; 
     const ancho = Number(detalle?.ancho) || 0; 
     const largo = Number(detalle?.largo) || 0;
     if (!unidades || !alto || !ancho || !largo) return 0;
     return unidades * alto * ancho * largo * 0.2734;
-  };
+  }, []);
 
-  const calcularSubtotalDetalle = (
-    detalle: Partial<z.infer<typeof ventaDetalleSchema>>,
-    piesTablares: number
-  ): number => {
-    const precioPorPie = Number(detalle?.precioPorPie);
-    if (isNaN(precioPorPie) || piesTablares === 0) return 0;
-    let subtotal = piesTablares * precioPorPie;
-    if (detalle?.cepillado && config) {
-      subtotal += piesTablares * (Number(config.precioCepilladoPorPie) || 0);
-    }
-    return subtotal;
-  };
-  
-  const calculatedTotalVentaGeneral = useMemo(() => {
-    if (!config) return 0;
-    return watchedDetalles.reduce((acc, detalle) => {
-      const pies = calcularPiesTablares(detalle);
-      return acc + calcularSubtotalDetalle(detalle, pies);
-    }, 0);
-  }, [watchedDetalles, config]);
+  useEffect(() => {
+    if (!config) return;
 
-  const calculatedCostoTotalMaderaVenta = useMemo(() => {
-    if (!config || !config.costosMaderaMetroCubico) return 0;
-    
-    const costosMap = new Map(config.costosMaderaMetroCubico.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
-
-    return watchedDetalles.reduce((totalCosto, detalle) => {
-        if (!detalle.tipoMadera) return totalCosto;
+    const newTotals = watchedDetalles.reduce((acc, detalle) => {
+        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
+            return acc;
+        }
 
         const piesTablares = calcularPiesTablares(detalle);
-        if (piesTablares === 0) return totalCosto;
-
-        const costoPorMetroCubico = Number(costosMap.get(detalle.tipoMadera)) || 0;
         
-        const costoDelItem = (costoPorMetroCubico / 200) * piesTablares;
-        return totalCosto + costoDelItem;
-    }, 0);
-  }, [watchedDetalles, config]);
+        const precioPorPie = Number(detalle.precioPorPie) || 0;
+        let subtotalVenta = piesTablares * precioPorPie;
+        if (detalle.cepillado) {
+            subtotalVenta += piesTablares * (Number(config.precioCepilladoPorPie) || 0);
+        }
+        acc.totalVenta += subtotalVenta;
 
-  const calculatedCostoTotalAserrioVenta = useMemo(() => {
-    if (!config) return 0;
+        const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+        const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+        acc.costoMadera += (costoPorMetroCubico / 200) * piesTablares;
 
+        return acc;
+    }, { totalVenta: 0, costoMadera: 0 });
+
+    const totalPies = watchedDetalles.reduce((sum, d) => sum + calcularPiesTablares(d), 0);
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
-
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
-    const costoOperativoAjustado = costoOperativoBase * 1.38;
-    const costoAserrioPorPie = costoOperativoAjustado / 600;
+    const costoAjustado = costoOperativoBase * 1.38;
+    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
+    
+    newTotals.costoAserrio = totalPies * costoPorPieAserrio;
 
-    if (!isFinite(costoAserrioPorPie)) return 0;
+    setTotals(newTotals);
 
-    const totalPiesTablaresVenta = watchedDetalles.reduce((totalPies, detalle) => {
-        return totalPies + calcularPiesTablares(detalle);
-    }, 0);
+  }, [watchedDetalles, config, calcularPiesTablares]);
 
-    return totalPiesTablaresVenta * costoAserrioPorPie;
-  }, [watchedDetalles, config]);
+  const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
+  const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = totals.costoAserrio + (Number(watchedCostoOperario) || 0) + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const saldoPendiente = totals.totalVenta - (Number(watchedSena) || 0);
 
-  const displayTotalVenta = typeof watchedTotalVentaManual === 'number' && !isNaN(watchedTotalVentaManual) ? watchedTotalVentaManual : calculatedTotalVentaGeneral;
-  const displayCostoMadera = typeof watchedCostoMaderaManual === 'number' && !isNaN(watchedCostoMaderaManual) ? watchedCostoMaderaManual : calculatedCostoTotalMaderaVenta;
-  const displayCostoAserrio = typeof watchedCostoAserrioManual === 'number' && !isNaN(watchedCostoAserrioManual) ? watchedCostoAserrioManual : calculatedCostoTotalAserrioVenta;
-  const costoOperarioActual = Number(watchedCostoOperario) || 0;
-
-  const gananciaNetaEstimada = displayTotalVenta - displayCostoMadera - displayCostoAserrio - costoOperarioActual;
-  const valorJavier = displayCostoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = displayCostoAserrio + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const senaActual = Number(watchedSena) || 0;
-  const saldoPendiente = displayTotalVenta - senaActual;
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
@@ -281,19 +248,23 @@ export default function EditarVentaPage() {
         d.largo && d.largo > 0 &&
         d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
     ).map((d_form, idx) => {
-      const d = d_form as Required<Omit<VentaDetalleType, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
-      const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotalDetalle(d, pies);
-      const valorUnit = ((Number(d.unidades) || 0) > 0 && sub > 0) ? sub / (Number(d.unidades)) : 0;
+      const pies = calcularPiesTablares(d_form);
+      const precioPorPie = Number(d_form.precioPorPie) || 0;
+      let subTotal = pies * precioPorPie;
+      if (d_form.cepillado) {
+          subTotal += pies * (Number(config.precioCepilladoPorPie) || 0);
+      }
+      const valorUnit = (Number(d_form.unidades) > 0 && subTotal > 0) ? subTotal / Number(d_form.unidades) : 0;
+      
       return { 
-        ...d,
-        unidades: Number(d.unidades),
-        ancho: Number(d.ancho),
-        alto: Number(d.alto),
-        largo: Number(d.largo),
-        precioPorPie: Number(d.precioPorPie),
+        ...d_form,
+        unidades: Number(d_form.unidades),
+        ancho: Number(d_form.ancho),
+        alto: Number(d_form.alto),
+        largo: Number(d_form.largo),
+        precioPorPie: precioPorPie,
         piesTablares: pies, 
-        subTotal: sub, 
+        subTotal: subTotal, 
         valorUnitario: valorUnit, 
         id: `vd-edit-${Date.now()}-${idx}` 
       } as VentaDetalleType;
@@ -304,11 +275,6 @@ export default function EditarVentaPage() {
       setIsSubmitting(false);
       return;
     }
-    
-    const finalTotalVenta = typeof data.totalVentaManual === 'number' && !isNaN(data.totalVentaManual) ? data.totalVentaManual : calculatedTotalVentaGeneral;
-    const finalCostoMadera = typeof data.costoMaderaManual === 'number' && !isNaN(data.costoMaderaManual) ? data.costoMaderaManual : calculatedCostoTotalMaderaVenta;
-    const finalCostoAserrio = typeof data.costoAserrioManual === 'number' && !isNaN(data.costoAserrioManual) ? data.costoAserrioManual : calculatedCostoTotalAserrioVenta;
-
 
     const ventaActualizadaData: Partial<Omit<Venta, 'id'>> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
@@ -318,10 +284,10 @@ export default function EditarVentaPage() {
       sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
       costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
-      totalVenta: finalTotalVenta,
+      totalVenta: totals.totalVenta,
       idOriginalPresupuesto: data.idOriginalPresupuesto, 
-      costoMaderaVentaSnapshot: finalCostoMadera, 
-      costoAserrioVentaSnapshot: finalCostoAserrio, 
+      costoMaderaVentaSnapshot: totals.costoMadera, 
+      costoAserrioVentaSnapshot: totals.costoAserrio, 
     };
 
     try {
@@ -476,8 +442,12 @@ export default function EditarVentaPage() {
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
                       const piesTablares = calcularPiesTablares(currentDetalle);
-                      const subTotal = calcularSubtotalDetalle(currentDetalle, piesTablares);
-                      const valorUnitario = ((Number(currentDetalle?.unidades) || 0) > 0 && subTotal > 0) ? subTotal / (Number(currentDetalle.unidades)) : 0;
+                      const precioPorPie = Number(currentDetalle?.precioPorPie) || 0;
+                      let subTotal = piesTablares * precioPorPie;
+                      if (currentDetalle?.cepillado) {
+                          subTotal += piesTablares * (Number(config?.precioCepilladoPorPie) || 0);
+                      }
+                      const valorUnitario = (Number(currentDetalle?.unidades) > 0 && subTotal > 0) ? subTotal / Number(currentDetalle.unidades) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
 
                       return (
@@ -574,107 +544,51 @@ export default function EditarVentaPage() {
             </CardContent>
             <CardFooter className="flex flex-col items-end gap-1 mt-8 border-t pt-6">
               <div className="w-full max-w-md space-y-1 text-right">
-                  <FormField
-                    control={form.control}
-                    name="totalVentaManual"
-                    render={({ field }) => (
-                        <FormItem className="flex justify-between items-center">
-                        <FormLabel className="text-lg">Total Venta:</FormLabel>
-                        <FormControl>
-                            <Input 
-                            type="number" 
-                            step="0.01" 
-                            className="font-semibold text-primary text-right w-32 h-8" 
-                            placeholder={calculatedTotalVentaGeneral.toFixed(2)}
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                            />
-                        </FormControl>
-                        </FormItem>
-                    )}
-                    />
-                    {form.formState.errors.totalVentaManual && <FormMessage className="text-right">{form.formState.errors.totalVentaManual?.message}</FormMessage>}
-                
-                <Separator className="my-1" />
-
-                <FormField
-                  control={form.control}
-                  name="costoMaderaManual"
-                  render={({ field }) => (
-                    <FormItem className="flex justify-between items-center">
-                      <FormLabel className="text-sm text-muted-foreground">Costo Total Madera:</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          className="text-right w-32 h-8 bg-muted/30" 
-                          placeholder={calculatedCostoTotalMaderaVenta.toFixed(2)}
-                          {...field}
-                          value={field.value ?? ""}
-                          onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                {form.formState.errors.costoMaderaManual && <FormMessage className="text-right">{form.formState.errors.costoMaderaManual?.message}</FormMessage>}
-
-
-                <FormField
-                  control={form.control}
-                  name="costoAserrioManual"
-                  render={({ field }) => (
-                    <FormItem className="flex justify-between items-center">
-                      <FormLabel className="text-sm text-muted-foreground">Costo Total Aserrío:</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          step="0.01" 
-                          className="text-right w-32 h-8 bg-muted/30" 
-                          placeholder={calculatedCostoTotalAserrioVenta.toFixed(2)}
-                          {...field}
-                           value={field.value ?? ""}
-                          onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-                 {form.formState.errors.costoAserrioManual && <FormMessage className="text-right">{form.formState.errors.costoAserrioManual?.message}</FormMessage>}
-
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Costo Operario:</span>
-                  <span>${(Number(costoOperarioActual) || 0).toFixed(2)}</span>
-                </div>
-                 <Separator className="my-1" />
-                <div className="flex justify-between text-md font-semibold">
-                  <span>Ganancia Neta Estimada:</span>
-                  <span>${(Number(gananciaNetaEstimada) || 0).toFixed(2)}</span>
-                </div>
-                <Separator className="my-1" />
-                 <div className="flex justify-between text-sm">
-                  <span>Javier (Madera + 50% Gan. Neta):</span>
-                  <span>${(Number(valorJavier) || 0).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
-                  <span>${(Number(valorLucas) || 0).toFixed(2)}</span>
-                </div>
-                 {senaActual > 0 && (
-                  <>
+                    <div className="flex justify-between items-center text-lg">
+                        <span className="font-semibold">Total Venta:</span>
+                        <span className="font-semibold text-primary">${totals.totalVenta.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
                     <Separator className="my-1" />
-                    <div className="flex justify-between text-sm text-destructive">
-                        <span className="text-muted-foreground">Seña Aplicada:</span>
-                        <span>-${(Number(senaActual) || 0).toFixed(2)}</span>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Costo Total Madera:</span>
+                        <span>${totals.costoMadera.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="flex justify-between text-lg font-semibold">
-                        <span>Saldo Pendiente:</span>
-                        <span className="text-primary">${(Number(saldoPendiente) || 0).toFixed(2)}</span>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Costo Total Aserrío:</span>
+                        <span>${totals.costoAserrio.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
-                  </>
-                )}
-              </div>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Costo Operario:</span>
+                        <span>${(Number(watchedCostoOperario) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator className="my-1" />
+                    <div className="flex justify-between text-md font-semibold">
+                        <span>Ganancia Neta Estimada:</span>
+                        <span>${gananciaNetaEstimada.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <Separator className="my-1" />
+                    <div className="flex justify-between text-sm">
+                        <span>Javier (Madera + 50% Gan. Neta):</span>
+                        <span>${valorJavier.toLocaleString('es-ES', { minimumFraction Digits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                        <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
+                        <span>${valorLucas.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    {(Number(watchedSena) || 0) > 0 && (
+                        <>
+                            <Separator className="my-1" />
+                            <div className="flex justify-between text-sm text-destructive">
+                                <span className="text-muted-foreground">Seña Aplicada:</span>
+                                <span>-${(Number(watchedSena) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-lg font-semibold">
+                                <span>Saldo Pendiente:</span>
+                                <span className="text-primary">${saldoPendiente.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                        </>
+                    )}
+                </div>
               <Button type="submit" size="lg" disabled={isSubmitting || isLoading} className="mt-4">
                 {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 {isSubmitting ? "Guardando..." : "Guardar Cambios"}
@@ -686,3 +600,5 @@ export default function EditarVentaPage() {
     </div>
   );
 }
+
+    
