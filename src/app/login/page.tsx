@@ -50,12 +50,37 @@ export default function LoginPage() {
         description: "Bienvenido de vuelta.",
       });
     } catch (error: any) {
-      // This error is expected when a user enters invalid credentials.
-      // We notify the user with a toast, so no need to log it to the console.
+      let errorMessage = "Ocurrió un error inesperado. Por favor, intente de nuevo.";
+      let errorTitle = "Error de Inicio de Sesión";
+
+      // Firebase errors have a `code` property that gives more details.
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/invalid-credential':
+          case 'auth/wrong-password':
+          case 'auth/user-not-found':
+            errorMessage = "El correo electrónico o la contraseña son incorrectos. Por favor, verifíquelos e intente de nuevo.";
+            break;
+          case 'auth/operation-not-allowed':
+            errorTitle = "Error de Configuración de Firebase";
+            errorMessage = "El inicio de sesión por correo y contraseña no está habilitado. Por favor, actívelo en la consola de Firebase > Authentication > Sign-in method.";
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = "Se ha bloqueado el acceso desde este dispositivo debido a actividad inusual. Intente de nuevo más tarde.";
+            break;
+          case 'auth/network-request-failed':
+            errorMessage = "Error de red. Por favor, revise su conexión a internet.";
+            break;
+          default:
+            errorMessage = `Ocurrió un error: ${error.message} (código: ${error.code})`;
+        }
+      }
+
       toast({
-        title: "Error de Inicio de Sesión",
-        description: "El email o la contraseña son incorrectos. Por favor, intente de nuevo.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive",
+        duration: 9000, // Give more time to read detailed error messages
       });
     } finally {
       setIsLoading(false);
