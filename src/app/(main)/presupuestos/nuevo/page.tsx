@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -29,10 +28,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
+import { addPresupuesto } from "@/lib/firebase/services/presupuestosService";
 import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter } from "next/navigation";
-
-const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
   tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
@@ -78,6 +76,7 @@ export default function NuevoPresupuestoPage() {
   const router = useRouter(); 
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -155,59 +154,67 @@ export default function NuevoPresupuestoPage() {
     }
   };
 
-  function onSubmit(data: PresupuestoFormValues) {
-    const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
-    ).map((d_form, index) => {
-      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>; // Assume valid numbers
-      const pies = calcularPiesTablares(d);
-      const sub = calcularSubtotal(d, pies);
-      const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
-      return { 
-        ...d, 
-        unidades: Number(d.unidades),
-        ancho: Number(d.ancho),
-        alto: Number(d.alto),
-        largo: Number(d.largo),
-        precioPorPie: Number(d.precioPorPie),
-        piesTablares: pies, 
-        subTotal: sub, 
-        valorUnitario: valorUnit, 
-        id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
-      } as PresupuestoDetalle;
-    });
+  async function onSubmit(data: PresupuestoFormValues) {
+    setIsSubmitting(true);
+    try {
+      const processedDetalles = data.detalles.filter(
+        d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
+      ).map((d_form, index) => {
+        const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
+        const pies = calcularPiesTablares(d);
+        const sub = calcularSubtotal(d, pies);
+        const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
+        return { 
+          ...d, 
+          unidades: Number(d.unidades),
+          ancho: Number(d.ancho),
+          alto: Number(d.alto),
+          largo: Number(d.largo),
+          precioPorPie: Number(d.precioPorPie),
+          piesTablares: pies, 
+          subTotal: sub, 
+          valorUnitario: valorUnit, 
+          id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
+        } as PresupuestoDetalle;
+      });
 
-    if (processedDetalles.length === 0) {
+      if (processedDetalles.length === 0) {
+        toast({
+          title: "Error en el Presupuesto",
+          description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const nuevoPresupuestoData: Omit<Presupuesto, 'id'> = {
+        fecha: format(data.fecha, "yyyy-MM-dd"), 
+        nombreCliente: data.nombreCliente,
+        telefonoCliente: data.telefonoCliente,
+        detalles: processedDetalles,
+        totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
+      };
+
+      await addPresupuesto(nuevoPresupuestoData);
+      
       toast({
-        title: "Error en el Presupuesto",
-        description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
+        title: "Presupuesto Registrado en Firebase",
+        description: `Se ha registrado el presupuesto para ${data.nombreCliente}.`,
+        variant: "default"
+      });
+      router.push('/presupuestos');
+
+    } catch (error) {
+       console.error("Error al registrar presupuesto:", error);
+       toast({
+        title: "Error al Registrar",
+        description: "No se pudo registrar el presupuesto en Firebase. " + (error instanceof Error ? error.message : "Error desconocido."),
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const nuevoPresupuesto: Presupuesto = {
-      ...data,
-      id: `pres-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, 
-      fecha: format(data.fecha, "yyyy-MM-dd"), 
-      detalles: processedDetalles,
-      totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
-    };
-
-    if (typeof window !== 'undefined') {
-      const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
-      presupuestosActuales.push(nuevoPresupuesto);
-      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); 
-      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
-    }
-    
-    toast({
-      title: "Presupuesto Registrado",
-      description: `Se ha registrado el presupuesto para ${data.nombreCliente}. Total: $${nuevoPresupuesto.totalPresupuesto?.toFixed(2)}`,
-      variant: "default"
-    });
-    router.push('/presupuestos');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
@@ -397,9 +404,9 @@ export default function NuevoPresupuestoPage() {
               <div className="text-xl font-semibold">
                 Total General: <span className="text-primary">${totalGeneralPresupuesto.toFixed(2)}</span>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting || isLoading}>
-                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                {form.formState.isSubmitting ? "Registrando..." : "Registrar Presupuesto"}
+              <Button type="submit" size="lg" disabled={isSubmitting || isLoading}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {isSubmitting ? "Registrando..." : "Registrar Presupuesto"}
               </Button>
             </CardFooter>
           </Card>
