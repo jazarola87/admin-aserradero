@@ -30,11 +30,6 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/presupuestos',
     icon: ClipboardList,
   },
-    {
-    title: 'Carga Masiva',
-    href: '/carga-masiva',
-    icon: Upload,
-  },
   {
     title: 'Cronograma de Entregas',
     href: '/cronograma-entregas',
@@ -49,11 +44,6 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Costos Operativos',
     href: '/costos-operativos',
     icon: Wrench,
-  },
-  {
-    title: 'Asistente de Precios',
-    href: '/asistente-precios',
-    icon: Bot,
   },
     {
     title: 'Asistente Virtual',

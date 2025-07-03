@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -26,7 +27,7 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 function SidebarNav() {
   const pathname = usePathname();
-  const { open } = useSidebar();
+  const { open, isMobile, setOpenMobile } = useSidebar();
 
   return (
     <SidebarMenu>
@@ -38,7 +39,7 @@ function SidebarNav() {
             tooltip={open ? "" : item.title}
             className="justify-start"
           >
-            <Link href={item.href}>
+            <Link href={item.href} onClick={() => { if (isMobile) setOpenMobile(false); }}>
               <item.icon className="h-5 w-5" />
               <span>{item.title}</span>
             </Link>

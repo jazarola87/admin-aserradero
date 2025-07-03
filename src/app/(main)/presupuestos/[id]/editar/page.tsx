@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -28,10 +28,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
+import { getPresupuestoById, updatePresupuesto } from "@/lib/firebase/services/presupuestosService";
 import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 
-const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 const initialDetallesCount = 15; 
 
 const itemDetalleSchema = z.object({
@@ -77,16 +77,11 @@ export default function EditarPresupuestoPage() {
   const params = useParams();
   const presupuestoId = params.id as string;
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [config, setConfig] = useState<Configuracion | null>(null);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
-    defaultValues: {
-      fecha: new Date(), 
-      nombreCliente: "",
-      telefonoCliente: "",
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-    },
   });
   
   const { fields, append, remove, replace } = useFieldArray({
@@ -95,50 +90,52 @@ export default function EditarPresupuestoPage() {
   });
 
    useEffect(() => {
+    if (!presupuestoId) {
+      router.push('/presupuestos');
+      return;
+    }
     async function loadData() {
       setIsLoading(true);
       try {
-        const appConfig = await getAppConfig();
+        const [appConfig, presupuestoAEditar] = await Promise.all([
+            getAppConfig(),
+            getPresupuestoById(presupuestoId)
+        ]);
         setConfig(appConfig);
 
-        if (presupuestoId) {
-            const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-            const presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
-            const presupuestoAEditar = presupuestosActuales.find(p => p.id === presupuestoId);
+        if (presupuestoAEditar) {
+            const loadedDetails = (presupuestoAEditar.detalles || []).map(d => ({
+                tipoMadera: d.tipoMadera,
+                unidades: Number(d.unidades) || undefined,
+                ancho: Number(d.ancho) || undefined,
+                alto: Number(d.alto) || undefined,
+                largo: Number(d.largo) || undefined,
+                precioPorPie: Number(d.precioPorPie) || undefined,
+                cepillado: d.cepillado ?? false,
+            }));
+            
+            form.reset({
+                fecha: presupuestoAEditar.fecha && isValid(parseISO(presupuestoAEditar.fecha)) ? parseISO(presupuestoAEditar.fecha) : new Date(),
+                nombreCliente: presupuestoAEditar.nombreCliente,
+                telefonoCliente: presupuestoAEditar.telefonoCliente || "",
+                detalles: [],
+            });
+            
+            replace(loadedDetails);
 
-            if (presupuestoAEditar) {
-                const loadedDetails = (presupuestoAEditar.detalles || []).map(d => ({
-                    tipoMadera: d.tipoMadera,
-                    unidades: Number(d.unidades) || undefined,
-                    ancho: Number(d.ancho) || undefined,
-                    alto: Number(d.alto) || undefined,
-                    largo: Number(d.largo) || undefined,
-                    precioPorPie: Number(d.precioPorPie) || undefined,
-                    cepillado: d.cepillado ?? false,
-                }));
-                
-                form.reset({
-                    fecha: presupuestoAEditar.fecha && isValid(parseISO(presupuestoAEditar.fecha)) ? parseISO(presupuestoAEditar.fecha) : new Date(),
-                    nombreCliente: presupuestoAEditar.nombreCliente,
-                    telefonoCliente: presupuestoAEditar.telefonoCliente || "",
-                    detalles: [],
-                });
-                
-                replace(loadedDetails);
-
-                let currentLength = loadedDetails.length;
-                while (currentLength < initialDetallesCount) {
-                    append(createEmptyDetalle(), { shouldFocus: false });
-                    currentLength++;
-                }
-                form.trigger();
-            } else {
-                toast({ title: "Error", description: "Presupuesto no encontrado para editar.", variant: "destructive" });
-                router.push('/presupuestos');
+            let currentLength = loadedDetails.length;
+            while (currentLength < initialDetallesCount) {
+                append(createEmptyDetalle(), { shouldFocus: false });
+                currentLength++;
             }
+            form.trigger();
+        } else {
+            toast({ title: "Error", description: "Presupuesto no encontrado en Firebase.", variant: "destructive" });
+            router.push('/presupuestos');
         }
       } catch (error) {
-        toast({ title: "Error", description: "No se pudo cargar la configuración de la aplicación.", variant: "destructive" });
+        toast({ title: "Error al Cargar Datos", description: "No se pudieron cargar los datos del presupuesto o la configuración. " + (error instanceof Error ? error.message : ""), variant: "destructive" });
+        router.push('/presupuestos');
       } finally {
         setIsLoading(false);
       }
@@ -188,8 +185,9 @@ export default function EditarPresupuestoPage() {
     }
   };
 
-  function onSubmit(data: PresupuestoFormValues) {
+  async function onSubmit(data: PresupuestoFormValues) {
     if(!presupuestoId) return;
+    setIsSubmitting(true);
 
     const processedDetalles = data.detalles.filter(
       d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
@@ -214,35 +212,34 @@ export default function EditarPresupuestoPage() {
 
     if (processedDetalles.length === 0) {
       toast({ title: "Error en el Presupuesto", description: "No hay artículos válidos para guardar.", variant: "destructive" });
+      setIsSubmitting(false);
       return;
     }
 
-    const presupuestoActualizado: Presupuesto = {
-      ...data,
-      id: presupuestoId, 
+    const presupuestoActualizadoData: Partial<Omit<Presupuesto, 'id'>> = {
       fecha: format(data.fecha, "yyyy-MM-dd"), 
+      nombreCliente: data.nombreCliente,
+      telefonoCliente: data.telefonoCliente,
       detalles: processedDetalles,
       totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
     };
 
-    if (typeof window !== 'undefined') {
-      const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-      let presupuestosActuales: Presupuesto[] = storedPresupuestos ? JSON.parse(storedPresupuestos) : [];
-      const index = presupuestosActuales.findIndex(p => p.id === presupuestoId);
-      if (index !== -1) {
-        presupuestosActuales[index] = presupuestoActualizado;
-      } else {
-        presupuestosActuales.push(presupuestoActualizado); 
-      }
-      presupuestosActuales.sort((a, b) => b.fecha.localeCompare(a.fecha)); 
-      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(presupuestosActuales));
+    try {
+        await updatePresupuesto(presupuestoId, presupuestoActualizadoData);
+        toast({
+            title: "Presupuesto Actualizado",
+            description: `Se ha actualizado el presupuesto para ${data.nombreCliente} en Firebase.`,
+        });
+        router.push('/presupuestos');
+    } catch (error) {
+        toast({
+            title: "Error al Actualizar",
+            description: "No se pudo actualizar el presupuesto en Firebase. " + (error instanceof Error ? error.message : ""),
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmitting(false);
     }
-    
-    toast({
-      title: "Presupuesto Actualizado",
-      description: `Se ha actualizado el presupuesto para ${data.nombreCliente}.`,
-    });
-    router.push('/presupuestos');
   }
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
@@ -261,7 +258,7 @@ export default function EditarPresupuestoPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Editar Presupuesto" description="Modifique los detalles del presupuesto existente." />
+      <PageTitle title="Editar Presupuesto" description="Modifique los detalles del presupuesto existente en Firebase." />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <Card className="mb-8">
@@ -326,7 +323,6 @@ export default function EditarPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
-                      {/* Columna Precio/Pie Oculta */}
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -432,9 +428,9 @@ export default function EditarPresupuestoPage() {
               <div className="text-xl font-semibold">
                 Total General: <span className="text-primary">${totalGeneralPresupuesto.toFixed(2)}</span>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting || isLoading}>
-                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                {form.formState.isSubmitting ? "Guardando..." : "Guardar Cambios"}
+              <Button type="submit" size="lg" disabled={isSubmitting || isLoading}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {isSubmitting ? "Guardando..." : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </Card>

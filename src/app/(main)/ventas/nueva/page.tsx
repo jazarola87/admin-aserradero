@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -112,51 +113,11 @@ export default function NuevaVentaPage() {
       try {
         const appConfig = await getAppConfig();
         setConfig(appConfig);
-
-        if (typeof window !== 'undefined') {
-          const presupuestoParaVentaString = localStorage.getItem('presupuestoParaVenta');
-          if (presupuestoParaVentaString) {
-            const presupuesto: Presupuesto = JSON.parse(presupuestoParaVentaString);
-            
-            const budgetItemsToMap = (presupuesto.detalles || []).map(d_presupuesto_item => ({
-                tipoMadera: d_presupuesto_item.tipoMadera,
-                unidades: Number(d_presupuesto_item.unidades) || undefined,
-                ancho: Number(d_presupuesto_item.ancho) || undefined,
-                alto: Number(d_presupuesto_item.alto) || undefined,
-                largo: Number(d_presupuesto_item.largo) || undefined,
-                precioPorPie: Number(d_presupuesto_item.precioPorPie) || undefined,
-                cepillado: d_presupuesto_item.cepillado ?? false,
-            }));
-
-            form.reset({
-              fecha: new Date(),
-              nombreComprador: presupuesto.nombreCliente,
-              telefonoComprador: presupuesto.telefonoCliente || "",
-              idOriginalPresupuesto: presupuesto.id,
-              detalles: [],
-            });
-            
-            replace(budgetItemsToMap);
-
-            let currentLength = budgetItemsToMap.length;
-            while (currentLength < initialDetallesCount) {
-              append(createEmptyDetalle(), { shouldFocus: false });
-              currentLength++;
-            }
-            
-            form.trigger();
-            localStorage.removeItem('presupuestoParaVenta');
-            toast({
-              title: "Presupuesto Cargado para Venta",
-              description: `Datos del presupuesto para ${presupuesto.nombreCliente} cargados.`,
-            });
-          }
-        }
       } catch (error) {
          console.error("Error al cargar configuración inicial:", error);
           toast({
             title: "Error al Cargar Configuración",
-            description: "No se pudieron cargar los datos de configuración.",
+            description: "No se pudieron cargar los datos de configuración. " + (error instanceof Error ? error.message : ""),
             variant: "destructive",
           });
       } finally {
@@ -164,7 +125,7 @@ export default function NuevaVentaPage() {
       }
     }
     loadInitialData();
-  }, [form, replace, append, toast]);
+  }, [toast]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -316,16 +277,11 @@ export default function NuevaVentaPage() {
     
     try {
         await addVenta(nuevaVentaData);
-
-        if (data.idOriginalPresupuesto && typeof window !== 'undefined') {
-            localStorage.setItem('budgetToDeleteId', data.idOriginalPresupuesto);
-        }
-
-      toast({
-        title: "Venta Registrada en Firebase",
-        description: `Se ha registrado la venta a ${data.nombreComprador}.`,
-      });
-      router.push('/ventas');
+        toast({
+          title: "Venta Registrada en Firebase",
+          description: `Se ha registrado la venta a ${data.nombreComprador}.`,
+        });
+        router.push('/ventas');
     } catch (error) {
        console.error("Error al registrar venta en Firebase: ", error);
        toast({

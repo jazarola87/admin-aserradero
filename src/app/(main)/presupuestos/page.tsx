@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -10,18 +11,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil } from "lucide-react";
-import type { Presupuesto, Configuracion } from "@/types";
+import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil, Loader2 } from "lucide-react";
+import type { Presupuesto, Venta, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { getAllPresupuestos, deletePresupuesto } from "@/lib/firebase/services/presupuestosService";
+import { addVenta } from "@/lib/firebase/services/ventasService";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 export default function PresupuestosPage() {
   const { toast } = useToast();
@@ -29,83 +29,83 @@ export default function PresupuestosPage() {
   
   const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
   const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState<string | null>(null); // To track which budget is being processed
   const [searchTerm, setSearchTerm] = useState("");
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
 
-  const updatePresupuestosListAndStorage = useCallback((newList: Presupuesto[]) => {
-    const sortedList = newList.sort((a, b) => {
-        const dateA = a.fecha ? parseISO(a.fecha) : 0;
-        const dateB = b.fecha ? parseISO(b.fecha) : 0;
-        if (!dateA || !dateB) return 0;
-        return dateB.getTime() - dateA.getTime();
-    });
-    setPresupuestos(sortedList);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(PRESUPUESTOS_STORAGE_KEY, JSON.stringify(sortedList));
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [appConfig, presupuestosData] = await Promise.all([
+        getAppConfig(),
+        getAllPresupuestos()
+      ]);
+      setConfig(appConfig);
+      setPresupuestos(presupuestosData);
+    } catch (e) {
+      console.error("Error loading data:", e);
+      toast({ title: "Error de Carga", description: "No se pudieron cargar los datos desde Firebase. " + (e instanceof Error ? e.message : ""), variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const appConfig = await getAppConfig();
-        setConfig(appConfig);
-      } catch (e) {
-        toast({ title: "Error", description: "No se pudo cargar la configuración de la aplicación.", variant: "destructive" });
-      }
-
-      if (typeof window !== 'undefined') {
-        const storedPresupuestos = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-        let dataToLoad: Presupuesto[] = []; 
-        if (storedPresupuestos) {
-          try {
-            const parsed = JSON.parse(storedPresupuestos);
-            if (Array.isArray(parsed)) {
-              dataToLoad = parsed;
-            }
-          } catch (e) {
-            console.error("Error parsing presupuestos from localStorage", e);
-          }
-        }
-        updatePresupuestosListAndStorage(dataToLoad);
-      }
-    }
     loadData();
-  }, [toast, updatePresupuestosListAndStorage]);
+  }, [loadData]);
 
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const budgetToDeleteId = localStorage.getItem('budgetToDeleteId');
-      if (budgetToDeleteId) {
-        const currentListFromStorage = localStorage.getItem(PRESUPUESTOS_STORAGE_KEY);
-        let currentList: Presupuesto[] = currentListFromStorage ? JSON.parse(currentListFromStorage) : [];
-        const newList = currentList.filter(p => p.id !== budgetToDeleteId);
-        updatePresupuestosListAndStorage(newList); 
-        localStorage.removeItem('budgetToDeleteId');
-        toast({
-          title: "Presupuesto Convertido",
-          description: `El presupuesto ${budgetToDeleteId} ha sido convertido a venta y eliminado de esta lista.`,
-        });
-      }
+  const handleDeletePresupuesto = async (idToDelete: string) => {
+    setIsProcessing(idToDelete);
+    try {
+      await deletePresupuesto(idToDelete);
+      toast({
+        title: "Presupuesto Eliminado",
+        description: "El presupuesto ha sido eliminado exitosamente de Firebase.",
+      });
+      loadData(); // Recargar la lista
+    } catch (error) {
+       toast({
+        title: "Error al Eliminar",
+        description: "No se pudo eliminar el presupuesto. " + (error instanceof Error ? error.message : ""),
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(null);
     }
-  }, [toast, updatePresupuestosListAndStorage]); 
-
-
-  const handleDeletePresupuesto = (idToDelete: string) => {
-    const newList = presupuestos.filter(p => p.id !== idToDelete);
-    updatePresupuestosListAndStorage(newList);
-    toast({
-      title: "Presupuesto Eliminado",
-      description: "El presupuesto ha sido eliminado exitosamente.",
-      variant: "default",
-    });
   };
 
-  const handlePasarAVenta = (presupuesto: Presupuesto) => {
-    localStorage.setItem('presupuestoParaVenta', JSON.stringify(presupuesto));
-    router.push('/ventas/nueva');
+  const handlePasarAVenta = async (presupuesto: Presupuesto) => {
+    setIsProcessing(presupuesto.id);
+    try {
+      const ventaData: Omit<Venta, 'id'> = {
+        fecha: format(new Date(), "yyyy-MM-dd"), // Use today's date for the sale
+        nombreComprador: presupuesto.nombreCliente,
+        telefonoComprador: presupuesto.telefonoCliente,
+        detalles: presupuesto.detalles,
+        totalVenta: presupuesto.totalPresupuesto,
+        idOriginalPresupuesto: presupuesto.id,
+      };
+
+      const newVenta = await addVenta(ventaData);
+      await deletePresupuesto(presupuesto.id);
+
+      toast({
+        title: "Presupuesto Convertido a Venta",
+        description: `Se creó la venta ${newVenta.id} y se eliminó el presupuesto original.`,
+      });
+      router.push(`/ventas/${newVenta.id}/editar`);
+
+    } catch (error) {
+       toast({
+        title: "Error al Convertir a Venta",
+        description: "No se pudo completar la operación. " + (error instanceof Error ? error.message : ""),
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(null);
+    }
   };
 
   const downloadPDF = async (presupuesto: Presupuesto) => {
@@ -175,7 +175,7 @@ export default function PresupuestosPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Registro de Presupuestos" description="Listado de todos los presupuestos generados.">
+      <PageTitle title="Registro de Presupuestos (Firebase)" description="Listado de todos los presupuestos generados.">
         <Button asChild>
           <Link href="/presupuestos/nuevo">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -189,9 +189,10 @@ export default function PresupuestosPage() {
           <CardTitle>Historial de Presupuestos</CardTitle>
            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
             <CardDescription>
-                {filteredPresupuestos.length > 0 
+                {isLoading ? "Cargando presupuestos..." :
+                (filteredPresupuestos.length > 0 
                 ? `Mostrando ${filteredPresupuestos.length} de ${presupuestos.length} presupuesto(s). (Ordenados por fecha descendente)` 
-                : presupuestos.length === 0 ? "Aún no se han registrado presupuestos." : "No se encontraron presupuestos con los criterios de búsqueda."}
+                : presupuestos.length === 0 ? "Aún no se han registrado presupuestos." : "No se encontraron presupuestos con los criterios de búsqueda.")}
             </CardDescription>
             <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -201,15 +202,21 @@ export default function PresupuestosPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-8 w-full sm:w-[300px]"
+                disabled={isLoading}
                 />
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {presupuestos.length === 0 && !searchTerm ? (
+          {isLoading ? (
+             <div className="text-center py-10 text-muted-foreground">
+              <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+              <p>Cargando datos desde Firebase...</p>
+            </div>
+          ) : presupuestos.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <ClipboardList className="mx-auto h-12 w-12 mb-4" />
-              <p>No hay presupuestos registrados.</p>
+              <p>No hay presupuestos registrados en Firebase.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/presupuestos/nuevo">Registrar el primer presupuesto</Link>
               </Button>
@@ -238,40 +245,44 @@ export default function PresupuestosPage() {
                     </AccordionTrigger>
                     
                     <div className="flex items-center space-x-1 shrink-0">
-                        <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
-                            <Download className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">PDF</span>
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
-                            <Send className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">A Venta</span>
-                        </Button>
-                        <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                          <Link href={`/presupuestos/${presupuesto.id}/editar`}>
-                            <Pencil className="h-4 w-4" />
-                            <span className="sr-only">Editar Presupuesto</span>
-                          </Link>
-                        </Button>
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                <Trash2 className="h-4 w-4" />
-                                <span className="sr-only">Eliminar Presupuesto</span>
+                        {isProcessing === presupuesto.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                          <>
+                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
+                                <Download className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">PDF</span>
                             </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
-                                Eliminar
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
+                                <Send className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">A Venta</span>
+                            </Button>
+                            <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                              <Link href={`/presupuestos/${presupuesto.id}/editar`}>
+                                <Pencil className="h-4 w-4" />
+                                <span className="sr-only">Editar Presupuesto</span>
+                              </Link>
+                            </Button>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="sr-only">Eliminar Presupuesto</span>
+                                </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                    Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
+                                    Eliminar
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                          </>
+                        )}
                     </div>
                   </div>
                   <AccordionContent>
@@ -290,8 +301,8 @@ export default function PresupuestosPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {presupuesto.detalles.map((detalle) => (
-                          <TableRow key={detalle.id}>
+                        {presupuesto.detalles.map((detalle, index) => (
+                          <TableRow key={detalle.id || index}>
                             <TableCell>{detalle.tipoMadera}</TableCell>
                             <TableCell>{detalle.unidades}</TableCell>
                             <TableCell>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</TableCell>
