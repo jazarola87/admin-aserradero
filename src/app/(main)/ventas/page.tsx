@@ -20,6 +20,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllVentas, deleteVenta, updateVenta } from "@/lib/firebase/services/ventasService";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number => {
     const unidades = Number(detalle?.unidades) || 0;
@@ -29,6 +31,40 @@ const calcularPiesTablaresVentaItem = (detalle: Partial<VentaDetalle>): number =
   
     if (!unidades || !alto || !ancho || !largo) return 0;
     return unidades * alto * ancho * largo * 0.2734;
+};
+
+type EstadoCobro = { texto: string; variant: "default" | "secondary" | "destructive" | "outline" };
+
+const getEstadoCobroDisplay = (venta: Venta): EstadoCobro => {
+    const totalVentaNum = Number(venta.totalVenta) || 0;
+    const senaNum = Number(venta.sena) || 0;
+
+    if (totalVentaNum <= 0 && senaNum <=0 && (!venta.detalles || venta.detalles.length === 0)) return { texto: "N/A", variant: "outline" };
+
+    if (senaNum >= totalVentaNum && totalVentaNum > 0) {
+      return { texto: "Cobrado", variant: "default" };
+    } else if (senaNum > 0 && senaNum < totalVentaNum) {
+      const saldo = totalVentaNum - senaNum;
+      return { texto: `Parcialmente Cobrado (Resta: $${saldo.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, variant: "secondary" };
+    } else if (totalVentaNum > 0){
+      return { texto: "Pendiente", variant: "destructive" };
+    }
+    return { texto: "Sin Cobro Requerido", variant: "outline" };
+};
+
+const getEstadoCobroSimple = (venta: Venta): 'cobrado' | 'parcialmente-cobrado' | 'pendiente' | 'otro' => {
+    const totalVentaNum = Number(venta.totalVenta) || 0;
+    const senaNum = Number(venta.sena) || 0;
+
+    if (totalVentaNum <= 0) return 'otro';
+
+    if (senaNum >= totalVentaNum) {
+      return 'cobrado';
+    } else if (senaNum > 0 && senaNum < totalVentaNum) {
+      return 'parcialmente-cobrado';
+    } else {
+      return 'pendiente';
+    }
 };
 
 interface VentaItemProps {
@@ -102,24 +138,7 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
   const senaActual = Number(venta.sena) || 0;
   const saldoPendiente = (Number(venta.totalVenta) || 0) - senaActual;
 
-  const getEstadoCobro = (): { texto: string; variant: "default" | "secondary" | "destructive" | "outline" } => {
-    const totalVentaNum = Number(venta.totalVenta) || 0;
-    const senaNum = senaActual; 
-
-    if (totalVentaNum <= 0 && senaNum <=0 && (!venta.detalles || venta.detalles.length === 0)) return { texto: "N/A", variant: "outline" }; 
-
-    if (senaNum >= totalVentaNum && totalVentaNum > 0) { 
-      return { texto: "Cobrado", variant: "default" };
-    } else if (senaNum > 0 && senaNum < totalVentaNum) {
-      const saldo = totalVentaNum - senaNum;
-      return { texto: `Parcialmente Cobrado (Resta: $${saldo.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, variant: "secondary" };
-    } else if (totalVentaNum > 0){ 
-      return { texto: "Pendiente", variant: "destructive" };
-    }
-    return { texto: "Sin Cobro Requerido", variant: "outline" }; 
-  };
-
-  const estadoCobro = getEstadoCobro();
+  const estadoCobro = getEstadoCobroDisplay(venta);
   const isFullyPaid = estadoCobro.texto === "Cobrado";
 
   const handleGuardarSena = () => {
@@ -326,6 +345,7 @@ export default function VentasPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const [estadoCobroFilter, setEstadoCobroFilter] = useState<string>("todos");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -385,14 +405,24 @@ export default function VentasPage() {
   };
 
   const filteredVentas = useMemo(() => {
-    if (!searchTerm) {
-      return ventas; 
+    let tempVentas = [...ventas];
+
+    if (estadoCobroFilter !== "todos") {
+        tempVentas = tempVentas.filter(venta => {
+            const estado = getEstadoCobroSimple(venta);
+            return estado === estadoCobroFilter;
+        });
     }
-    return ventas.filter(venta =>
-      venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (venta.telefonoComprador && venta.telefonoComprador.includes(searchTerm))
-    );
-  }, [ventas, searchTerm]);
+
+    if (searchTerm) {
+        tempVentas = tempVentas.filter(venta =>
+          venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (venta.telefonoComprador && venta.telefonoComprador.includes(searchTerm))
+        );
+    }
+
+    return tempVentas;
+  }, [ventas, searchTerm, estadoCobroFilter]);
 
   return (
     <div className="container mx-auto py-6">
@@ -416,16 +446,30 @@ export default function VentasPage() {
                   : ventas.length === 0 ? "Aún no se han registrado ventas." : "No se encontraron ventas con los criterios de búsqueda.")
                 }
             </CardDescription>
-            <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Buscar por comprador, teléfono..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 w-full sm:w-[300px]"
-                  disabled={isLoading}
-                />
+            <div className="flex w-full sm:w-auto flex-col sm:flex-row gap-2">
+              <Select value={estadoCobroFilter} onValueChange={setEstadoCobroFilter} disabled={isLoading}>
+                <SelectTrigger className="w-full sm:w-[220px]">
+                  <SelectValue placeholder="Filtrar por estado..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los Estados</SelectItem>
+                  <SelectItem value="cobrado">Cobrado</SelectItem>
+                  <SelectItem value="parcialmente-cobrado">Parcialmente Cobrado</SelectItem>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Buscar por comprador, teléfono..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 w-full sm:w-[300px]"
+                    disabled={isLoading}
+                  />
+              </div>
             </div>
           </div>
         </CardHeader>
