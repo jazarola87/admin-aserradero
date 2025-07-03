@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -28,19 +28,19 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { initialConfigData } from "@/lib/config-data"; 
-import type { Presupuesto, PresupuestoDetalle } from "@/types";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
+import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter } from "next/navigation";
 
 const PRESUPUESTOS_STORAGE_KEY = 'presupuestosList';
 
 const itemDetalleSchema = z.object({
   tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
-  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()),
-  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional().or(z.literal(0)).or(z.nan()), 
-  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional().or(z.literal(0)).or(z.nan()),
+  unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
+  ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
+  precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
 });
 
@@ -76,6 +76,8 @@ const initialDetallesCount = 15;
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
   const router = useRouter(); 
+  const [config, setConfig] = useState<Configuracion | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
@@ -86,6 +88,26 @@ export default function NuevoPresupuestoPage() {
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
     },
   });
+
+  useEffect(() => {
+    async function loadConfig() {
+      setIsLoading(true);
+      try {
+        const appConfig = await getAppConfig();
+        setConfig(appConfig);
+      } catch (error) {
+        toast({
+          title: "Error al Cargar Configuración",
+          description: "No se pudieron obtener los tipos de madera y precios.",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadConfig();
+  }, [toast]);
+
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -106,18 +128,17 @@ export default function NuevoPresupuestoPage() {
   
   const calcularSubtotal = (detalle: Partial<z.infer<typeof itemDetalleSchema>>, piesTablares: number) => {
     const precioPorPie = Number(detalle.precioPorPie) || 0;
-    if (!precioPorPie && piesTablares > 0 && (detalle.tipoMadera && detalle.tipoMadera.length > 0)) return 0; 
     if (piesTablares === 0) return 0;
 
     let subtotal = piesTablares * precioPorPie;
-    if (detalle.cepillado) {
-      subtotal += piesTablares * (initialConfigData.precioCepilladoPorPie || 0);
+    if (detalle.cepillado && config) {
+      subtotal += piesTablares * (config.precioCepilladoPorPie || 0);
     }
     return subtotal;
   };
   
   const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number') { 
+    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -126,7 +147,7 @@ export default function NuevoPresupuestoPage() {
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
-    const maderaSeleccionada = initialConfigData.preciosMadera.find(m => m.tipoMadera === value);
+    const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
     if (maderaSeleccionada) {
       form.setValue(`detalles.${index}.precioPorPie`, maderaSeleccionada.precioPorPie, { shouldValidate: true });
     } else {
@@ -136,9 +157,9 @@ export default function NuevoPresupuestoPage() {
 
   function onSubmit(data: PresupuestoFormValues) {
     const processedDetalles = data.detalles.filter(
-      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number'
+      d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
     ).map((d_form, index) => {
-      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
+      const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>; // Assume valid numbers
       const pies = calcularPiesTablares(d);
       const sub = calcularSubtotal(d, pies);
       const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
@@ -191,8 +212,17 @@ export default function NuevoPresupuestoPage() {
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && typeof detalle.precioPorPie !== 'number' && !detalle.cepillado;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
   };
+  
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando configuración...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-6">
@@ -295,12 +325,12 @@ export default function NuevoPresupuestoPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      {initialConfigData.preciosMadera.map(madera => (
+                                      {config?.preciosMadera.map(madera => (
                                         <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
                                           {madera.tipoMadera}
                                         </SelectItem>
                                       ))}
-                                      {initialConfigData.preciosMadera.length === 0 && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
+                                      {(!config || config.preciosMadera.length === 0) && <SelectItem value="" disabled>No hay tipos definidos</SelectItem>}
                                     </SelectContent>
                                   </Select>
                                   <FormMessage className="text-xs px-1" />
@@ -310,25 +340,24 @@ export default function NuevoPresupuestoPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.unidades`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" placeholder="Cant." {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.alto`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.ancho`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 6" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={isNaN(f.value as number) ? "" : f.value} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
-                          {/* Columna Precio/Pie Oculta - El FormField para precioPorPie se elimina de aquí */}
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -368,8 +397,8 @@ export default function NuevoPresupuestoPage() {
               <div className="text-xl font-semibold">
                 Total General: <span className="text-primary">${totalGeneralPresupuesto.toFixed(2)}</span>
               </div>
-              <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-                <Save className="mr-2 h-4 w-4" />
+              <Button type="submit" size="lg" disabled={form.formState.isSubmitting || isLoading}>
+                {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 {form.formState.isSubmitting ? "Registrando..." : "Registrar Presupuesto"}
               </Button>
             </CardFooter>
@@ -379,4 +408,3 @@ export default function NuevoPresupuestoPage() {
     </div>
   );
 }
-
