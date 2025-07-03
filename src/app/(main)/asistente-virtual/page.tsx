@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,9 +13,10 @@ import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Loader2, Send } from "lucide-react";
 import { consultarAsistente, type AsistenteConsultasInput, type AsistenteConsultasOutput } from "@/ai/flows/asistente-consultas-flow";
-import type { Compra, Venta, VentaDetalle } from "@/types";
+import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
+import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 
 const formSchema = z.object({
   prompt: z.string().min(5, {
@@ -62,17 +64,20 @@ export default function AsistenteVirtualPage() {
   const [respuestaAsistente, setRespuestaAsistente] = useState<string | null>(null);
   const [comprasDataParaFlujo, setComprasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyCompra>>>([]);
   const [ventasDataParaFlujo, setVentasDataParaFlujo] = useState<Array<ReturnType<typeof simplifyVenta>>>([]);
+  const [configData, setConfigData] = useState<Configuracion | null>(null);
 
   useEffect(() => {
     async function loadData() {
       setIsLoadingData(true);
       try {
-        const [compras, ventas] = await Promise.all([
+        const [compras, ventas, config] = await Promise.all([
           getAllCompras(),
-          getAllVentas()
+          getAllVentas(),
+          getAppConfig()
         ]);
         setComprasDataParaFlujo(compras.map(simplifyCompra));
         setVentasDataParaFlujo(ventas.map(simplifyVenta));
+        setConfigData(config);
       } catch (e) { 
         console.error("Error cargando datos para el asistente:", e); 
         toast({ title: "Error de Datos", description: "No se pudieron cargar los datos de Firebase para el asistente.", variant: "destructive" });
@@ -94,10 +99,10 @@ export default function AsistenteVirtualPage() {
     setIsLoading(true);
     setRespuestaAsistente(null);
 
-    if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0) {
+    if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0 && !configData) {
         toast({
             title: "No hay datos cargados",
-            description: "No hay datos de compras o ventas en el sistema para consultar.",
+            description: "No hay datos de compras, ventas o configuración en el sistema para consultar.",
             variant: "destructive",
         });
         setIsLoading(false);
@@ -109,6 +114,7 @@ export default function AsistenteVirtualPage() {
         prompt: data.prompt,
         comprasData: comprasDataParaFlujo,
         ventasData: ventasDataParaFlujo,
+        configData: configData,
       };
       
       const result = await consultarAsistente(inputData);
@@ -141,7 +147,7 @@ export default function AsistenteVirtualPage() {
           <CardHeader>
             <CardTitle>Realizar Consulta</CardTitle>
             <CardDescription>
-              Escriba su pregunta. Ejemplos: &quot;¿Cuál fue la venta más grande en Julio?&quot;, &quot;¿Cuántos m³ de Pino compré este año?&quot;, &quot;¿Cuál es la medida más vendida en ancho y alto del tipo de madera Pino?&quot;
+              Escriba su pregunta. Ejemplos: &quot;¿Cuál fue la venta más grande en Julio?&quot;, &quot;¿cuál es el costo de recupero de madera de 1 pie de oregon?&quot;, &quot;¿Cuál es la medida más vendida en ancho y alto del tipo de madera Pino?&quot;
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -195,8 +201,8 @@ export default function AsistenteVirtualPage() {
               <div className="text-center text-muted-foreground">
                 <Bot className="mx-auto h-12 w-12 mb-4" />
                 <p>La respuesta del asistente aparecerá aquí.</p>
-                 {(comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0) && 
-                    <p className="mt-2 text-sm text-destructive">Nota: No hay datos de compras o ventas cargados para consultar.</p>
+                 {(comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0 && !configData) && 
+                    <p className="mt-2 text-sm text-destructive">Nota: No hay datos de compras, ventas o configuración cargados para consultar.</p>
                  }
               </div>
             )}
