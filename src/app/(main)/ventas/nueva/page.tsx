@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -82,6 +81,62 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
 
 const initialDetallesCount = 15;
 
+/**
+ * A centralized and robust calculation engine for sales totals.
+ * @param detalles The array of sale items from the form.
+ * @param config The application configuration from Firebase.
+ * @returns An object with all calculated totals.
+ */
+const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Configuracion | null) => {
+    if (!config) {
+        return { totalVenta: 0, costoMadera: 0, costoAserrio: 0 };
+    }
+
+    const piesTablaresPorDetalle = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
+        const unidades = Number(detalle?.unidades) || 0;
+        const alto = Number(detalle?.alto) || 0;
+        const ancho = Number(detalle?.ancho) || 0;
+        const largo = Number(detalle?.largo) || 0;
+        if (!unidades || !alto || !ancho || !largo) return 0;
+        return unidades * alto * ancho * largo * 0.2734;
+    };
+
+    let totalVenta = 0;
+    let costoMadera = 0;
+    let totalPies = 0;
+
+    for (const detalle of detalles) {
+        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
+            continue;
+        }
+
+        const pies = piesTablaresPorDetalle(detalle);
+        totalPies += pies;
+
+        // Total Venta Calculation
+        let subtotalVenta = pies * (Number(detalle.precioPorPie) || 0);
+        if (detalle.cepillado) {
+            subtotalVenta += pies * (Number(config.precioCepilladoPorPie) || 0);
+        }
+        totalVenta += subtotalVenta;
+
+        // Costo Madera Calculation (Costo por Metro Cúbico / 200) * pies
+        const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
+        const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
+        costoMadera += (costoPorMetroCubico / 200) * pies;
+    }
+
+    // Costo Aserrio Calculation (((Precio Nafta * 6) + (Precio Afilado * 3)) * 1.38) / 600
+    const precioNafta = Number(config.precioLitroNafta) || 0;
+    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoAjustado = costoOperativoBase * 1.38;
+    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
+    const costoAserrio = totalPies * costoPorPieAserrio;
+
+    return { totalVenta, costoMadera, costoAserrio };
+};
+
 export default function NuevaVentaPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -89,12 +144,6 @@ export default function NuevaVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const [totals, setTotals] = useState({
-    totalVenta: 0,
-    costoMadera: 0,
-    costoAserrio: 0,
-  });
-
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
     defaultValues: {
@@ -134,60 +183,11 @@ export default function NuevaVentaPage() {
     loadInitialData();
   }, [toast]);
 
-
   const watchedDetalles = form.watch("detalles");
-  
-  const calcularPiesTablares = useCallback((detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
-    const unidades = Number(detalle?.unidades) || 0;
-    const alto = Number(detalle?.alto) || 0;
-    const ancho = Number(detalle?.ancho) || 0;
-    const largo = Number(detalle?.largo) || 0;
-    if (!unidades || !alto || !ancho || !largo) return 0;
-    return unidades * alto * ancho * largo * 0.2734;
-  }, []);
-
-  useEffect(() => {
-    if (!config) return;
-
-    const newTotals = watchedDetalles.reduce((acc, detalle) => {
-        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
-            return acc;
-        }
-
-        const piesTablares = calcularPiesTablares(detalle);
-        
-        // Venta Subtotal
-        const precioPorPie = Number(detalle.precioPorPie) || 0;
-        let subtotalVenta = piesTablares * precioPorPie;
-        if (detalle.cepillado) {
-            subtotalVenta += piesTablares * (Number(config.precioCepilladoPorPie) || 0);
-        }
-        acc.totalVenta += subtotalVenta;
-
-        // Costo Madera Subtotal
-        const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
-        const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-        acc.costoMadera += (costoPorMetroCubico / 200) * piesTablares;
-
-        return acc;
-    }, { totalVenta: 0, costoMadera: 0 });
-
-    // Costo Aserrio
-    const totalPies = watchedDetalles.reduce((sum, d) => sum + calcularPiesTablares(d), 0);
-    const precioNafta = Number(config.precioLitroNafta) || 0;
-    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
-    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
-    const costoAjustado = costoOperativoBase * 1.38;
-    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
-    
-    newTotals.costoAserrio = totalPies * costoPorPieAserrio;
-
-    setTotals(newTotals);
-
-  }, [watchedDetalles, config, calcularPiesTablares]);
-  
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
+
+  const totals = useMemo(() => calculateAllTotals(watchedDetalles, config), [watchedDetalles, config]);
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
@@ -203,6 +203,15 @@ export default function NuevaVentaPage() {
       form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true, shouldDirty: true });
     }
     form.trigger(`detalles.${index}`);
+  };
+
+  const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
+    const unidades = Number(detalle?.unidades) || 0;
+    const alto = Number(detalle?.alto) || 0;
+    const ancho = Number(detalle?.ancho) || 0;
+    const largo = Number(detalle?.largo) || 0;
+    if (!unidades || !alto || !ancho || !largo) return 0;
+    return unidades * alto * ancho * largo * 0.2734;
   };
 
   async function onSubmit(data: VentaFormValues) {
@@ -586,5 +595,3 @@ export default function NuevaVentaPage() {
     </div>
   );
 }
-
-    

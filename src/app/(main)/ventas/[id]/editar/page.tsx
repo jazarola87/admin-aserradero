@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -90,12 +90,6 @@ export default function EditarVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [config, setConfig] = useState<Configuracion | null>(null);
-  
-  const [totals, setTotals] = useState({
-    totalVenta: 0,
-    costoMadera: 0,
-    costoAserrio: 0,
-  });
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -172,57 +166,48 @@ export default function EditarVentaPage() {
   const watchedSena = form.watch("sena");
   const watchedCostoOperario = form.watch("costoOperario");
 
-  const calcularPiesTablares = useCallback((detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
-    const unidades = Number(detalle?.unidades) || 0;
-    const alto = Number(detalle?.alto) || 0; 
-    const ancho = Number(detalle?.ancho) || 0; 
-    const largo = Number(detalle?.largo) || 0;
-    if (!unidades || !alto || !ancho || !largo) return 0;
-    return unidades * alto * ancho * largo * 0.2734;
-  }, []);
+  const totals = useMemo(() => {
+    if (!config) {
+        return { totalVenta: 0, costoMadera: 0, costoAserrio: 0 };
+    }
 
-  useEffect(() => {
-    if (!config) return;
+    let totalVenta = 0;
+    let costoMadera = 0;
+    let totalPies = 0;
 
-    const newTotals = watchedDetalles.reduce((acc, detalle) => {
+    for (const detalle of watchedDetalles) {
         if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo || detalle.precioPorPie === undefined) {
-            return acc;
+            continue;
         }
 
-        const piesTablares = calcularPiesTablares(detalle);
-        
-        const precioPorPie = Number(detalle.precioPorPie) || 0;
-        let subtotalVenta = piesTablares * precioPorPie;
+        const pies = (Number(detalle.unidades) || 0) * (Number(detalle.alto) || 0) * (Number(detalle.ancho) || 0) * (Number(detalle.largo) || 0) * 0.2734;
+        totalPies += pies;
+
+        let subtotalVenta = pies * (Number(detalle.precioPorPie) || 0);
         if (detalle.cepillado) {
-            subtotalVenta += piesTablares * (Number(config.precioCepilladoPorPie) || 0);
+            subtotalVenta += pies * (Number(config.precioCepilladoPorPie) || 0);
         }
-        acc.totalVenta += subtotalVenta;
+        totalVenta += subtotalVenta;
 
         const costoMaderaConfig = (config.costosMaderaMetroCubico || []).find(c => c.tipoMadera === detalle.tipoMadera);
         const costoPorMetroCubico = Number(costoMaderaConfig?.costoPorMetroCubico) || 0;
-        acc.costoMadera += (costoPorMetroCubico / 200) * piesTablares;
+        costoMadera += (costoPorMetroCubico / 200) * pies;
+    }
 
-        return acc;
-    }, { totalVenta: 0, costoMadera: 0 });
-
-    const totalPies = watchedDetalles.reduce((sum, d) => sum + calcularPiesTablares(d), 0);
     const precioNafta = Number(config.precioLitroNafta) || 0;
     const precioAfilado = Number(config.precioAfiladoSierra) || 0;
     const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
     const costoAjustado = costoOperativoBase * 1.38;
     const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
-    
-    newTotals.costoAserrio = totalPies * costoPorPieAserrio;
+    const costoAserrio = totalPies * costoPorPieAserrio;
 
-    setTotals(newTotals);
-
-  }, [watchedDetalles, config, calcularPiesTablares]);
+    return { totalVenta, costoMadera, costoAserrio };
+  }, [watchedDetalles, config]);
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const valorLucas = totals.costoAserrio + (Number(watchedCostoOperario) || 0) + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const saldoPendiente = totals.totalVenta - (Number(watchedSena) || 0);
-
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
@@ -233,6 +218,15 @@ export default function EditarVentaPage() {
       form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true, shouldDirty: true });
     }
     form.trigger(`detalles.${index}`);
+  };
+
+  const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
+    const unidades = Number(detalle?.unidades) || 0;
+    const alto = Number(detalle?.alto) || 0; 
+    const ancho = Number(detalle?.ancho) || 0; 
+    const largo = Number(detalle?.largo) || 0;
+    if (!unidades || !alto || !ancho || !largo) return 0;
+    return unidades * alto * ancho * largo * 0.2734;
   };
 
   async function onSubmit(data: VentaFormValues) {
@@ -311,7 +305,12 @@ export default function EditarVentaPage() {
   };
 
   if (isLoading) {
-    return <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" /><p>Cargando datos de la venta...</p></div>;
+    return (
+      <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
+        <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
+        <p>Cargando datos de la venta...</p>
+      </div>
+    );
   }
 
   return (
@@ -334,7 +333,7 @@ export default function EditarVentaPage() {
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                            {field.value && isValid(field.value) ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -373,7 +372,7 @@ export default function EditarVentaPage() {
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
+                            {field.value && isValid(field.value) ? format(field.value, "PPP", { locale: es }) : <span>Seleccione fecha</span>}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -441,11 +440,11 @@ export default function EditarVentaPage() {
                   <TableBody>
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles[index];
-                      const piesTablares = calcularPiesTablares(currentDetalle);
+                      const pies = calcularPiesTablares(currentDetalle);
                       const precioPorPie = Number(currentDetalle?.precioPorPie) || 0;
-                      let subTotal = piesTablares * precioPorPie;
+                      let subTotal = pies * precioPorPie;
                       if (currentDetalle?.cepillado) {
-                          subTotal += piesTablares * (Number(config?.precioCepilladoPorPie) || 0);
+                          subTotal += pies * (Number(config?.precioCepilladoPorPie) || 0);
                       }
                       const valorUnitario = (Number(currentDetalle?.unidades) > 0 && subTotal > 0) ? subTotal / Number(currentDetalle.unidades) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
@@ -513,7 +512,7 @@ export default function EditarVentaPage() {
                             />
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
-                            <Input readOnly value={piesTablares > 0 ? piesTablares.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
+                            <Input readOnly value={pies > 0 ? pies.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                            <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={valorUnitario > 0 ? valorUnitario.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />
@@ -522,7 +521,7 @@ export default function EditarVentaPage() {
                             <Input readOnly value={subTotal > 0 ? subTotal.toFixed(2) : ""} className="bg-muted/50 font-semibold text-right border-none h-8" tabIndex={-1} />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">
-                            {(!isRowEffectivelyEmpty || fields.length > 1) && (
+                            {(!isRowEffectivelyEmpty(currentDetalle) || fields.length > 1) && (
                               <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} className="text-destructive hover:text-destructive h-8 w-8">
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Eliminar</span>
@@ -569,7 +568,7 @@ export default function EditarVentaPage() {
                     <Separator className="my-1" />
                     <div className="flex justify-between text-sm">
                         <span>Javier (Madera + 50% Gan. Neta):</span>
-                        <span>${valorJavier.toLocaleString('es-ES', { minimumFraction Digits: 2, maximumFractionDigits: 2 })}</span>
+                        <span>${valorJavier.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                         <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
@@ -600,5 +599,3 @@ export default function EditarVentaPage() {
     </div>
   );
 }
-
-    
