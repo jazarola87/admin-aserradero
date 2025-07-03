@@ -12,16 +12,50 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil, Loader2 } from "lucide-react";
-import type { Presupuesto, Venta, Configuracion } from "@/types";
+import type { Presupuesto, Venta, Configuracion, PresupuestoDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { getAllPresupuestos, deletePresupuesto } from "@/lib/firebase/services/presupuestosService";
+import { getAllPresupuestos, deletePresupuesto, getPresupuestoById } from "@/lib/firebase/services/presupuestosService";
 import { addVenta } from "@/lib/firebase/services/ventasService";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+
+// Helper to calculate costs for the new Venta, ensuring data integrity at the moment of conversion
+const calculateCostsForVenta = (detalles: PresupuestoDetalle[], config: Configuracion) => {
+    const piesTablaresPorDetalle = (detalle: PresupuestoDetalle): number => {
+        const unidades = Number(detalle.unidades) || 0;
+        const alto = Number(detalle.alto) || 0;
+        const ancho = Number(detalle.ancho) || 0;
+        const largo = Number(detalle.largo) || 0;
+        if (!unidades || !alto || !ancho || !largo) return 0;
+        return unidades * alto * ancho * largo * 0.2734;
+    };
+
+    let costoMadera = 0;
+    let totalPies = 0;
+
+    const costosMaderaMap = new Map(config.costosMaderaMetroCubico?.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
+
+    for (const detalle of detalles) {
+        const pies = piesTablaresPorDetalle(detalle);
+        totalPies += pies;
+        
+        const costoPorMetroCubico = Number(costosMaderaMap.get(detalle.tipoMadera)) || 0;
+        costoMadera += (costoPorMetroCubico / 200) * pies;
+    }
+
+    const precioNafta = Number(config.precioLitroNafta) || 0;
+    const precioAfilado = Number(config.precioAfiladoSierra) || 0;
+    const costoOperativoBase = (precioNafta * 6) + (precioAfilado * 3);
+    const costoAjustado = costoOperativoBase * 1.38;
+    const costoPorPieAserrio = (costoAjustado > 0 && isFinite(costoAjustado)) ? costoAjustado / 600 : 0;
+    const costoAserrio = totalPies * costoPorPieAserrio;
+
+    return { costoMadera, costoAserrio };
+};
 
 export default function PresupuestosPage() {
   const { toast } = useToast();
@@ -76,20 +110,37 @@ export default function PresupuestosPage() {
     }
   };
 
-  const handlePasarAVenta = async (presupuesto: Presupuesto) => {
-    setIsProcessing(presupuesto.id);
+  const handlePasarAVenta = async (presupuestoId: string) => {
+    setIsProcessing(presupuestoId);
     try {
+      const [presupuestoAFacturar, appConfig] = await Promise.all([
+        getPresupuestoById(presupuestoId),
+        getAppConfig()
+      ]);
+
+      if (!presupuestoAFacturar) {
+        throw new Error("El presupuesto ya no existe. Pudo haber sido eliminado o convertido por otro usuario.");
+      }
+      
+      if (!appConfig) {
+        throw new Error("No se pudo cargar la configuración de la aplicación para calcular los costos.");
+      }
+
+      const { costoMadera, costoAserrio } = calculateCostsForVenta(presupuestoAFacturar.detalles, appConfig);
+
       const ventaData: Omit<Venta, 'id'> = {
-        fecha: format(new Date(), "yyyy-MM-dd"), // Use today's date for the sale
-        nombreComprador: presupuesto.nombreCliente,
-        telefonoComprador: presupuesto.telefonoCliente,
-        detalles: presupuesto.detalles,
-        totalVenta: presupuesto.totalPresupuesto,
-        idOriginalPresupuesto: presupuesto.id,
+        fecha: format(new Date(), "yyyy-MM-dd"),
+        nombreComprador: presupuestoAFacturar.nombreCliente,
+        telefonoComprador: presupuestoAFacturar.telefonoCliente,
+        detalles: presupuestoAFacturar.detalles,
+        totalVenta: presupuestoAFacturar.totalPresupuesto,
+        idOriginalPresupuesto: presupuestoAFacturar.id,
+        costoMaderaVentaSnapshot: costoMadera,
+        costoAserrioVentaSnapshot: costoAserrio,
       };
 
       const newVenta = await addVenta(ventaData);
-      await deletePresupuesto(presupuesto.id);
+      await deletePresupuesto(presupuestoAFacturar.id);
 
       toast({
         title: "Presupuesto Convertido a Venta",
@@ -250,7 +301,7 @@ export default function PresupuestosPage() {
                             <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
                                 <Download className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">PDF</span>
                             </Button>
-                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto);}}>
+                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto.id);}}>
                                 <Send className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">A Venta</span>
                             </Button>
                             <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
