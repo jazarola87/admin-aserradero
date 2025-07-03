@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -9,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, DollarSign, Pencil, CircleCheckBig, Loader2 } from "lucide-react";
+import { PlusCircle, Trash2, Search, DollarSign, Pencil, CircleCheckBig, Loader2, Undo2 } from "lucide-react";
 import type { Venta, VentaDetalle, Configuracion } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -170,7 +171,38 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
         </AccordionTrigger>
 
         <div className="flex items-center space-x-1 shrink-0">
-          {!isFullyPaid && (
+          {isFullyPaid ? (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 px-2 text-destructive hover:text-destructive"
+                  title="Revertir estado a Pendiente"
+                >
+                  <Undo2 className="mr-1 h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Revertir Cobro</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Revertir estado de cobro?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Esta acción establecerá la seña de esta venta en $0 y la marcará como pendiente de cobro. ¿Desea continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive hover:bg-destructive/90"
+                    onClick={() => onUpdateVenta(venta.id, { sena: 0 })}
+                  >
+                    Sí, Revertir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : (
             <>
               <AlertDialog open={isSenaDialogOpen} onOpenChange={setIsSenaDialogOpen}>
                 <AlertDialogTrigger asChild>
@@ -221,6 +253,7 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
               </Button>
             </>
           )}
+
 
           <Button asChild variant="ghost" size="icon">
             <Link href={`/ventas/${venta.id}/editar`}>
