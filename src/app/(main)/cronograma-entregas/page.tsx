@@ -5,9 +5,8 @@ import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarClock, ChevronDown, Download, Loader2 } from "lucide-react";
+import { CalendarClock, Download, Loader2 } from "lucide-react";
 import type { Venta, VentaDetalle, Configuracion } from "@/types"; 
-import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -155,36 +154,33 @@ export default function CronogramaEntregasPage() {
             <Accordion type="single" collapsible className="w-full">
               {ventasConEntregaEstimada.map((venta) => (
                 <AccordionItem value={venta.id} key={venta.id}>
-                  <AccordionTrigger asChild className="hover:no-underline">
-                     <div className={cn(
-                        "flex w-full items-center py-4 px-2 font-medium text-left group", 
-                        "hover:bg-muted/50 rounded-md"
-                      )}>
-                      <div className="flex-1 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                        <div>
+                  <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
+                    <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
+                        <div className="flex-1 mb-2 sm:mb-0">
                           <span className="font-semibold text-primary">
                             Entrega: {venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) ? format(parseISO(venta.fechaEntregaEstimada), "PPP", { locale: es }) : 'N/A'}
                           </span>
                           <span className="ml-0 sm:ml-4 text-sm text-foreground block sm:inline">Cliente: {venta.nombreComprador}</span>
                         </div>
-                        <div className="flex items-center mt-2 sm:mt-0">
-                          <span className="mr-2 sm:mr-4 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-                           <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="mr-1 sm:mr-2"
-                              onClick={(e) => { e.stopPropagation(); downloadVentaPDF(venta); }}
-                            >
-                              <>
-                                <Download className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                                <span className="hidden sm:inline">PDF</span>
-                              </>
-                            </Button>
-                          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:rotate-180 ml-2" data-manual-chevron="true"/>
-                        </div>
+                        <span className="font-semibold text-base sm:text-lg self-start sm:self-center">
+                          Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                        </span>
                       </div>
+                    </AccordionTrigger>
+                    
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs h-8 px-2"
+                        onClick={(e) => { e.stopPropagation(); downloadVentaPDF(venta); }}
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">PDF</span>
+                      </Button>
                     </div>
-                  </AccordionTrigger>
+                  </div>
                   <AccordionContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 mb-3 text-sm">
                       <p><strong>Fecha de Venta:</strong> {venta.fecha && isValid(parseISO(venta.fecha)) ? format(parseISO(venta.fecha), "PPP", { locale: es }) : 'N/A'}</p>
