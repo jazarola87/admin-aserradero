@@ -140,9 +140,9 @@ export default function EditarVentaPage() {
               costoOperario: ventaAEditar.costoOperario ?? undefined,
               idOriginalPresupuesto: ventaAEditar.idOriginalPresupuesto || undefined,
               detalles: [], 
-              totalVentaManual: ventaAEditar.totalVenta,
-              costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot,
-              costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot,
+              totalVentaManual: ventaAEditar.totalVenta || undefined,
+              costoMaderaManual: ventaAEditar.costoMaderaVentaSnapshot || undefined,
+              costoAserrioManual: ventaAEditar.costoAserrioVentaSnapshot || undefined,
             });
             
             replace(loadedDetails); 
