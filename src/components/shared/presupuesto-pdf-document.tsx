@@ -1,4 +1,3 @@
-
 "use client"; 
 
 import type { Presupuesto, Venta, Configuracion } from '@/types';
@@ -11,6 +10,7 @@ interface GenericOrderPDFDocumentProps {
 }
 
 export function GenericOrderPDFDocument({ order, config, elementId, documentType }: GenericOrderPDFDocumentProps) {
+  const isPresupuesto = documentType === 'Presupuesto';
   const styles = {
     container: { 
       fontFamily: 'Arial, sans-serif', 
@@ -120,7 +120,18 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        <colgroup>
+        {isPresupuesto ? (
+          <colgroup>
+            <col style={{width: '25%'}} />
+            <col style={{width: '8%'}} />
+            <col style={{width: '20%'}} />
+            <col style={{width: '10%'}} />
+            <col style={{width: '10%'}} />
+            <col style={{width: '13.5%'}} />
+            <col style={{width: '13.5%'}} />
+          </colgroup>
+        ) : (
+          <colgroup>
             <col style={{width: '25%'}} />
             <col style={{width: '8%'}} />
             <col style={{width: '20%'}} />
@@ -129,7 +140,8 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
             <col style={{width: '9%'}} />
             <col style={{width: '9%'}} />
             <col style={{width: '9%'}} />
-        </colgroup>
+          </colgroup>
+        )}
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>
@@ -137,7 +149,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
             <th style={styles.th}>Dimensiones</th>
             <th style={styles.th}>Cepill.</th>
             <th style={styles.tdNumeric}>P.Tabl.</th>
-            <th style={styles.tdNumeric}>$/Pie</th>
+            {!isPresupuesto && <th style={styles.tdNumeric}>$/Pie</th>}
             <th style={styles.tdNumeric}>Val.Unit.</th>
             <th style={styles.tdNumeric}>Subtotal</th>
           </tr>
@@ -150,7 +162,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
               <td style={styles.td}>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</td>
               <td style={styles.td}>{detalle.cepillado ? 'Sí' : 'No'}</td>
               <td style={styles.tdNumeric}>{detalle.piesTablares?.toFixed(2)}</td>
-              <td style={styles.tdNumeric}>${detalle.precioPorPie?.toFixed(2)}</td>
+              {!isPresupuesto && <td style={styles.tdNumeric}>${detalle.precioPorPie?.toFixed(2)}</td>}
               <td style={styles.tdNumeric}>${detalle.valorUnitario?.toFixed(2)}</td>
               <td style={styles.tdNumeric}>${detalle.subTotal?.toFixed(2)}</td>
             </tr>
