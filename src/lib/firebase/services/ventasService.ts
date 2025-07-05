@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview Firestore service for Venta (Sales) documents.
  */

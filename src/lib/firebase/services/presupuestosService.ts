@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview Firestore service for Presupuesto (Quotes) documents.
  * This service is modeled after the working comprasService.ts to ensure robust communication with Firebase.

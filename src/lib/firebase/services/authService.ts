@@ -1,5 +1,3 @@
-'use server';
-
 import { auth } from '@/lib/firebase/config';
 import { 
     signInWithEmailAndPassword as firebaseSignIn, 

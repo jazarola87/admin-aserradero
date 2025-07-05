@@ -1,4 +1,3 @@
-'use server';
 /**
  * @fileOverview Firestore service for application configuration.
  */
@@ -19,7 +18,7 @@ const CONFIG_DOC_ID = 'main';
 export async function getAppConfig(): Promise<Configuracion> {
   if (!db) {
     console.error("configuracionService: Firestore (db) is not initialized.");
-    throw new Error("La base de datos no está disponible.");
+    return defaultConfig;
   }
   try {
     const configDocRef = doc(db, CONFIG_COLLECTION, CONFIG_DOC_ID);
