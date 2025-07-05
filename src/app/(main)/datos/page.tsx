@@ -136,15 +136,24 @@ export default function GestionDatosPage() {
         await updateAppConfig(config);
         restoredCounts.config = true;
 
-        // Restore collections
-        const compras: Omit<Compra, 'id'>[] = JSON.parse(comprasBackup);
-        const ventas: Omit<Venta, 'id'>[] = JSON.parse(ventasBackup);
-        const presupuestos: Omit<Presupuesto, 'id'>[] = JSON.parse(presupuestosBackup);
+        // Restore collections, making sure to remove old IDs so Firebase generates new ones.
+        const compras: Compra[] = JSON.parse(comprasBackup);
+        const ventas: Venta[] = JSON.parse(ventasBackup);
+        const presupuestos: Presupuesto[] = JSON.parse(presupuestosBackup);
 
         const restorePromises = [
-            ...compras.map(c => addCompra(c)),
-            ...ventas.map(v => addVenta(v)),
-            ...presupuestos.map(p => addPresupuesto(p)),
+            ...compras.map(c => {
+                const { id, ...data } = c; // Remove the old ID
+                return addCompra(data);
+            }),
+            ...ventas.map(v => {
+                const { id, ...data } = v; // Remove the old ID
+                return addVenta(data);
+            }),
+            ...presupuestos.map(p => {
+                const { id, ...data } = p; // Remove the old ID
+                return addPresupuesto(data);
+            }),
         ];
         
         await Promise.all(restorePromises);
