@@ -45,9 +45,4 @@ export const NAV_ITEMS: NavItem[] = [
     href: '/costos-operativos',
     icon: Wrench,
   },
-  {
-    title: 'Gestión de Datos',
-    href: '/datos',
-    icon: Database,
-  },
 ];
