@@ -9,7 +9,7 @@ export const firebaseConfig = {
   apiKey: "AIzaSyCWfewzRFvoR9Jv16cK5vFL63i7U_onrv0",
   authDomain: "aserradero-lhm-336e9.firebaseapp.com",
   projectId: "aserradero-lhm-336e9",
-  storageBucket: "aserradero-lhm-336e9.appspot.com",
+  storageBucket: "aserradero-lhm-336e9.firebasestorage.app",
   messagingSenderId: "453456443377",
   appId: "1:453456443377:web:44c4aa9ab6618215b77650",
   measurementId: "G-HCGK19WQDQ"
