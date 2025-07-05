@@ -1,9 +1,16 @@
+'use client';
+
 import { AppShell } from "@/components/layout/app-shell";
+import { AuthProvider } from "@/contexts/authContext";
 
 export default function MainAppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AuthProvider>
+      <AppShell>{children}</AppShell>
+    </AuthProvider>
+  );
 }

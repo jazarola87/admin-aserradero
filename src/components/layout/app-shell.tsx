@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   SidebarProvider,
@@ -20,10 +20,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { NAV_ITEMS, type NavItem } from "@/lib/constants";
+import { NAV_ITEMS } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
-import { PanelLeft } from "lucide-react";
+import { LogOut, PanelLeft } from "lucide-react";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { useAuth } from "@/contexts/authContext";
+import { signOut } from "@/lib/firebase/services/authService";
 
 function SidebarNav() {
   const pathname = usePathname();
@@ -47,6 +49,34 @@ function SidebarNav() {
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
+  );
+}
+
+function AppShellFooter() {
+  const { user } = useAuth();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/login');
+  };
+
+  if (!user) return null;
+
+  return (
+    <SidebarFooter className="p-4 border-t border-sidebar-border mt-auto">
+      <div className="flex flex-col gap-2 items-start text-sm w-full">
+         <div className="text-sidebar-foreground/70 truncate w-full group-data-[collapsible=icon]:hidden px-2">
+            {user.email}
+         </div>
+         <SidebarMenuItem className="w-full">
+            <SidebarMenuButton onClick={handleSignOut} tooltip="Cerrar Sesión" className="w-full justify-start">
+              <LogOut className="h-5 w-5" />
+              <span className="group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
+            </SidebarMenuButton>
+        </SidebarMenuItem>
+      </div>
+    </SidebarFooter>
   );
 }
 
@@ -81,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar
         variant="sidebar"
         collapsible="icon"
-        className="border-r"
+        className="border-r flex flex-col"
       >
         <SidebarHeader className="p-4">
           <Link href="/" className="flex items-center gap-2 overflow-hidden">
@@ -106,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SidebarNav />
           </ScrollArea>
         </SidebarContent>
-        {/* Footer has been removed as it only contained the sign out button */}
+        <AppShellFooter />
       </Sidebar>
       <SidebarInset className="flex flex-col">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:py-4">
