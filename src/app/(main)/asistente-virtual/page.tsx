@@ -99,41 +99,50 @@ export default function AsistenteVirtualPage() {
     setIsLoading(true);
     setRespuestaAsistente(null);
 
-    if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0 && !configData) {
-        toast({
-            title: "No hay datos cargados",
-            description: "No hay datos de compras, ventas o configuración en el sistema para consultar.",
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-    }
+    // Temporarily disabled for deployment debugging
+    toast({
+        title: "Función Deshabilitada",
+        description: "El asistente virtual está temporalmente deshabilitado para depurar la publicación.",
+        variant: "destructive",
+    });
+    setIsLoading(false);
+    return;
 
-    try {
-      const inputData: AsistenteConsultasInput = {
-        prompt: data.prompt,
-        comprasData: comprasDataParaFlujo,
-        ventasData: ventasDataParaFlujo,
-        configData: configData,
-      };
-      
-      const result = await consultarAsistente(inputData);
-      setRespuestaAsistente(result.respuesta);
-      
-      if (result.respuesta.startsWith("Ocurrió un error") || result.respuesta.startsWith("El asistente no pudo procesar")) {
-        toast({ title: "Respuesta del Asistente", description: result.respuesta, variant: "destructive", duration: 7000 });
-      } else {
-        toast({ title: "Respuesta Recibida", description: "El asistente ha procesado tu consulta." });
-      }
+    // if (comprasDataParaFlujo.length === 0 && ventasDataParaFlujo.length === 0 && !configData) {
+    //     toast({
+    //         title: "No hay datos cargados",
+    //         description: "No hay datos de compras, ventas o configuración en el sistema para consultar.",
+    //         variant: "destructive",
+    //     });
+    //     setIsLoading(false);
+    //     return;
+    // }
 
-    } catch (error: any) {
-      console.error("Error al consultar al asistente (cliente):", error);
-      let clientErrorMessage = "No se pudo obtener una respuesta del asistente. Intente de nuevo.";
-      if (error.message) clientErrorMessage += ` Error: ${error.message}`;
-      toast({ title: "Error de Comunicación", description: clientErrorMessage, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
+    // try {
+    //   const inputData: AsistenteConsultasInput = {
+    //     prompt: data.prompt,
+    //     comprasData: comprasDataParaFlujo,
+    //     ventasData: ventasDataParaFlujo,
+    //     configData: configData,
+    //   };
+      
+    //   const result = await consultarAsistente(inputData);
+    //   setRespuestaAsistente(result.respuesta);
+      
+    //   if (result.respuesta.startsWith("Ocurrió un error") || result.respuesta.startsWith("El asistente no pudo procesar")) {
+    //     toast({ title: "Respuesta del Asistente", description: result.respuesta, variant: "destructive", duration: 7000 });
+    //   } else {
+    //     toast({ title: "Respuesta Recibida", description: "El asistente ha procesado tu consulta." });
+    //   }
+
+    // } catch (error: any) {
+    //   console.error("Error al consultar al asistente (cliente):", error);
+    //   let clientErrorMessage = "No se pudo obtener una respuesta del asistente. Intente de nuevo.";
+    //   if (error.message) clientErrorMessage += ` Error: ${error.message}`;
+    //   toast({ title: "Error de Comunicación", description: clientErrorMessage, variant: "destructive" });
+    // } finally {
+    //   setIsLoading(false);
+    // }
   }
 
   return (

@@ -55,9 +55,15 @@ export default function AsistentePreciosPage() {
     setIsLoading(true);
     setSugerencia(null);
     try {
-      const inputData: SugerirPrecioInput = { ...data };
-      const result = await sugerirPrecio(inputData);
-      setSugerencia(result);
+      // Temporarily disabled for deployment debugging
+      toast({
+        title: "Función Deshabilitada",
+        description: "El asistente de precios está temporalmente deshabilitado para depurar la publicación.",
+        variant: "destructive",
+      });
+      // const inputData: SugerirPrecioInput = { ...data };
+      // const result = await sugerirPrecio(inputData);
+      // setSugerencia(result);
     } catch (error) {
       console.error("Error al generar sugerencia:", error);
       toast({
