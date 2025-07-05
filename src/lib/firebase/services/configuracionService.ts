@@ -18,6 +18,7 @@ const CONFIG_DOC_ID = 'main';
 export async function getAppConfig(): Promise<Configuracion> {
   if (!db) {
     console.error("configuracionService: Firestore (db) is not initialized.");
+    // Return a structured, valid default config to prevent downstream errors
     return defaultConfig;
   }
   try {
@@ -36,6 +37,7 @@ export async function getAppConfig(): Promise<Configuracion> {
     }
   } catch (error) {
     console.error("Error fetching or creating application configuration. This is likely a permissions issue on a new project. Falling back to local default config.", error);
+    // On error, return the structured default config
     return defaultConfig;
   }
 }

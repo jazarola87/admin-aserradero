@@ -17,7 +17,6 @@ import type { Venta } from '@/types';
 
 const VENTAS_COLLECTION = 'ventas';
 
-// Helper function to convert Firestore doc data to Venta
 const mapDocToVenta = (document: any): Venta => {
   const data = document.data();
   if (!data) {
@@ -26,7 +25,7 @@ const mapDocToVenta = (document: any): Venta => {
 
   return {
     id: document.id,
-    fecha: data.fecha, // Assume string "yyyy-MM-dd"
+    fecha: data.fecha,
     nombreComprador: data.nombreComprador,
     telefonoComprador: data.telefonoComprador || undefined,
     detalles: data.detalles || [],
@@ -41,9 +40,9 @@ const mapDocToVenta = (document: any): Venta => {
 };
 
 export async function getAllVentas(): Promise<Venta[]> {
-    if (!db) {
-      console.error("ventasService: Firestore (db) is not initialized correctly.");
-      return [];
+  if (!db) {
+    console.error("ventasService: Firestore (db) no está inicializado.");
+    return [];
   }
   try {
     const ventasCollection = collection(db, VENTAS_COLLECTION);
@@ -52,15 +51,15 @@ export async function getAllVentas(): Promise<Venta[]> {
     const ventasList = querySnapshot.docs.map(mapDocToVenta);
     return ventasList;
   } catch (error) {
-    console.error("Error fetching all ventas, returning empty array. This might be due to missing indexes or permissions on a new project.", error);
+    console.error("Error fetching all ventas, returning empty array.", error);
     return [];
   }
 }
 
-
 export async function getVentaById(id: string): Promise<Venta | null> {
   if (!db) {
-    throw new Error("La base de datos no está disponible.");
+    console.error("ventasService: Firestore (db) no está inicializado.");
+    throw new Error("La base de datos (Firestore) no está disponible.");
   }
   try {
     const docRef = doc(db, VENTAS_COLLECTION, id);
@@ -79,7 +78,8 @@ export async function getVentaById(id: string): Promise<Venta | null> {
 
 export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
   if (!db) {
-    throw new Error("La base de datos no está disponible.");
+    console.error("ventasService: Firestore (db) no está inicializado.");
+    throw new Error("La base de datos (Firestore) no está disponible.");
   }
   try {
     const docRef = await addDoc(collection(db, VENTAS_COLLECTION), ventaData);
@@ -92,7 +92,8 @@ export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
 
 export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id'>>): Promise<void> {
   if (!db) {
-    throw new Error("La base de datos no está disponible.");
+    console.error("ventasService: Firestore (db) no está inicializado.");
+    throw new Error("La base de datos (Firestore) no está disponible.");
   }
   try {
     const docRef = doc(db, VENTAS_COLLECTION, id);
@@ -105,7 +106,8 @@ export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id
 
 export async function deleteVenta(id: string): Promise<void> {
   if (!db) {
-    throw new Error("La base de datos no está disponible.");
+    console.error("ventasService: Firestore (db) no está inicializado.");
+    throw new Error("La base de datos (Firestore) no está disponible.");
   }
   try {
     const docRef = doc(db, VENTAS_COLLECTION, id);
