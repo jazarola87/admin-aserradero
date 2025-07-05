@@ -36,11 +36,6 @@ export const NAV_ITEMS: NavItem[] = [
     icon: CalendarClock,
   },
   {
-    title: 'Asistente Virtual',
-    href: '/asistente-virtual',
-    icon: Bot,
-  },
-  {
     title: 'Precios de Venta',
     href: '/precios-venta',
     icon: Tag,
