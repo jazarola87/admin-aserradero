@@ -23,7 +23,7 @@ const asistenteFlow = ai.defineFlow(
     outputSchema: AsistenteOutputSchema,
   },
   async (prompt) => {
-    const { output } = await ai.generate({
+    const response = await ai.generate({
       model: 'googleai/gemini-2.0-flash',
       prompt: `Eres un asistente virtual para un aserradero. Responde de manera breve y útil a la siguiente pregunta: ${prompt}`,
       config: {
@@ -31,6 +31,6 @@ const asistenteFlow = ai.defineFlow(
       },
     });
 
-    return output ?? 'No se pudo generar una respuesta.';
+    return response.text ?? 'No se pudo generar una respuesta.';
   }
 );
