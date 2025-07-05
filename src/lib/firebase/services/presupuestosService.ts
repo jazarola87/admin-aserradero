@@ -49,8 +49,7 @@ const mapDocToPresupuesto = (document: any): Presupuesto => {
 };
 
 export async function getAllPresupuestos(): Promise<Presupuesto[]> {
-  // @ts-ignore
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     console.error("presupuestosService: getAllPresupuestos - Firestore (db) no está inicializado correctamente.");
     return [];
   }
@@ -66,8 +65,7 @@ export async function getAllPresupuestos(): Promise<Presupuesto[]> {
 }
 
 export async function getPresupuestoById(id: string): Promise<Presupuesto | null> {
-  // @ts-ignore
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     console.error("presupuestosService: getPresupuestoById - Firestore (db) no está inicializado correctamente.");
     throw new Error("La base de datos (Firestore) no está inicializada correctamente para obtener el presupuesto.");
   }
@@ -87,8 +85,7 @@ export async function getPresupuestoById(id: string): Promise<Presupuesto | null
 }
 
 export async function addPresupuesto(presupuestoData: Omit<Presupuesto, 'id'>): Promise<Presupuesto> {
-  // @ts-ignore
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     console.error("presupuestosService: addPresupuesto - Firestore (db) no está inicializado correctamente.");
     throw new Error("La base de datos (Firestore) no está inicializada correctamente para agregar el presupuesto.");
   }
@@ -109,8 +106,7 @@ export async function addPresupuesto(presupuestoData: Omit<Presupuesto, 'id'>): 
 }
 
 export async function updatePresupuesto(id: string, presupuestoData: Partial<Omit<Presupuesto, 'id'>>): Promise<void> {
-  // @ts-ignore
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     console.error("presupuestosService: updatePresupuesto - Firestore (db) no está inicializado correctamente.");
     throw new Error("La base de datos (Firestore) no está inicializada correctamente para actualizar el presupuesto.");
   }
@@ -128,8 +124,7 @@ export async function updatePresupuesto(id: string, presupuestoData: Partial<Omi
 }
 
 export async function deletePresupuesto(id: string): Promise<void> {
-  // @ts-ignore
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     console.error("presupuestosService: deletePresupuesto - Firestore (db) no está inicializado correctamente.");
     throw new Error("La base de datos (Firestore) no está inicializada correctamente para eliminar el presupuesto.");
   }

@@ -54,11 +54,9 @@ const mapDocToCompra = (document: any): Compra => {
 };
 
 export async function getAllCompras(): Promise<Compra[]> {
-  console.log("comprasService: getAllCompras - db object:", db);
-  // @ts-ignore
-  if (!db || !db.type || db.type !== 'firestore') { // Chequeo básico si db es una instancia válida
-      console.error("comprasService: getAllCompras - Firestore (db) no está inicializado correctamente.");
-      return [];
+  if (!db) {
+    console.error("comprasService: getAllCompras - Firestore (db) no está inicializado correctamente.");
+    return [];
   }
   try {
     const comprasCollection = collection(db, COMPRAS_COLLECTION);
@@ -73,8 +71,7 @@ export async function getAllCompras(): Promise<Compra[]> {
 }
 
 export async function getCompraById(id: string): Promise<Compra | null> {
-  // @ts-ignore
-  if (!db || !db.type || db.type !== 'firestore') {
+  if (!db) {
       console.error("comprasService: getCompraById - Firestore (db) no está inicializado correctamente.");
       throw new Error("Firestore (db) no está inicializado correctamente para getCompraById.");
   }
@@ -94,8 +91,7 @@ export async function getCompraById(id: string): Promise<Compra | null> {
 }
 
 export async function addCompra(compraData: Omit<Compra, 'id'>): Promise<Compra> {
-  // @ts-ignore
-  if (!db || !db.type || db.type !== 'firestore') {
+  if (!db) {
       console.error("comprasService: addCompra - Firestore (db) no está inicializado correctamente.");
       throw new Error("Firestore (db) no está inicializado correctamente para addCompra.");
   }
@@ -114,8 +110,7 @@ export async function addCompra(compraData: Omit<Compra, 'id'>): Promise<Compra>
 }
 
 export async function updateCompra(id: string, compraData: Partial<Omit<Compra, 'id'>>): Promise<void> {
-  // @ts-ignore
-  if (!db || !db.type || db.type !== 'firestore') {
+  if (!db) {
       console.error("comprasService: updateCompra - Firestore (db) no está inicializado correctamente.");
       throw new Error("Firestore (db) no está inicializado correctamente para updateCompra.");
   }
@@ -133,8 +128,7 @@ export async function updateCompra(id: string, compraData: Partial<Omit<Compra, 
 }
 
 export async function deleteCompra(id: string): Promise<void> {
-  // @ts-ignore
-  if (!db || !db.type || db.type !== 'firestore') {
+  if (!db) {
       console.error("comprasService: deleteCompra - Firestore (db) no está inicializado correctamente.");
       throw new Error("Firestore (db) no está inicializado correctamente para deleteCompra.");
   }

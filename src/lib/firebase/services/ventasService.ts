@@ -41,7 +41,7 @@ const mapDocToVenta = (document: any): Venta => {
 };
 
 export async function getAllVentas(): Promise<Venta[]> {
-    if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+    if (!db) {
       console.error("ventasService: Firestore (db) is not initialized correctly.");
       return [];
   }
@@ -59,7 +59,7 @@ export async function getAllVentas(): Promise<Venta[]> {
 
 
 export async function getVentaById(id: string): Promise<Venta | null> {
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -78,7 +78,7 @@ export async function getVentaById(id: string): Promise<Venta | null> {
 }
 
 export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -91,7 +91,7 @@ export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
 }
 
 export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id'>>): Promise<void> {
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     throw new Error("La base de datos no está disponible.");
   }
   try {
@@ -104,7 +104,7 @@ export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id
 }
 
 export async function deleteVenta(id: string): Promise<void> {
-  if (!db || !('type' in db) || (db as any).type !== 'firestore') {
+  if (!db) {
     throw new Error("La base de datos no está disponible.");
   }
   try {
