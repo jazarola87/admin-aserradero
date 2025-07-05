@@ -22,11 +22,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { NAV_ITEMS, type NavItem } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
-import { PanelLeft, LogOut } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
-import { useToast } from "@/hooks/use-toast";
 
 function SidebarNav() {
   const pathname = usePathname();
@@ -50,34 +47,6 @@ function SidebarNav() {
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
-  );
-}
-
-function AppShellFooter() {
-  const { toast } = useToast();
-  const { open } = useSidebar();
-
-  const handleSignOut = async () => {
-    try {
-        await signOut(auth);
-        toast({ title: "Sesión Cerrada", description: "Has cerrado sesión correctamente." });
-        // AuthProvider will handle the redirect.
-    } catch (error) {
-        toast({ title: "Error", description: "No se pudo cerrar la sesión.", variant: "destructive" });
-    }
-  };
-
-  return (
-    <SidebarFooter className="p-2 mt-auto border-t">
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton onClick={handleSignOut} tooltip={open ? "" : "Cerrar Sesión"}>
-            <LogOut className="h-5 w-5" />
-            <span>Cerrar Sesión</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
-    </SidebarFooter>
   );
 }
 
@@ -137,7 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SidebarNav />
           </ScrollArea>
         </SidebarContent>
-        <AppShellFooter />
+        {/* Footer has been removed as it only contained the sign out button */}
       </Sidebar>
       <SidebarInset className="flex flex-col">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:py-4">
