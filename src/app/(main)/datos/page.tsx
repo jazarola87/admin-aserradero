@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -254,15 +253,17 @@ export default function GestionDatosPage() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Confirmar Restauración?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                           Se escribirán los siguientes datos en su proyecto de Firebase:
-                           <ul className="list-disc list-inside my-2">
-                            <li>{backupStatus?.compras || 0} Compras</li>
-                            <li>{backupStatus?.ventas || 0} Ventas</li>
-                            <li>{backupStatus?.presupuestos || 0} Presupuestos</li>
-                            <li>1 Configuración</li>
-                           </ul>
-                           Esta acción es irreversible. ¿Desea continuar?
+                        <AlertDialogDescription asChild>
+                           <div>
+                             <p>Se escribirán los siguientes datos en su proyecto de Firebase:</p>
+                             <ul className="list-disc list-inside my-2">
+                              <li>{backupStatus?.compras || 0} Compras</li>
+                              <li>{backupStatus?.ventas || 0} Ventas</li>
+                              <li>{backupStatus?.presupuestos || 0} Presupuestos</li>
+                              <li>1 Configuración</li>
+                             </ul>
+                             <p>Esta acción es irreversible. ¿Desea continuar?</p>
+                           </div>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
