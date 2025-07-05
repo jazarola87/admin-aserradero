@@ -1,6 +1,6 @@
 
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Bot, FileText, ClipboardList, Wrench, CalendarClock, HardHat, Upload, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, DollarSign, Tag, Bot, FileText, ClipboardList, Wrench, CalendarClock, HardHat, Upload, ClipboardCheck, Database } from 'lucide-react';
 
 export interface NavItem {
   title: string;
@@ -49,5 +49,10 @@ export const NAV_ITEMS: NavItem[] = [
     title: 'Asistente Virtual',
     href: '/asistente-virtual',
     icon: Bot,
+  },
+  {
+    title: 'Gestión de Datos',
+    href: '/datos',
+    icon: Database,
   },
 ];
