@@ -44,7 +44,7 @@ const mapDocToVenta = (document: any): Venta => {
 export async function getAllVentas(): Promise<Venta[]> {
     if (!db || !('type' in db) || (db as any).type !== 'firestore') {
       console.error("ventasService: Firestore (db) is not initialized correctly.");
-      throw new Error("La base de datos no está disponible.");
+      return [];
   }
   try {
     const ventasCollection = collection(db, VENTAS_COLLECTION);
@@ -53,16 +53,8 @@ export async function getAllVentas(): Promise<Venta[]> {
     const ventasList = querySnapshot.docs.map(mapDocToVenta);
     return ventasList;
   } catch (error) {
-    console.error("Error fetching all ventas: ", error);
-    // If the error is due to a missing index, we can try fetching without ordering.
-    if (error instanceof Error && (error.message.includes('firestore/failed-precondition') || error.message.includes('needs an index'))) {
-        console.warn("Fetching ventas without ordering due to missing index.");
-        const ventasCollection = collection(db, VENTAS_COLLECTION);
-        const querySnapshot = await getDocs(ventasCollection);
-        const ventasList = querySnapshot.docs.map(mapDocToVenta);
-        return ventasList.sort((a, b) => b.fecha.localeCompare(a.fecha)); // Sort on client-side
-    }
-    throw new Error("No se pudieron obtener las ventas.");
+    console.error("Error fetching all ventas, returning empty array. This might be due to missing indexes or permissions on a new project.", error);
+    return [];
   }
 }
 

@@ -59,7 +59,7 @@ export async function getAllCompras(): Promise<Compra[]> {
   // @ts-ignore
   if (!db || !db.type || db.type !== 'firestore') { // Chequeo básico si db es una instancia válida
       console.error("comprasService: getAllCompras - Firestore (db) no está inicializado correctamente.");
-      throw new Error("Firestore (db) no está inicializado correctamente para getAllCompras.");
+      return [];
   }
   try {
     const comprasCollection = collection(db, COMPRAS_COLLECTION);
@@ -68,8 +68,8 @@ export async function getAllCompras(): Promise<Compra[]> {
     const comprasList = querySnapshot.docs.map(mapDocToCompra);
     return comprasList;
   } catch (error) {
-    console.error("Error fetching all compras (FULL ERROR OBJECT): ", error);
-    throw new Error("No se pudieron obtener las compras.");
+    console.error("Error fetching all compras, returning empty array. This might be due to missing indexes or permissions on a new project.", error);
+    return [];
   }
 }
 

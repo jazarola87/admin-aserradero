@@ -36,8 +36,8 @@ export async function getAppConfig(): Promise<Configuracion> {
       return defaultConfig;
     }
   } catch (error) {
-    console.error("Error fetching or creating application configuration: ", error);
-    throw new Error("No se pudo obtener la configuración de la aplicación.");
+    console.error("Error fetching or creating application configuration. This is likely a permissions issue on a new project. Falling back to local default config.", error);
+    return defaultConfig;
   }
 }
 

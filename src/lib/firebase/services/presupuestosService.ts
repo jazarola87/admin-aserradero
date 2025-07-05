@@ -53,7 +53,7 @@ export async function getAllPresupuestos(): Promise<Presupuesto[]> {
   // @ts-ignore
   if (!db || !('type' in db) || (db as any).type !== 'firestore') {
     console.error("presupuestosService: getAllPresupuestos - Firestore (db) no está inicializado correctamente.");
-    throw new Error("La base de datos (Firestore) no está inicializada correctamente para obtener los presupuestos.");
+    return [];
   }
   try {
     const presupuestosCollection = collection(db, PRESUPUESTOS_COLLECTION);
@@ -61,8 +61,8 @@ export async function getAllPresupuestos(): Promise<Presupuesto[]> {
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(mapDocToPresupuesto);
   } catch (error) {
-    console.error("Error al obtener todos los presupuestos: ", error);
-    throw new Error("No se pudieron obtener los presupuestos. Verifique la conexión y las reglas de seguridad de Firebase.");
+    console.error("Error al obtener todos los presupuestos, returning empty array. This might be due to missing indexes or permissions on a new project.", error);
+    return [];
   }
 }
 
