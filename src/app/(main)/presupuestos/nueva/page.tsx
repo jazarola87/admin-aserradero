@@ -183,16 +183,13 @@ export default function NuevoPresupuestoPage() {
     return subtotal;
   };
   
-  const totalGeneralPresupuesto = useMemo(() => {
-    if (!watchedDetalles) return 0;
-    return watchedDetalles.reduce((acc, detalle) => {
-      if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
-        const pies = calcularPiesTablares(detalle);
-        return acc + calcularSubtotal(detalle, pies);
-      }
-      return acc;
-    }, 0);
-  }, [watchedDetalles, config]);
+  const totalGeneralPresupuesto = (watchedDetalles || []).reduce((acc, detalle) => {
+    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') {
+      const pies = calcularPiesTablares(detalle);
+      return acc + calcularSubtotal(detalle, pies);
+    }
+    return acc;
+  }, 0);
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true });
