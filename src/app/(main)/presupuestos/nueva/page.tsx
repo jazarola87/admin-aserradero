@@ -30,8 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
 import { addPresupuesto } from "@/lib/firebase/services/presupuestosService";
 import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
-import { useRouter } from "next/navigation";
-import { Label } from "@/components/ui/label";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const itemDetalleSchema = z.object({
   tipoMadera: z.string().optional(),
@@ -82,28 +81,65 @@ const initialDetallesCount = 15;
 export default function NuevoPresupuestoPage() {
   const { toast } = useToast();
   const router = useRouter(); 
+  const searchParams = useSearchParams();
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [bulkFillType, setBulkFillType] = useState<string>('');
-  const [bulkFillCount, setBulkFillCount] = useState<string>('');
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
-    defaultValues: {
-      fecha: new Date(), 
-      nombreCliente: "",
-      telefonoCliente: "",
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-    },
+    // Default values will be set inside useEffect based on query params
+  });
+  
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "detalles",
   });
 
   useEffect(() => {
-    async function loadConfig() {
+    async function loadInitialData() {
       setIsLoading(true);
       try {
         const appConfig = await getAppConfig();
         setConfig(appConfig);
+
+        const initialDetails: Partial<z.infer<typeof itemDetalleSchema>>[] = [];
+        let prefilledRows = 0;
+
+        if (appConfig?.preciosMadera) {
+          const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
+
+          for (const [tipoMadera, countStr] of searchParams.entries()) {
+            const count = parseInt(countStr, 10);
+            if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
+              for (let i = 0; i < count; i++) {
+                initialDetails.push({
+                  tipoMadera: tipoMadera,
+                  precioPorPie: preciosMap.get(tipoMadera),
+                  unidades: undefined,
+                  ancho: undefined,
+                  alto: undefined,
+                  largo: undefined,
+                  cepillado: false,
+                });
+              }
+              prefilledRows += count;
+            }
+          }
+        }
+
+        const emptyRowsToAdd = Math.max(0, initialDetallesCount - prefilledRows);
+        for (let i = 0; i < emptyRowsToAdd; i++) {
+          initialDetails.push(createEmptyDetalle());
+        }
+        
+        form.reset({
+          fecha: new Date(),
+          nombreCliente: "",
+          telefonoCliente: "",
+          detalles: initialDetails,
+        });
+
       } catch (error) {
         toast({
           title: "Error al Cargar Configuración",
@@ -114,14 +150,9 @@ export default function NuevoPresupuestoPage() {
         setIsLoading(false);
       }
     }
-    loadConfig();
-  }, [toast]);
+    loadInitialData();
+  }, [searchParams, form, toast]);
 
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "detalles",
-  });
 
   const watchedDetalles = form.watch("detalles");
 
@@ -169,30 +200,6 @@ export default function NuevoPresupuestoPage() {
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
     if (!detalle) return true;
     return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
-  };
-
-  const handleBulkFill = () => {
-    if (!bulkFillType || !bulkFillCount || !config) return;
-
-    const count = Number(bulkFillCount);
-    if (isNaN(count) || count <= 0) return;
-
-    let filledCount = 0;
-    for (let i = 0; i < fields.length && filledCount < count; i++) {
-        const isRowEmpty = isRowEffectivelyEmpty(form.getValues(`detalles.${i}`));
-        if (isRowEmpty) {
-            handleTipoMaderaChange(bulkFillType, i);
-            filledCount++;
-        }
-    }
-
-    toast({
-        title: "Relleno Rápido Aplicado",
-        description: `${filledCount} de ${count} filas solicitadas han sido rellenadas con ${bulkFillType}.`,
-    });
-
-    setBulkFillType('');
-    setBulkFillCount('');
   };
 
   async function onSubmit(data: PresupuestoFormValues) {
@@ -324,48 +331,6 @@ export default function NuevoPresupuestoPage() {
               />
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Relleno Rápido de Filas</CardTitle>
-              <CardDescription>
-                Complete automáticamente las filas de detalle vacías con un tipo de madera y su precio.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex items-end gap-4">
-              <div className="flex-1">
-                <Label htmlFor="bulk-fill-type">Tipo de Madera</Label>
-                <Select onValueChange={setBulkFillType} value={bulkFillType}>
-                  <SelectTrigger id="bulk-fill-type" className="mt-2">
-                    <SelectValue placeholder="Seleccione tipo de madera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {config?.preciosMadera.map(madera => (
-                      <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
-                        {madera.tipoMadera}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="bulk-fill-count">N° de Filas</Label>
-                <Input
-                  id="bulk-fill-count"
-                  type="number"
-                  className="w-24 mt-2"
-                  placeholder="Cant."
-                  value={bulkFillCount}
-                  onChange={(e) => setBulkFillCount(e.target.value)}
-                  min="1"
-                />
-              </div>
-              <Button type="button" onClick={handleBulkFill} disabled={!bulkFillType || !bulkFillCount || Number(bulkFillCount) <= 0}>
-                Rellenar
-              </Button>
-            </CardContent>
-          </Card>
-
 
           <Card>
             <CardHeader>

@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil, Loader2 } from "lucide-react";
 import type { Presupuesto, Venta, Configuracion, PresupuestoDetalle } from "@/types";
@@ -68,6 +70,9 @@ export default function PresupuestosPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
   const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
+
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [rowCounts, setRowCounts] = useState<Record<string, number>>({});
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -225,15 +230,70 @@ export default function PresupuestosPage() {
     );
   }, [presupuestos, searchTerm]);
 
+  const handleRowCountChange = (tipoMadera: string, value: string) => {
+    const count = parseInt(value, 10);
+    setRowCounts(prev => ({
+      ...prev,
+      [tipoMadera]: isNaN(count) || count < 0 ? 0 : count,
+    }));
+  };
+
+  const handleGeneratePresupuesto = () => {
+    const params = new URLSearchParams();
+    for (const [tipo, count] of Object.entries(rowCounts)) {
+      if (count > 0) {
+        params.append(tipo, count.toString());
+      }
+    }
+    router.push(`/presupuestos/nueva?${params.toString()}`);
+    setIsConfigDialogOpen(false);
+  };
+
   return (
     <div className="container mx-auto py-6">
       <PageTitle title="Registro de Presupuestos" description="Listado de todos los presupuestos generados.">
-        <Button asChild>
-          <Link href="/presupuestos/nuevo">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nuevo Presupuesto
-          </Link>
-        </Button>
+        <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nuevo Presupuesto
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Configurar Nuevo Presupuesto</DialogTitle>
+              <DialogDescription>
+                Especifique cuántas filas de producto desea pre-cargar para cada tipo de madera.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              {(config?.preciosMadera || []).map(madera => (
+                <div className="grid grid-cols-4 items-center gap-4" key={madera.tipoMadera}>
+                  <Label htmlFor={madera.tipoMadera} className="text-right">
+                    {madera.tipoMadera}
+                  </Label>
+                  <Input
+                    id={madera.tipoMadera}
+                    type="number"
+                    min="0"
+                    value={rowCounts[madera.tipoMadera] || ""}
+                    onChange={(e) => handleRowCountChange(madera.tipoMadera, e.target.value)}
+                    className="col-span-3"
+                    placeholder="N° de filas a pre-cargar"
+                  />
+                </div>
+              ))}
+              {(!config || config.preciosMadera.length === 0) && (
+                  <p className="text-sm text-muted-foreground text-center col-span-4">
+                    No hay tipos de madera definidos en la configuración.
+                  </p>
+                )}
+            </div>
+            <DialogFooter>
+              <Button onClick={handleGeneratePresupuesto}>Continuar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </PageTitle>
 
       <Card>
@@ -270,7 +330,7 @@ export default function PresupuestosPage() {
               <ClipboardList className="mx-auto h-12 w-12 mb-4" />
               <p>No hay presupuestos registrados en Firebase.</p>
               <Button variant="link" asChild className="mt-2">
-                <Link href="/presupuestos/nuevo">Registrar el primer presupuesto</Link>
+                <Link href="/presupuestos/configurar">Registrar el primer presupuesto</Link>
               </Button>
             </div>
           ) : filteredPresupuestos.length === 0 ? (
