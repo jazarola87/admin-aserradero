@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { PageTitle } from "@/components/shared/page-title";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Save, Trash2, Loader2, Package } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format, parseISO, isValid } from "date-fns";
@@ -32,6 +32,8 @@ import type { VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/t
 import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
 import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService";
+import { getStockSummary, type StockSummaryItem } from "@/lib/firebase/services/stockService";
+import { Badge } from "@/components/ui/badge";
 
 const initialDetallesCount = 15; 
 
@@ -43,6 +45,7 @@ const ventaDetalleSchema = z.object({
   largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
+  usadoDeStock: z.boolean().default(false).optional(),
 });
 
 const ventaFormSchema = z.object({
@@ -80,6 +83,7 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
   largo: undefined,
   precioPorPie: undefined,
   cepillado: false,
+  usadoDeStock: false,
 });
 
 const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Configuracion | null) => {
@@ -137,6 +141,7 @@ export default function EditarVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [config, setConfig] = useState<Configuracion | null>(null);
+  const [stockSummary, setStockSummary] = useState<StockSummaryItem[]>([]);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -158,11 +163,13 @@ export default function EditarVentaPage() {
     async function loadData() {
       setIsLoading(true);
       try {
-        const [appConfig, ventaAEditar] = await Promise.all([
+        const [appConfig, ventaAEditar, stockData] = await Promise.all([
           getAppConfig(),
-          getVentaById(ventaId)
+          getVentaById(ventaId),
+          getStockSummary()
         ]);
         setConfig(appConfig);
+        setStockSummary(stockData);
 
         if (ventaAEditar) {
             const loadedDetails = (ventaAEditar.detalles || []).map(d => ({
@@ -173,6 +180,7 @@ export default function EditarVentaPage() {
                 largo: Number(d.largo) || undefined,
                 precioPorPie: Number(d.precioPorPie) || undefined,
                 cepillado: d.cepillado ?? false,
+                usadoDeStock: d.usadoDeStock ?? false,
             }));
             
             form.reset({
@@ -240,9 +248,40 @@ export default function EditarVentaPage() {
     return unidades * alto * ancho * largo * 0.2734;
   };
 
+  const findUnidadesDisponibles = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
+    if (!detalle || !detalle.tipoMadera || !detalle.alto || !detalle.ancho || !detalle.largo) {
+        return 0;
+    }
+    const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
+    const matchingStock = stockSummary.filter(stockItem => 
+        stockItem.tipoMadera === tipoMadera &&
+        stockItem.alto === alto &&
+        stockItem.ancho === ancho &&
+        stockItem.largo >= largo &&
+        stockItem.cepillado === !!cepillado
+    );
+    return matchingStock.reduce((sum, item) => sum + item.unidades, 0);
+  };
+
   async function onSubmit(data: VentaFormValues) {
     if (!ventaId || !config) return;
     setIsSubmitting(true);
+
+    const stockItems = data.detalles.filter(d => d.usadoDeStock);
+    if (stockItems.length > 0) {
+      for (const item of stockItems) {
+        const disponibles = findUnidadesDisponibles(item);
+        if ((item.unidades ?? 0) > disponibles) {
+            toast({ 
+                variant: "destructive", 
+                title: "Stock Insuficiente",
+                description: `No hay suficiente stock para ${item.unidades} unidades de ${item.tipoMadera} con las dimensiones especificadas.`
+            });
+            setIsSubmitting(false);
+            return;
+        }
+      }
+    }
     
     // Use the same robust calculation for submission
     const finalTotals = calculateAllTotals(data.detalles, config);
@@ -445,6 +484,7 @@ export default function EditarVentaPage() {
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
                       <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
+                      <TableHead className="min-w-[110px]">Usar Stock</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
                       <TableHead className="min-w-[120px] text-right">Subtotal ($)</TableHead>
@@ -462,6 +502,7 @@ export default function EditarVentaPage() {
                       }
                       const valorUnitario = (Number(currentDetalle?.unidades) > 0 && subTotal > 0) ? subTotal / Number(currentDetalle.unidades) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
+                      const unidadesDisponibles = findUnidadesDisponibles(currentDetalle);
 
                       return (
                         <TableRow key={item.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
@@ -524,6 +565,16 @@ export default function EditarVentaPage() {
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
                             />
+                          </TableCell>
+                          <TableCell className="p-1 align-middle">
+                            <div className="flex flex-col items-center justify-center gap-1">
+                              <FormField control={form.control} name={`detalles.${index}.usadoDeStock`} render={({ field: f }) => (
+                                <FormItem className="flex items-center justify-center h-full"><FormControl><Checkbox disabled={unidadesDisponibles === 0} checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
+                              />
+                              <Badge variant={unidadesDisponibles > 0 ? "default" : "outline"} className="text-xs cursor-default">
+                                <Package className="mr-1 h-3 w-3"/>{unidadesDisponibles}
+                              </Badge>
+                            </div>
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={pies > 0 ? pies.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />

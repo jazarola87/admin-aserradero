@@ -14,6 +14,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import type { Venta } from '@/types';
+import { consumeStockForSale, revertStockConsumption } from './stockService';
 
 const VENTAS_COLLECTION = 'ventas';
 
@@ -84,7 +85,13 @@ export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
   }
   try {
     const docRef = await addDoc(collection(db, VENTAS_COLLECTION), ventaData);
-    return { id: docRef.id, ...ventaData } as Venta;
+    const newVenta = { id: docRef.id, ...ventaData } as Venta;
+
+    if (newVenta.detalles.some(d => d.usadoDeStock)) {
+      await consumeStockForSale(newVenta);
+    }
+
+    return newVenta;
   } catch (error) {
     console.error("Error adding venta: ", error);
     throw new Error("No se pudo agregar la venta.");
@@ -97,8 +104,15 @@ export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id
     throw new Error("La base de datos (Firestore) no está disponible.");
   }
   try {
+    await revertStockConsumption(id);
+
     const docRef = doc(db, VENTAS_COLLECTION, id);
     await updateDoc(docRef, ventaData);
+
+    const updatedVenta = { id, ...ventaData } as Venta;
+     if (updatedVenta.detalles && updatedVenta.detalles.some(d => d.usadoDeStock)) {
+       await consumeStockForSale(updatedVenta);
+    }
   } catch (error) {
     console.error(`Error updating venta with ID ${id}: `, error);
     throw new Error("No se pudo actualizar la venta.");
@@ -112,7 +126,8 @@ export async function deleteVenta(id: string): Promise<void> {
   }
   try {
     const docRef = doc(db, VENTAS_COLLECTION, id);
-    await deleteDoc(docRef);
+    await deleteVenta(id);
+    await revertStockConsumption(id);
   } catch (error) {
     console.error(`Error deleting venta with ID ${id}: `, error);
     throw new Error("No se pudo eliminar la venta.");

@@ -1,5 +1,6 @@
 
 
+
 export interface Compra {
   id: string;
   fecha: string; 
@@ -23,6 +24,7 @@ export interface VentaDetalle {
   piesTablares?: number;
   subTotal?: number;
   valorUnitario?: number;
+  usadoDeStock?: boolean;
 }
 
 export interface Venta {
@@ -71,6 +73,7 @@ export interface StockMaderaAserrada {
   totalPiesTablares: number;
   costoAserrioSnapshot: number;
   notas?: string;
+  idVentaConsumo?: string;
 }
 
 export interface PrecioMadera {
@@ -93,3 +96,4 @@ export interface Configuracion {
   precioAfiladoSierra?: number;
   costosMaderaMetroCubico?: CostoMaderaMetroCubico[];
 }
+
