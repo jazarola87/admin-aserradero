@@ -7,7 +7,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
-import { Button, type ButtonProps } from "@/components/ui/button" // Ensure ButtonProps is imported if needed by SidebarTrigger's props
+import { Button, type ButtonProps } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -252,49 +252,41 @@ const Sidebar = React.forwardRef<
 Sidebar.displayName = "Sidebar"
 
 const SidebarTrigger = React.forwardRef<
-  HTMLButtonElement, // The ref will ultimately point to a button or the child of Slot
-  ButtonProps // Inherit ButtonProps, which includes asChild and children
->(({ className, onClick, asChild, children, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar();
+  HTMLButtonElement,
+  ButtonProps
+>(({ className, asChild = false, children, onClick, ...props }, ref) => {
+  const { toggleSidebar } = useSidebar()
+  const Comp = asChild ? Slot : "button"
 
-  const commonTriggerProps = {
-    "data-sidebar": "trigger",
-    className: cn("h-7 w-7", className), // Base styles for the trigger area
-    onClick: (event: React.MouseEvent<HTMLElement>) => { // HTMLElement to be more generic for Slot
-      // If onClick is provided for the SidebarTrigger, call it
-      if (onClick) {
-        (onClick as React.MouseEventHandler<HTMLElement>)(event);
-      }
-      toggleSidebar();
-    },
-  };
-
-  if (asChild && React.isValidElement(children)) {
-    // If asChild is true and children is a valid React element,
-    // render Slot and pass commonTriggerProps to be merged onto the child.
-    // The child itself (e.g., a <Button>) will define its own appearance (variant, size).
-    return (
-      <Slot {...commonTriggerProps} {...props} ref={ref}>
-        {children}
-      </Slot>
-    );
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (onClick) {
+      onClick(e)
+    }
+    toggleSidebar()
   }
 
-  // If asChild is false or children is not a single valid element,
-  // render the default Button with its own icon and screen reader text.
+  if (asChild) {
+    return (
+      <Comp ref={ref} onClick={handleClick} {...props}>
+        {children}
+      </Comp>
+    )
+  }
+
   return (
     <Button
+      ref={ref}
       variant="ghost"
       size="icon"
-      {...commonTriggerProps} // Apply common props
-      {...props} // Spread any other ButtonProps
-      ref={ref}
+      className={className}
+      onClick={handleClick}
+      {...props}
     >
       <PanelLeft />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
-  );
-});
+  )
+})
 SidebarTrigger.displayName = "SidebarTrigger"
 
 
