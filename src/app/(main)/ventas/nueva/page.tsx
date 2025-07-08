@@ -254,7 +254,6 @@ export default function NuevaVentaPage() {
       }
     }
     
-    // Use the same robust calculation for submission
     const finalTotals = calculateAllTotals(data.detalles, config);
 
     const processedDetalles = (data.detalles || []).filter(
@@ -298,21 +297,21 @@ export default function NuevaVentaPage() {
       return;
     }
 
-    const nuevaVentaData: Omit<Venta, 'id'> = {
-      fecha: format(data.fecha, "yyyy-MM-dd"),
-      nombreComprador: data.nombreComprador,
-      detalles: processedDetalles,
-      totalVenta: finalTotals.totalVenta,
-      costoMaderaVentaSnapshot: finalTotals.costoMadera,
-      costoAserrioVentaSnapshot: finalTotals.costoAserrio,
-      entregado: false,
-      // Conditionally add optional fields to avoid sending `undefined` to Firestore
-      ...(data.telefonoComprador && { telefonoComprador: data.telefonoComprador }),
-      ...(data.fechaEntregaEstimada && { fechaEntregaEstimada: format(data.fechaEntregaEstimada, "yyyy-MM-dd") }),
-      ...(data.sena && !isNaN(data.sena) && { sena: Number(data.sena) }),
-      ...(data.costoOperario && !isNaN(data.costoOperario) && { costoOperario: Number(data.costoOperario) }),
-      ...(data.idOriginalPresupuesto && { idOriginalPresupuesto: data.idOriginalPresupuesto }),
+    const nuevaVentaData: Omit<Venta, 'id' | 'sena' | 'costoOperario' | 'telefonoComprador' | 'fechaEntregaEstimada' | 'idOriginalPresupuesto'> & Partial<Pick<Venta, 'sena' | 'costoOperario' | 'telefonoComprador' | 'fechaEntregaEstimada' | 'idOriginalPresupuesto'>> = {
+        fecha: format(data.fecha, "yyyy-MM-dd"),
+        nombreComprador: data.nombreComprador,
+        detalles: processedDetalles,
+        totalVenta: finalTotals.totalVenta,
+        costoMaderaVentaSnapshot: finalTotals.costoMadera,
+        costoAserrioVentaSnapshot: finalTotals.costoAserrio,
+        entregado: false,
     };
+    
+    if (data.telefonoComprador) nuevaVentaData.telefonoComprador = data.telefonoComprador;
+    if (data.fechaEntregaEstimada) nuevaVentaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
+    if (typeof data.sena === 'number') nuevaVentaData.sena = data.sena;
+    if (typeof data.costoOperario === 'number') nuevaVentaData.costoOperario = data.costoOperario;
+    if (data.idOriginalPresupuesto) nuevaVentaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
     
     try {
         await addVenta(nuevaVentaData);

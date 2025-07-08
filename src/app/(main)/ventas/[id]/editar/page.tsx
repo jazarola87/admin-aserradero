@@ -283,7 +283,6 @@ export default function EditarVentaPage() {
       }
     }
     
-    // Use the same robust calculation for submission
     const finalTotals = calculateAllTotals(data.detalles, config);
 
     const processedDetalles = data.detalles.filter(
@@ -326,16 +325,18 @@ export default function EditarVentaPage() {
     const ventaActualizadaData: Partial<Omit<Venta, 'id'>> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
-      telefonoComprador: data.telefonoComprador,
-      fechaEntregaEstimada: data.fechaEntregaEstimada ? format(data.fechaEntregaEstimada, "yyyy-MM-dd") : undefined,
-      sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
-      costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
       totalVenta: finalTotals.totalVenta,
-      idOriginalPresupuesto: data.idOriginalPresupuesto, 
       costoMaderaVentaSnapshot: finalTotals.costoMadera, 
       costoAserrioVentaSnapshot: finalTotals.costoAserrio, 
     };
+
+    if (data.telefonoComprador) ventaActualizadaData.telefonoComprador = data.telefonoComprador;
+    if (data.fechaEntregaEstimada) ventaActualizadaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
+    if (typeof data.sena === 'number') ventaActualizadaData.sena = data.sena;
+    if (typeof data.costoOperario === 'number') ventaActualizadaData.costoOperario = data.costoOperario;
+    if (data.idOriginalPresupuesto) ventaActualizadaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
+
 
     try {
         await updateVenta(ventaId, ventaActualizadaData);
