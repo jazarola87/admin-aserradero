@@ -36,6 +36,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: CalendarClock,
   },
   {
+    title: 'Stock Aserrado',
+    href: '/stock',
+    icon: Database,
+  },
+  {
     title: 'Precios de Venta',
     href: '/precios-venta',
     icon: Tag,

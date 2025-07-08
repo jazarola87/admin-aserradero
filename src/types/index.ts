@@ -1,4 +1,5 @@
 
+
 export interface Compra {
   id: string;
   fecha: string; 
@@ -63,6 +64,14 @@ export interface Presupuesto {
   totalPresupuesto?: number;
 }
 
+export interface StockMaderaAserrada {
+  id: string;
+  fecha: string;
+  detalles: VentaDetalle[];
+  totalPiesTablares: number;
+  costoAserrioSnapshot: number;
+  notas?: string;
+}
 
 export interface PrecioMadera {
   tipoMadera: string;
