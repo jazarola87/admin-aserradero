@@ -606,26 +606,38 @@ export default function VentasPage() {
               </div>
 
               {/* Ventas de meses anteriores */}
-              {Object.keys(ventasPorMesPasado).length > 0 && <Separator />}
-
-              {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
-                <div key={mesKey} className="mt-8">
-                  <h3 className="text-xl font-semibold mb-2 capitalize text-foreground">
-                    {format(parseISO(`${mesKey}-01`), 'MMMM yyyy', { locale: es })}
-                  </h3>
-                  <Accordion type="single" collapsible className="w-full border rounded-md">
-                     {ventasPorMesPasado[mesKey].map((venta) => (
-                      <VentaItem
-                        key={venta.id}
-                        venta={venta}
-                        config={config!}
-                        onDelete={handleDeleteVenta}
-                        onUpdateVenta={handleUpdateVenta}
-                      />
-                    ))}
-                  </Accordion>
-                </div>
-              ))}
+              {Object.keys(ventasPorMesPasado).length > 0 && (
+                <>
+                  <Separator className="my-8" />
+                  <div className="space-y-4">
+                    <h3 className="text-xl font-semibold text-foreground">Ventas de Meses Anteriores</h3>
+                    <Accordion type="multiple" collapsible className="w-full space-y-4">
+                      {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
+                        <AccordionItem value={mesKey} key={mesKey} className="border-none">
+                          <div className="rounded-lg border shadow-sm">
+                            <AccordionTrigger className="px-4 py-3 text-lg font-semibold capitalize hover:no-underline rounded-t-lg data-[state=open]:border-b">
+                              {format(parseISO(`${mesKey}-01`), 'MMMM yyyy', { locale: es })}
+                            </AccordionTrigger>
+                            <AccordionContent className="p-0">
+                                <Accordion type="single" collapsible className="w-full">
+                                  {ventasPorMesPasado[mesKey].map((venta) => (
+                                    <VentaItem
+                                      key={venta.id}
+                                      venta={venta}
+                                      config={config!}
+                                      onDelete={handleDeleteVenta}
+                                      onUpdateVenta={handleUpdateVenta}
+                                    />
+                                  ))}
+                                </Accordion>
+                            </AccordionContent>
+                          </div>
+                        </AccordionItem>
+                      ))}
+                    </Accordion>
+                  </div>
+                </>
+              )}
             </>
           )}
         </CardContent>
