@@ -34,6 +34,7 @@ import { addVenta } from "@/lib/firebase/services/ventasService";
 import { getStockSummary, type StockSummaryItem } from "@/lib/firebase/services/stockService";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().optional(),
@@ -148,6 +149,8 @@ export default function NuevaVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stockSummary, setStockSummary] = useState<StockSummaryItem[]>([]);
+  const [bulkFillType, setBulkFillType] = useState<string>('');
+  const [bulkFillCount, setBulkFillCount] = useState<string>('');
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -203,6 +206,11 @@ export default function NuevaVentaPage() {
   const valorLucas = totals.costoAserrio + (Number(watchedCostoOperario) || 0) + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const saldoPendiente = totals.totalVenta - (Number(watchedSena) || 0);
 
+  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
+    if (!detalle) return true;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
+  };
+
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
     const maderaSeleccionada = config?.preciosMadera.find(m => m.tipoMadera === value);
@@ -212,6 +220,30 @@ export default function NuevaVentaPage() {
       form.setValue(`detalles.${index}.precioPorPie`, undefined, { shouldValidate: true, shouldDirty: true });
     }
     form.trigger(`detalles.${index}`);
+  };
+
+  const handleBulkFill = () => {
+    if (!bulkFillType || !bulkFillCount || !config) return;
+
+    const count = Number(bulkFillCount);
+    if (isNaN(count) || count <= 0) return;
+
+    let filledCount = 0;
+    for (let i = 0; i < fields.length && filledCount < count; i++) {
+        const isRowEmpty = isRowEffectivelyEmpty(form.getValues(`detalles.${i}`));
+        if (isRowEmpty) {
+            handleTipoMaderaChange(bulkFillType, i);
+            filledCount++;
+        }
+    }
+
+    toast({
+        title: "Relleno Rápido Aplicado",
+        description: `${filledCount} de ${count} filas solicitadas han sido rellenadas con ${bulkFillType}.`,
+    });
+
+    setBulkFillType('');
+    setBulkFillCount('');
   };
 
   const calcularPiesTablares = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number => {
@@ -234,7 +266,8 @@ export default function NuevaVentaPage() {
         stockItem.tipoMadera !== tipoMadera ||
         stockItem.alto !== alto ||
         stockItem.ancho !== ancho ||
-        stockItem.largo < (largo || 0)
+        stockItem.largo < (largo || 0) ||
+        stockItem.unidades <= 0
       ) {
         return false;
       }
@@ -259,12 +292,12 @@ export default function NuevaVentaPage() {
       return { total: 0, breakdown: "Stock: 0" };
     }
 
-    const breakdownString = Array.from(breakdownMap.entries())
+    const breakdownString = "Stock: " + Array.from(breakdownMap.entries())
       .sort(([largoA], [largoB]) => largoA - largoB)
       .map(([largo, unidades]) => `${largo}m: ${unidades}`)
       .join(', ');
 
-    return { total, breakdown: `Stock: ${breakdownString}` };
+    return { total, breakdown: breakdownString };
   };
   
   async function onSubmit(data: VentaFormValues) {
@@ -372,11 +405,6 @@ export default function NuevaVentaPage() {
     }
   }
 
-  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
-    if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
-  };
-
   if (isLoading) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -478,7 +506,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Costo Operario ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -493,6 +521,38 @@ export default function NuevaVentaPage() {
               <CardDescription>Ingrese los productos vendidos. Las filas con tipo de madera, unidades y precio se considerarán válidas.</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="flex items-end gap-2 p-4 mb-4 border rounded-lg bg-muted/50">
+                <div className="flex-1">
+                  <Label htmlFor="bulk-fill-type" className="mb-2 block text-sm font-medium">Relleno Rápido de Filas</Label>
+                  <Select onValueChange={setBulkFillType} value={bulkFillType}>
+                    <SelectTrigger id="bulk-fill-type">
+                      <SelectValue placeholder="Seleccione tipo de madera" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {config?.preciosMadera.map(madera => (
+                        <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                          {madera.tipoMadera}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="bulk-fill-count" className="text-sm font-medium">N° Filas</Label>
+                  <Input
+                    id="bulk-fill-count"
+                    type="number"
+                    className="w-24 mt-2"
+                    placeholder="Cant."
+                    value={bulkFillCount}
+                    onChange={(e) => setBulkFillCount(e.target.value)}
+                    min="1"
+                  />
+                </div>
+                <Button type="button" onClick={handleBulkFill} disabled={!bulkFillType || !bulkFillCount || Number(bulkFillCount) <= 0}>
+                  Rellenar
+                </Button>
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -613,7 +673,7 @@ export default function NuevaVentaPage() {
                                     />
                                   </FormControl>
                                   <div className="text-center mt-1">
-                                    <Badge variant={stockInfo.total > 0 ? "default" : "outline"} className="text-xs cursor-default px-1.5 py-0.5 h-auto whitespace-normal text-left">
+                                    <Badge variant={stockInfo.total > 0 ? "default" : "outline"} className="text-xs cursor-default px-1.5 py-0.5 h-auto whitespace-normal text-left leading-tight">
                                         {stockInfo.breakdown}
                                     </Badge>
                                   </div>

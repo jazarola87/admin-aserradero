@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -32,6 +33,7 @@ import type { VentaDetalle as VentaDetalleType, StockMaderaAserrada, Configuraci
 import { Separator } from "@/components/ui/separator";
 import { useRouter } from "next/navigation";
 import { addStockEntry } from "@/lib/firebase/services/stockService";
+import { Label } from "@/components/ui/label";
 
 const stockDetalleSchema = z.object({
   tipoMadera: z.string().optional(),
@@ -113,6 +115,8 @@ export default function NuevoIngresoStockPage() {
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bulkFillType, setBulkFillType] = useState<string>('');
+  const [bulkFillCount, setBulkFillCount] = useState<string>('');
   
   const form = useForm<StockFormValues>({
     resolver: zodResolver(stockFormSchema),
@@ -151,6 +155,35 @@ export default function NuevoIngresoStockPage() {
   const watchedDetalles = form.watch("detalles");
 
   const totals = calculateTotals(watchedDetalles, config);
+
+  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof stockDetalleSchema>>) => {
+    if (!detalle) return true;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && !detalle.cepillado;
+  };
+
+  const handleBulkFill = () => {
+    if (!bulkFillType || !bulkFillCount || !config) return;
+
+    const count = Number(bulkFillCount);
+    if (isNaN(count) || count <= 0) return;
+
+    let filledCount = 0;
+    for (let i = 0; i < fields.length && filledCount < count; i++) {
+        const isRowEmpty = isRowEffectivelyEmpty(form.getValues(`detalles.${i}`));
+        if (isRowEmpty) {
+            form.setValue(`detalles.${i}.tipoMadera`, bulkFillType, { shouldValidate: true, shouldDirty: true });
+            filledCount++;
+        }
+    }
+
+    toast({
+        title: "Relleno Rápido Aplicado",
+        description: `${filledCount} de ${count} filas solicitadas han sido rellenadas con ${bulkFillType}.`,
+    });
+
+    setBulkFillType('');
+    setBulkFillCount('');
+  };
 
   const handleTipoMaderaChange = (value: string, index: number) => {
     form.setValue(`detalles.${index}.tipoMadera`, value, { shouldValidate: true, shouldDirty: true });
@@ -233,11 +266,6 @@ export default function NuevoIngresoStockPage() {
     }
   }
 
-  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof stockDetalleSchema>>) => {
-    if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && !detalle.cepillado;
-  };
-
   if (isLoading) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -302,6 +330,38 @@ export default function NuevoIngresoStockPage() {
               <CardDescription>Ingrese los productos de madera aserrada producidos.</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="flex items-end gap-2 p-4 mb-4 border rounded-lg bg-muted/50">
+                <div className="flex-1">
+                  <Label htmlFor="bulk-fill-type" className="mb-2 block text-sm font-medium">Relleno Rápido de Filas</Label>
+                  <Select onValueChange={setBulkFillType} value={bulkFillType}>
+                    <SelectTrigger id="bulk-fill-type">
+                      <SelectValue placeholder="Seleccione tipo de madera" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {config?.preciosMadera.map(madera => (
+                        <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                          {madera.tipoMadera}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="bulk-fill-count" className="text-sm font-medium">N° Filas</Label>
+                  <Input
+                    id="bulk-fill-count"
+                    type="number"
+                    className="w-24 mt-2"
+                    placeholder="Cant."
+                    value={bulkFillCount}
+                    onChange={(e) => setBulkFillCount(e.target.value)}
+                    min="1"
+                  />
+                </div>
+                <Button type="button" onClick={handleBulkFill} disabled={!bulkFillType || !bulkFillCount || Number(bulkFillCount) <= 0}>
+                  Rellenar
+                </Button>
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
