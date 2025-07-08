@@ -215,15 +215,21 @@ export default function DashboardPage() {
 
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
-        // Only count as "sold" from historical stock if it's NOT from sawn stock.
-        if (detalle.usadoDeStock) {
-          return;
-        }
+        if (!detalle.tipoMadera || !detalle.unidades) return;
         
-        if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
-          stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
-        } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) { 
-           stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: calcularPiesTablaresItem(detalle) };
+        const totalUnidades = detalle.unidades;
+        const unidadesDeStock = detalle.unidadesDeStock || 0;
+        const unidadesNuevas = totalUnidades - unidadesDeStock;
+
+        if (unidadesNuevas > 0) {
+          // Calculate pies for the new production part only
+          const piesTablaresNuevos = unidadesNuevas * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
+          
+          if (stockMap[detalle.tipoMadera]) {
+            stockMap[detalle.tipoMadera].vendidosPies += piesTablaresNuevos;
+          } else {
+            stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: piesTablaresNuevos };
+          }
         }
       });
     });

@@ -45,7 +45,15 @@ const ventaDetalleSchema = z.object({
   largo: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   precioPorPie: z.coerce.number().nonnegative({ message: "Debe ser >= 0" }).optional(),
   cepillado: z.boolean().default(false).optional(),
-  usadoDeStock: z.boolean().default(false).optional(),
+  unidadesDeStock: z.coerce.number().int().nonnegative("Debe ser >= 0.").optional(),
+}).refine(data => {
+  if (data.unidadesDeStock !== undefined && data.unidades !== undefined) {
+    return data.unidadesDeStock <= data.unidades;
+  }
+  return true;
+}, {
+  message: "No puede exceder el total de unidades.",
+  path: ['unidadesDeStock'],
 });
 
 const ventaFormSchema = z.object({
@@ -83,7 +91,7 @@ const createEmptyDetalle = (): Partial<z.infer<typeof ventaDetalleSchema>> => ({
   largo: undefined,
   precioPorPie: undefined,
   cepillado: false,
-  usadoDeStock: false,
+  unidadesDeStock: undefined,
 });
 
 const calculateAllTotals = (detalles: VentaFormValues['detalles'], config: Configuracion | null) => {
@@ -180,7 +188,7 @@ export default function EditarVentaPage() {
                 largo: Number(d.largo) || undefined,
                 precioPorPie: Number(d.precioPorPie) || undefined,
                 cepillado: d.cepillado ?? false,
-                usadoDeStock: d.usadoDeStock ?? false,
+                unidadesDeStock: d.unidadesDeStock || undefined,
             }));
             
             form.reset({
@@ -267,15 +275,15 @@ export default function EditarVentaPage() {
     if (!ventaId || !config) return;
     setIsSubmitting(true);
 
-    const stockItems = data.detalles.filter(d => d.usadoDeStock);
+    const stockItems = data.detalles.filter(d => d.unidadesDeStock && d.unidadesDeStock > 0);
     if (stockItems.length > 0) {
       for (const item of stockItems) {
         const disponibles = findUnidadesDisponibles(item);
-        if ((item.unidades ?? 0) > disponibles) {
+        if ((item.unidadesDeStock ?? 0) > disponibles) {
             toast({ 
                 variant: "destructive", 
                 title: "Stock Insuficiente",
-                description: `No hay suficiente stock para ${item.unidades} unidades de ${item.tipoMadera} con las dimensiones especificadas.`
+                description: `No hay suficiente stock para ${item.unidadesDeStock} unidades de ${item.tipoMadera} con las dimensiones especificadas.`
             });
             setIsSubmitting(false);
             return;
@@ -312,7 +320,8 @@ export default function EditarVentaPage() {
         piesTablares: pies, 
         subTotal: subTotal, 
         valorUnitario: valorUnit, 
-        id: `vd-edit-${Date.now()}-${idx}` 
+        id: `vd-edit-${Date.now()}-${idx}`,
+        unidadesDeStock: d_form.unidadesDeStock || 0,
       } as VentaDetalleType;
     });
 
@@ -485,7 +494,7 @@ export default function EditarVentaPage() {
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
                       <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
-                      <TableHead className="min-w-[110px]">Usar Stock</TableHead>
+                      <TableHead className="min-w-[120px]">Uds. de Stock</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
                       <TableHead className="min-w-[120px] text-right">Subtotal ($)</TableHead>
@@ -567,15 +576,38 @@ export default function EditarVentaPage() {
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
                             />
                           </TableCell>
-                          <TableCell className="p-1 align-middle">
-                            <div className="flex flex-col items-center justify-center gap-1">
-                              <FormField control={form.control} name={`detalles.${index}.usadoDeStock`} render={({ field: f }) => (
-                                <FormItem className="flex items-center justify-center h-full"><FormControl><Checkbox disabled={unidadesDisponibles === 0} checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
-                              />
-                              <Badge variant={unidadesDisponibles > 0 ? "default" : "outline"} className="text-xs cursor-default">
-                                <Package className="mr-1 h-3 w-3"/>{unidadesDisponibles}
-                              </Badge>
-                            </div>
+                          <TableCell className="p-1 align-middle w-[120px]">
+                            <FormField
+                              control={form.control}
+                              name={`detalles.${index}.unidadesDeStock`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      placeholder="Cant."
+                                      className="h-8 text-center"
+                                      {...field}
+                                      value={field.value ?? ""}
+                                      onChange={e => {
+                                        const val = e.target.value === '' ? undefined : parseInt(e.target.value, 10);
+                                        field.onChange(val);
+                                        form.trigger(`detalles.${index}`);
+                                      }}
+                                      disabled={unidadesDisponibles === 0}
+                                      min="0"
+                                      max={Math.min(unidadesDisponibles, form.getValues(`detalles.${index}.unidades`) ?? 0)}
+                                    />
+                                  </FormControl>
+                                  <div className="text-center mt-1">
+                                    <Badge variant={unidadesDisponibles > 0 ? "default" : "outline"} className="text-xs cursor-default px-1.5 py-0">
+                                        Stock: {unidadesDisponibles}
+                                    </Badge>
+                                  </div>
+                                  <FormMessage className="text-xs px-1 text-center" />
+                                </FormItem>
+                              )}
+                            />
                           </TableCell>
                           <TableCell className="p-1 text-right align-middle">
                             <Input readOnly value={pies > 0 ? pies.toFixed(2) : ""} className="bg-muted/50 text-right border-none h-8" tabIndex={-1} />

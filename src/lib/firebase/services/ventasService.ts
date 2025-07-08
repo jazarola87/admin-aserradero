@@ -87,7 +87,7 @@ export async function addVenta(ventaData: Omit<Venta, 'id'>): Promise<Venta> {
     const docRef = await addDoc(collection(db, VENTAS_COLLECTION), ventaData);
     const newVenta = { id: docRef.id, ...ventaData } as Venta;
 
-    if (newVenta.detalles.some(d => d.usadoDeStock)) {
+    if (newVenta.detalles.some(d => d.unidadesDeStock && d.unidadesDeStock > 0)) {
       await consumeStockForSale(newVenta);
     }
 
@@ -108,10 +108,14 @@ export async function updateVenta(id: string, ventaData: Partial<Omit<Venta, 'id
 
     const docRef = doc(db, VENTAS_COLLECTION, id);
     await updateDoc(docRef, ventaData);
-
-    const updatedVenta = { id, ...ventaData } as Venta;
-     if (updatedVenta.detalles && updatedVenta.detalles.some(d => d.usadoDeStock)) {
-       await consumeStockForSale(updatedVenta);
+    
+    // We need the full venta object to consume stock correctly, so we fetch it again
+    const updatedVentaDoc = await getDoc(docRef);
+    if (updatedVentaDoc.exists()) {
+      const fullUpdatedVenta = mapDocToVenta(updatedVentaDoc);
+      if (fullUpdatedVenta.detalles && fullUpdatedVenta.detalles.some(d => d.unidadesDeStock && d.unidadesDeStock > 0)) {
+        await consumeStockForSale(fullUpdatedVenta);
+      }
     }
   } catch (error) {
     console.error(`Error updating venta with ID ${id}: `, error);

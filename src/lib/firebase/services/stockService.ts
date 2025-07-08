@@ -145,7 +145,7 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
     throw new Error("La base de datos no está disponible.");
   }
   
-  const stockItemsToConsume = venta.detalles.filter(d => d.usadoDeStock);
+  const stockItemsToConsume = venta.detalles.filter(d => d.unidadesDeStock && d.unidadesDeStock > 0);
   if (stockItemsToConsume.length === 0) {
     return;
   }
@@ -155,8 +155,9 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
   const batch = writeBatch(db);
 
   for (const detalle of stockItemsToConsume) {
-    const { tipoMadera, alto, ancho, largo, cepillado, unidades } = detalle;
-    if (!tipoMadera || !alto || !ancho || !largo || !unidades) continue;
+    const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
+    const unidadesDeStock = detalle.unidadesDeStock;
+    if (!tipoMadera || !alto || !ancho || !largo || !unidadesDeStock) continue;
 
     const availableSources = stockSummary
       .filter(s => 
@@ -169,7 +170,7 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
       )
       .sort((a, b) => a.largo - b.largo);
 
-    let unitsToConsume = unidades;
+    let unitsToConsume = unidadesDeStock;
 
     for (const source of availableSources) {
       if (unitsToConsume <= 0) break;
