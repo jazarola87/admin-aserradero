@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -7,14 +6,12 @@ import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, Pencil, Loader2 } from "lucide-react";
+import { PlusCircle, Search, Loader2 } from "lucide-react";
 import type { Compra } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, isValid } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { getAllCompras, deleteCompra } from "@/lib/firebase/services/comprasService";
+import { CompraItem } from "@/components/shared/compra-item";
 
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
@@ -43,7 +40,7 @@ export default function ComprasPage() {
     loadComprasFromFirebase();
   }, [loadComprasFromFirebase]);
 
-  const handleDeleteCompra = async (idToDelete: string) => {
+  const handleDeleteCompra = useCallback(async (idToDelete: string) => {
     try {
       await deleteCompra(idToDelete);
       toast({
@@ -51,7 +48,6 @@ export default function ComprasPage() {
         description: "La compra ha sido eliminada exitosamente de Firebase.",
         variant: "default",
       });
-      // Recargar la lista para reflejar la eliminación
       loadComprasFromFirebase();
     } catch (error) {
       console.error("Error al eliminar compra en Firebase: ", error);
@@ -61,7 +57,7 @@ export default function ComprasPage() {
         variant: "destructive",
       });
     }
-  };
+  }, [loadComprasFromFirebase, toast]);
 
   const filteredCompras = useMemo(() => {
     if (!searchTerm) return compras;
@@ -140,45 +136,7 @@ export default function ComprasPage() {
               </TableHeader>
               <TableBody>
                 {filteredCompras.map((compra) => (
-                  <TableRow key={compra.id}>
-                    <TableCell>{compra.fecha && isValid(parseISO(compra.fecha)) ? format(parseISO(compra.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}</TableCell>
-                    <TableCell>{compra.tipoMadera}</TableCell>
-                    <TableCell>{compra.volumen} m³</TableCell>
-                    <TableCell>${(compra.precioPorMetroCubico ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell>${compra.costo.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell>{compra.proveedor}</TableCell>
-                    <TableCell>{compra.telefonoProveedor || "N/A"}</TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button asChild variant="ghost" size="icon">
-                        <Link href={`/compras/${compra.id}/editar`}>
-                          <Pencil className="h-4 w-4" />
-                          <span className="sr-only">Editar Compra</span>
-                        </Link>
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Eliminar Compra</span>
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Esto eliminará permanentemente la compra de Firebase.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDeleteCompra(compra.id)} className="bg-destructive hover:bg-destructive/90">
-                              Eliminar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  </TableRow>
+                  <CompraItem key={compra.id} compra={compra} onDelete={handleDeleteCompra} />
                 ))}
               </TableBody>
             </Table>
