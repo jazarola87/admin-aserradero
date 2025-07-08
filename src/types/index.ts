@@ -37,6 +37,7 @@ export interface Venta {
   costoOperario?: number;
   costoMaderaVentaSnapshot?: number; // Costo de madera calculado al momento de la venta/última edición
   costoAserrioVentaSnapshot?: number; // Costo de aserrío calculado al momento de la venta/última edición
+  entregado?: boolean;
 }
 
 export interface PresupuestoDetalle {

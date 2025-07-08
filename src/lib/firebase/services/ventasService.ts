@@ -36,6 +36,7 @@ const mapDocToVenta = (document: any): Venta => {
     costoOperario: data.costoOperario !== undefined ? Number(data.costoOperario) : undefined,
     costoMaderaVentaSnapshot: data.costoMaderaVentaSnapshot !== undefined ? Number(data.costoMaderaVentaSnapshot) : undefined,
     costoAserrioVentaSnapshot: data.costoAserrioVentaSnapshot !== undefined ? Number(data.costoAserrioVentaSnapshot) : undefined,
+    entregado: data.entregado || false,
   } as Venta;
 };
 

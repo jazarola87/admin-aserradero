@@ -5,7 +5,8 @@ import { PageTitle } from "@/components/shared/page-title";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CalendarClock, Download, Loader2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { CalendarClock, Download, Loader2, CheckCircle } from "lucide-react";
 import type { Venta, VentaDetalle, Configuracion } from "@/types"; 
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
@@ -15,7 +16,7 @@ import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
 import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-import { getAllVentas } from "@/lib/firebase/services/ventasService";
+import { getAllVentas, updateVenta } from "@/lib/firebase/services/ventasService";
 import { Badge } from "@/components/ui/badge";
 
 type EstadoCobro = { texto: string; variant: "default" | "secondary" | "destructive" | "outline" };
@@ -45,6 +46,7 @@ export default function CronogramaEntregasPage() {
   const { toast } = useToast();
   const [selectedVentaForPdf, setSelectedVentaForPdf] = useState<Venta | null>(null);
   const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -72,13 +74,37 @@ export default function CronogramaEntregasPage() {
 
   const ventasConEntregaEstimada = useMemo(() => {
     return ventas
-      .filter(venta => venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)))
+      .filter(venta => venta.fechaEntregaEstimada && isValid(parseISO(venta.fechaEntregaEstimada)) && !venta.entregado)
       .sort((a, b) => {
         const dateA = parseISO(a.fechaEntregaEstimada!);
         const dateB = parseISO(b.fechaEntregaEstimada!);
         return dateA.getTime() - dateB.getTime(); // Soonest first
     });
   }, [ventas]);
+
+  const handleMarkAsDelivered = async (venta: Venta) => {
+    if (!venta || !venta.id) return;
+    setIsProcessing(venta.id);
+    try {
+        await updateVenta(venta.id, {
+            sena: venta.totalVenta, // Mark as paid
+            entregado: true,        // Mark as delivered
+        });
+        toast({
+            title: "Entrega Completada",
+            description: `La venta a ${venta.nombreComprador} ha sido marcada como entregada y cobrada.`,
+        });
+        await loadData(); // Refresh the list to remove the item
+    } catch (error) {
+        toast({
+            title: "Error",
+            description: "No se pudo actualizar el estado de la venta. " + (error instanceof Error ? error.message : ""),
+            variant: "destructive",
+        });
+    } finally {
+        setIsProcessing(null);
+    }
+};
 
   const downloadVentaPDF = async (venta: Venta) => {
     if (!config) {
@@ -151,12 +177,12 @@ export default function CronogramaEntregasPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Ventas Programadas</CardTitle>
+          <CardTitle>Entregas Pendientes</CardTitle>
           <CardDescription>
             {isLoading ? "Cargando entregas..." : 
               ventasConEntregaEstimada.length > 0
-              ? `Mostrando ${ventasConEntregaEstimada.length} venta(s) con fecha de entrega programada.`
-              : "No hay ventas con fecha de entrega estimada."
+              ? `Mostrando ${ventasConEntregaEstimada.length} entrega(s) pendiente(s).`
+              : "No hay entregas pendientes."
             }
           </CardDescription>
         </CardHeader>
@@ -204,15 +230,49 @@ export default function CronogramaEntregasPage() {
                     </AccordionTrigger>
                     
                     <div className="flex items-center space-x-1 shrink-0">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-xs h-8 px-2"
-                        onClick={(e) => { e.stopPropagation(); downloadVentaPDF(venta); }}
-                      >
-                        <Download className="mr-1 h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">PDF</span>
-                      </Button>
+                      {isProcessing === venta.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-8 px-2 border-primary text-primary hover:bg-primary/10"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Entregado</span>
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Confirmar Entrega?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción marcará la venta como <strong>entregada y cobrada totalmente</strong>.
+                                  La venta desaparecerá de este cronograma. ¿Está seguro?
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleMarkAsDelivered(venta)}>
+                                  Sí, Confirmar Entrega
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs h-8 px-2"
+                            onClick={(e) => { e.stopPropagation(); downloadVentaPDF(venta); }}
+                          >
+                            <Download className="mr-1 h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">PDF</span>
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <AccordionContent>
