@@ -178,7 +178,7 @@ export default function NuevoPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = useMemo(() => {
-    return watchedDetalles.reduce((acc, detalle) => {
+    return (watchedDetalles || []).reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
         const pies = calcularPiesTablares(detalle);
         return acc + calcularSubtotal(detalle, pies);
@@ -357,7 +357,8 @@ export default function NuevoPresupuestoPage() {
                   </TableHeader>
                   <TableBody>
                     {fields.map((item, index) => {
-                      const currentDetalle = watchedDetalles[index];
+                      const currentDetalle = watchedDetalles?.[index];
+                      if (!currentDetalle) return null; // Safe guard for rendering
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
                       const valorUnitario = (currentDetalle?.unidades && currentDetalle.unidades > 0 && subTotal > 0) ? subTotal / currentDetalle.unidades : 0;
