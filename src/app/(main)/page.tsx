@@ -215,6 +215,11 @@ export default function DashboardPage() {
 
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
+        // Only count as "sold" from historical stock if it's NOT from sawn stock.
+        if (detalle.usadoDeStock) {
+          return;
+        }
+        
         if (detalle.tipoMadera && stockMap[detalle.tipoMadera]) {
           stockMap[detalle.tipoMadera].vendidosPies += calcularPiesTablaresItem(detalle);
         } else if (detalle.tipoMadera && !stockMap[detalle.tipoMadera]) { 
