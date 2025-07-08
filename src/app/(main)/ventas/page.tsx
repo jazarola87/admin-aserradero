@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -611,7 +610,7 @@ export default function VentasPage() {
                   <Separator className="my-8" />
                   <div className="space-y-4">
                     <h3 className="text-xl font-semibold text-foreground">Ventas de Meses Anteriores</h3>
-                    <Accordion type="multiple" collapsible className="w-full space-y-4">
+                    <Accordion type="multiple" className="w-full space-y-4">
                       {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
                         <AccordionItem value={mesKey} key={mesKey} className="border-none">
                           <div className="rounded-lg border shadow-sm">
