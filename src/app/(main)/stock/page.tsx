@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Search, Loader2, Database, Package } from "lucide-react";
+import { PlusCircle, Search, Loader2, Database, Package, ArrowUp, ArrowDown } from "lucide-react";
 import type { StockMaderaAserrada } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { getAllStockEntries, deleteStockEntry } from "@/lib/firebase/services/stockService";
@@ -60,13 +60,27 @@ export default function StockPage() {
     }
   }, [loadStockEntries, toast]);
 
-  const filteredEntries = useMemo(() => {
-    if (!searchTerm) return stockEntries;
-    return stockEntries.filter(entry =>
+  const { productionEntries, consumptionEntries } = useMemo(() => {
+    const production: StockMaderaAserrada[] = [];
+    const consumption: StockMaderaAserrada[] = [];
+
+    stockEntries.forEach(entry => {
+        if (entry.idVentaConsumo) {
+            consumption.push(entry);
+        } else {
+            production.push(entry);
+        }
+    });
+    return { productionEntries: production, consumptionEntries: consumption };
+  }, [stockEntries]);
+
+  const filteredProductionEntries = useMemo(() => {
+    if (!searchTerm) return productionEntries;
+    return productionEntries.filter(entry =>
       entry.notas?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       entry.detalles.some(d => d.tipoMadera?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-  }, [stockEntries, searchTerm]);
+  }, [productionEntries, searchTerm]);
 
   const stockSummaryByWoodType = useMemo(() => {
     if (!stockEntries || stockEntries.length === 0) return [];
@@ -83,10 +97,9 @@ export default function StockPage() {
       }> 
     }>();
 
-    // Group by wood type first
     stockEntries.forEach(entry => {
       (entry.detalles || []).forEach(detalle => {
-        if (!detalle.tipoMadera || !detalle.unidades) return;
+        if (!detalle.tipoMadera || !detalle.unidades || !detalle.alto || !detalle.ancho || !detalle.largo) return;
         
         if (!summaryMap.has(detalle.tipoMadera)) {
           summaryMap.set(detalle.tipoMadera, {
@@ -100,7 +113,7 @@ export default function StockPage() {
         const medidaKey = `${detalle.alto}-${detalle.ancho}-${detalle.largo}-${cepillado}`;
 
         let piesTablaresDelDetalle = detalle.piesTablares;
-        if (piesTablaresDelDetalle === undefined || piesTablaresDelDetalle === 0) {
+        if (piesTablaresDelDetalle === undefined) {
           piesTablaresDelDetalle = (detalle.unidades || 0) * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
         }
 
@@ -121,7 +134,6 @@ export default function StockPage() {
       });
     });
     
-    // Filter out entries with zero or negative units and sort
     const finalSummary = Array.from(summaryMap.values()).map(woodType => {
       const filteredMedidas = Array.from(woodType.medidas.values())
         .filter(m => m.unidades > 0)
@@ -213,15 +225,18 @@ export default function StockPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Historial de Ingresos a Stock</CardTitle>
+          <CardTitle className="flex items-center text-green-700">
+            <ArrowUp className="mr-2 h-5 w-5" />
+            Historial de Ingresos por Producción
+          </CardTitle>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <CardDescription>
-              {isLoading ? "Cargando ingresos de stock..." :
-                (filteredEntries.length > 0
-                  ? `Mostrando ${filteredEntries.length} de ${stockEntries.length} ingreso(s).`
-                  : stockEntries.length === 0 ? "Aún no se han registrado ingresos a stock." : "No se encontraron ingresos con los criterios de búsqueda.")
+              {isLoading ? "Cargando ingresos de producción..." :
+                (filteredProductionEntries.length > 0
+                  ? `Mostrando ${filteredProductionEntries.length} de ${productionEntries.length} ingreso(s).`
+                  : productionEntries.length === 0 ? "Aún no se han registrado ingresos de producción." : "No se encontraron ingresos con los criterios de búsqueda.")
               }
             </CardDescription>
             <div className="relative w-full sm:w-auto">
@@ -243,25 +258,54 @@ export default function StockPage() {
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
               <p>Cargando ingresos...</p>
             </div>
-          ) : stockEntries.length === 0 && !searchTerm ? (
+          ) : productionEntries.length === 0 && !searchTerm ? (
             <div className="text-center py-10 text-muted-foreground">
               <Database className="mx-auto h-12 w-12 mb-4" />
-              <p>No hay ingresos de stock registrados.</p>
+              <p>No hay ingresos de producción registrados.</p>
               <Button variant="link" asChild className="mt-2">
                 <Link href="/stock/nueva">Registrar el primer ingreso</Link>
               </Button>
             </div>
-          ) : filteredEntries.length === 0 && searchTerm ? (
+          ) : filteredProductionEntries.length === 0 && searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <p>No se encontraron ingresos que coincidan con su búsqueda.</p>
             </div>
           ) : (
             <Accordion type="single" collapsible className="w-full">
-              {filteredEntries.map((entry) => (
+              {filteredProductionEntries.map((entry) => (
                 <StockEntryItem key={entry.id} entry={entry} onDelete={handleDeleteEntry} />
               ))}
             </Accordion>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center text-red-700">
+            <ArrowDown className="mr-2 h-5 w-5" />
+            Historial de Egresos por Venta
+          </CardTitle>
+           <CardDescription>
+              {isLoading ? "Cargando egresos..." :
+                consumptionEntries.length > 0 ? `Mostrando ${consumptionEntries.length} egreso(s) por ventas.` : "Aún no se han registrado egresos por ventas."
+              }
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+             {isLoading ? (
+                <div className="text-center py-10 text-muted-foreground">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : consumptionEntries.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay egresos de stock para mostrar.</p>
+            ) : (
+                <Accordion type="single" collapsible className="w-full">
+                    {consumptionEntries.map((entry) => (
+                        <StockEntryItem key={entry.id} entry={entry} onDelete={handleDeleteEntry} />
+                    ))}
+                </Accordion>
+            )}
         </CardContent>
       </Card>
     </div>
