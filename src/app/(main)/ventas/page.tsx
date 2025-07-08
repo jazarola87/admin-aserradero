@@ -126,8 +126,10 @@ export default function VentasPage() {
     }
 
     if (searchTerm) {
+        const lowercasedSearchTerm = searchTerm.toLowerCase();
         tempVentas = tempVentas.filter(venta =>
-          venta.nombreComprador.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          venta.id.toLowerCase().includes(lowercasedSearchTerm) ||
+          venta.nombreComprador.toLowerCase().includes(lowercasedSearchTerm) ||
           (venta.telefonoComprador && venta.telefonoComprador.includes(searchTerm))
         );
     }
@@ -210,7 +212,7 @@ export default function VentasPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
-                    placeholder="Buscar por comprador, teléfono..."
+                    placeholder="Buscar por ID, comprador, teléfono..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-8 w-full sm:w-[300px]"
