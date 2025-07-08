@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from "react";
@@ -45,8 +44,8 @@ function StockEntryItemComponent({ entry, onDelete }: StockEntryItemProps) {
         </AccordionTrigger>
         <div className="flex items-center space-x-1 shrink-0">
           {isConsumption && entry.idVentaConsumo ? (
-            <Button asChild variant="ghost" size="icon" title="Ir a la Venta">
-              <Link href={`/ventas/${entry.idVentaConsumo}/editar`}>
+            <Button asChild variant="ghost" size="icon" title="Ver Registro de Venta">
+              <Link href={`/ventas#${entry.idVentaConsumo}`}>
                 <ArrowRightCircle className="h-5 w-5 text-blue-600" />
                 <span className="sr-only">Ir a la Venta</span>
               </Link>
