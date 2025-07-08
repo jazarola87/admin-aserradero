@@ -2,6 +2,7 @@
 
 
 
+
 export interface Compra {
   id: string;
   fecha: string; 
@@ -75,6 +76,7 @@ export interface StockMaderaAserrada {
   costoAserrioSnapshot: number;
   notas?: string;
   idVentaConsumo?: string;
+  nombreClienteConsumo?: string;
 }
 
 export interface PrecioMadera {

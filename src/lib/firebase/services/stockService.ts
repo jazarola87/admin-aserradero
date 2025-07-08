@@ -36,6 +36,7 @@ const mapDocToStockEntry = (document: any): StockMaderaAserrada => {
     costoAserrioSnapshot: Number(data.costoAserrioSnapshot) || 0,
     notas: data.notas || undefined,
     idVentaConsumo: data.idVentaConsumo || undefined,
+    nombreClienteConsumo: data.nombreClienteConsumo || undefined,
   } as StockMaderaAserrada;
 };
 
@@ -215,6 +216,7 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
         costoAserrioSnapshot: -costoAserrioConsumido,
         notas: `Consumo para Venta #${venta.id}`,
         idVentaConsumo: venta.id,
+        nombreClienteConsumo: venta.nombreComprador,
       };
       
       const newDocRef = doc(collection(db, STOCK_COLLECTION));
