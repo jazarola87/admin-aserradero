@@ -272,8 +272,6 @@ export default function EditarVentaPage() {
         return false;
       }
       
-      // If sale item is cepillado, we can use both cepillado and non-cepillado stock.
-      // If sale item is NOT cepillado, we can ONLY use non-cepillado stock.
       return cepillado ? true : !stockItem.cepillado;
     });
 
@@ -363,23 +361,20 @@ export default function EditarVentaPage() {
     }
 
     const ventaActualizadaData: Partial<Omit<Venta, 'id'>> = {
-      fecha: format(data.fecha, "yyyy-MM-dd"),
-      nombreComprador: data.nombreComprador,
-      detalles: processedDetalles,
-      totalVenta: finalTotals.totalVenta,
-      costoMaderaVentaSnapshot: finalTotals.costoMadera, 
-      costoAserrioVentaSnapshot: finalTotals.costoAserrio, 
+        fecha: format(data.fecha, "yyyy-MM-dd"),
+        nombreComprador: data.nombreComprador,
+        detalles: processedDetalles,
+        totalVenta: finalTotals.totalVenta,
+        costoMaderaVentaSnapshot: finalTotals.costoMadera, 
+        costoAserrioVentaSnapshot: finalTotals.costoAserrio, 
+        telefonoComprador: data.telefonoComprador || '',
+        fechaEntregaEstimada: (data.fechaEntregaEstimada && isValid(data.fechaEntregaEstimada)) 
+            ? format(data.fechaEntregaEstimada, "yyyy-MM-dd") 
+            : '',
+        sena: data.sena ?? 0,
+        costoOperario: data.costoOperario ?? 0,
+        idOriginalPresupuesto: data.idOriginalPresupuesto || '',
     };
-
-    if (data.telefonoComprador) ventaActualizadaData.telefonoComprador = data.telefonoComprador;
-    if (data.fechaEntregaEstimada) {
-      ventaActualizadaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
-    } else {
-      ventaActualizadaData.fechaEntregaEstimada = undefined;
-    }
-    if (typeof data.sena === 'number') ventaActualizadaData.sena = data.sena;
-    if (typeof data.costoOperario === 'number') ventaActualizadaData.costoOperario = data.costoOperario;
-    if (data.idOriginalPresupuesto) ventaActualizadaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
 
 
     try {
