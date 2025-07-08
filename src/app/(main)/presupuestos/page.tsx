@@ -131,12 +131,13 @@ export default function PresupuestosPage() {
       const ventaData: Omit<Venta, 'id'> = {
         fecha: format(new Date(), "yyyy-MM-dd"),
         nombreComprador: presupuestoAFacturar.nombreCliente,
-        telefonoComprador: presupuestoAFacturar.telefonoCliente,
-        detalles: presupuestoAFacturar.detalles,
+        detalles: presupuestoAFacturar.detalles.map(d => ({ ...d, unidadesDeStock: 0 })),
         totalVenta: presupuestoAFacturar.totalPresupuesto,
         idOriginalPresupuesto: presupuestoAFacturar.id,
         costoMaderaVentaSnapshot: costoMadera,
         costoAserrioVentaSnapshot: costoAserrio,
+        entregado: false, // Default to not delivered
+        ...(presupuestoAFacturar.telefonoCliente && { telefonoComprador: presupuestoAFacturar.telefonoCliente }),
       };
 
       const newVenta = await addVenta(ventaData);
