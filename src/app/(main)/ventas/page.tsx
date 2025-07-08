@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -584,57 +585,74 @@ export default function VentasPage() {
            </div>
           ) : (
             <>
-              {/* Ventas del mes actual */}
-              <div className="mb-8">
-                <h3 className="text-xl font-semibold mb-2 text-primary">Ventas del Mes Actual</h3>
-                {ventasDelMesActual.length > 0 ? (
-                  <Accordion type="single" collapsible className="w-full">
-                    {ventasDelMesActual.map((venta) => (
-                      <VentaItem
-                        key={venta.id}
-                        venta={venta}
-                        config={config!}
-                        onDelete={handleDeleteVenta}
-                        onUpdateVenta={handleUpdateVenta}
-                      />
-                    ))}
-                  </Accordion>
-                ) : (
-                  <p className="text-sm text-muted-foreground pl-2">No hay ventas registradas para el mes actual que coincidan con los filtros.</p>
-                )}
-              </div>
-
-              {/* Ventas de meses anteriores */}
-              {Object.keys(ventasPorMesPasado).length > 0 && (
-                <>
-                  <Separator className="my-8" />
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-semibold text-foreground">Ventas de Meses Anteriores</h3>
-                    <Accordion type="multiple" className="w-full space-y-4">
-                      {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
-                        <AccordionItem value={mesKey} key={mesKey} className="border-none">
-                          <div className="rounded-lg border shadow-sm">
-                            <AccordionTrigger className="px-4 py-3 text-lg font-semibold capitalize hover:no-underline rounded-t-lg data-[state=open]:border-b">
-                              {format(parseISO(`${mesKey}-01`), 'MMMM yyyy', { locale: es })}
-                            </AccordionTrigger>
-                            <AccordionContent className="p-0">
-                                <Accordion type="single" collapsible className="w-full">
-                                  {ventasPorMesPasado[mesKey].map((venta) => (
-                                    <VentaItem
-                                      key={venta.id}
-                                      venta={venta}
-                                      config={config!}
-                                      onDelete={handleDeleteVenta}
-                                      onUpdateVenta={handleUpdateVenta}
-                                    />
-                                  ))}
-                                </Accordion>
-                            </AccordionContent>
-                          </div>
-                        </AccordionItem>
+              {estadoCobroFilter === 'pendiente-de-cobro' ? (
+                <div className="mb-8">
+                  <h3 className="text-xl font-semibold mb-2 text-primary">Ventas Pendientes de Cobro</h3>
+                    <Accordion type="single" collapsible className="w-full">
+                      {filteredVentas.map((venta) => (
+                        <VentaItem
+                          key={venta.id}
+                          venta={venta}
+                          config={config!}
+                          onDelete={handleDeleteVenta}
+                          onUpdateVenta={handleUpdateVenta}
+                        />
                       ))}
                     </Accordion>
+                </div>
+              ) : (
+                <>
+                  <div className="mb-8">
+                    <h3 className="text-xl font-semibold mb-2 text-primary">Ventas del Mes Actual</h3>
+                    {ventasDelMesActual.length > 0 ? (
+                      <Accordion type="single" collapsible className="w-full">
+                        {ventasDelMesActual.map((venta) => (
+                          <VentaItem
+                            key={venta.id}
+                            venta={venta}
+                            config={config!}
+                            onDelete={handleDeleteVenta}
+                            onUpdateVenta={handleUpdateVenta}
+                          />
+                        ))}
+                      </Accordion>
+                    ) : (
+                      <p className="text-sm text-muted-foreground pl-2">No hay ventas registradas para el mes actual que coincidan con los filtros.</p>
+                    )}
                   </div>
+
+                  {Object.keys(ventasPorMesPasado).length > 0 && (
+                    <>
+                      <Separator className="my-8" />
+                      <div className="space-y-4">
+                        <h3 className="text-xl font-semibold text-foreground">Ventas de Meses Anteriores</h3>
+                        <Accordion type="multiple" className="w-full space-y-4">
+                          {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
+                            <AccordionItem value={mesKey} key={mesKey} className="border-none">
+                              <div className="rounded-lg border shadow-sm">
+                                <AccordionTrigger className="px-4 py-3 text-lg font-semibold capitalize hover:no-underline rounded-t-lg data-[state=open]:border-b">
+                                  {format(parseISO(`${mesKey}-01`), 'MMMM yyyy', { locale: es })}
+                                </AccordionTrigger>
+                                <AccordionContent className="p-0">
+                                    <Accordion type="single" collapsible className="w-full">
+                                      {ventasPorMesPasado[mesKey].map((venta) => (
+                                        <VentaItem
+                                          key={venta.id}
+                                          venta={venta}
+                                          config={config!}
+                                          onDelete={handleDeleteVenta}
+                                          onUpdateVenta={handleUpdateVenta}
+                                        />
+                                      ))}
+                                    </Accordion>
+                                </AccordionContent>
+                              </div>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </>
