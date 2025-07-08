@@ -512,6 +512,12 @@ export default function VentasPage() {
     return { ventasDelMesActual, ventasPorMesPasado: ventasAgrupadas };
   }, [filteredVentas]);
 
+  const showFlatList = estadoCobroFilter === 'pendiente-de-cobro' || !!searchTerm;
+  const flatListTitle = searchTerm
+    ? `Resultados de la búsqueda para "${searchTerm}"`
+    : "Ventas Pendientes de Cobro";
+
+
   return (
     <div className="container mx-auto py-6">
       <PageTitle title="Registro de Ventas" description="Listado de todas las ventas de madera.">
@@ -585,9 +591,9 @@ export default function VentasPage() {
            </div>
           ) : (
             <>
-              {estadoCobroFilter === 'pendiente-de-cobro' ? (
+              {showFlatList ? (
                 <div className="mb-8">
-                  <h3 className="text-xl font-semibold mb-2 text-primary">Ventas Pendientes de Cobro</h3>
+                  <h3 className="text-xl font-semibold mb-2 text-primary">{flatListTitle}</h3>
                     <Accordion type="single" collapsible className="w-full">
                       {filteredVentas.map((venta) => (
                         <VentaItem
