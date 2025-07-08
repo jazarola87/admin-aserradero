@@ -7,9 +7,7 @@ import { useRouter } from 'next/navigation';
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Accordion } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,6 +23,7 @@ import { addVenta } from "@/lib/firebase/services/ventasService";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Separator } from "@/components/ui/separator";
+import { PresupuestoItem } from "@/components/shared/presupuesto-item";
 
 // Helper to calculate costs for the new Venta, ensuring data integrity at the moment of conversion
 const calculateCostsForVenta = (detalles: PresupuestoDetalle[], config: Configuracion) => {
@@ -98,7 +97,7 @@ export default function PresupuestosPage() {
     loadData();
   }, [loadData]);
 
-  const handleDeletePresupuesto = async (idToDelete: string) => {
+  const handleDeletePresupuesto = useCallback(async (idToDelete: string) => {
     setIsProcessing(idToDelete);
     try {
       await deletePresupuesto(idToDelete);
@@ -116,9 +115,9 @@ export default function PresupuestosPage() {
     } finally {
       setIsProcessing(null);
     }
-  };
+  }, [loadData, toast]);
 
-  const handlePasarAVenta = async (presupuestoId: string) => {
+  const handlePasarAVenta = useCallback(async (presupuestoId: string) => {
     setIsProcessing(presupuestoId);
     try {
       const [presupuestoAFacturar, appConfig] = await Promise.all([
@@ -166,9 +165,9 @@ export default function PresupuestosPage() {
     } finally {
       setIsProcessing(null);
     }
-  };
+  }, [router, toast]);
 
-  const downloadPDF = async (presupuesto: Presupuesto) => {
+  const downloadPDF = useCallback(async (presupuesto: Presupuesto) => {
     if (!config) {
       toast({ title: "Error", description: "La configuración no se ha cargado todavía.", variant: "destructive"});
       return;
@@ -222,7 +221,7 @@ export default function PresupuestosPage() {
       setSelectedPresupuestoForPdf(null);
       setPdfTargetId(null);
     }, 300); 
-  };
+  }, [config, toast]);
 
 
   const filteredPresupuestos = useMemo(() => {
@@ -385,95 +384,14 @@ export default function PresupuestosPage() {
           ) : (
             <Accordion type="single" collapsible className="w-full">
               {filteredPresupuestos.map((presupuesto) => (
-                <AccordionItem value={presupuesto.id} key={presupuesto.id}>
-                  <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
-                    <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
-                        <div className="flex-1 mb-2 sm:mb-0">
-                            <span className="font-semibold">Cliente: {presupuesto.nombreCliente}</span>
-                            <span className="ml-0 sm:ml-4 text-sm text-muted-foreground block sm:inline">
-                              Fecha: {presupuesto.fecha && isValid(parseISO(presupuesto.fecha)) ? format(parseISO(presupuesto.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
-                            </span>
-                        </div>
-                        <span className="font-semibold text-base sm:text-lg self-start sm:self-center">
-                          Total: ${presupuesto.totalPresupuesto?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                    </AccordionTrigger>
-                    
-                    <div className="flex items-center space-x-1 shrink-0">
-                        {isProcessing === presupuesto.id ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                          <>
-                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); downloadPDF(presupuesto);}}>
-                                <Download className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">PDF</span>
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-xs h-8 px-2" onClick={(e) => {e.stopPropagation(); handlePasarAVenta(presupuesto.id);}}>
-                                <Send className="mr-1 h-3.5 w-3.5" /> <span className="hidden sm:inline">A Venta</span>
-                            </Button>
-                            <Button asChild variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                              <Link href={`/presupuestos/${presupuesto.id}/editar`}>
-                                <Pencil className="h-4 w-4" />
-                                <span className="sr-only">Editar Presupuesto</span>
-                              </Link>
-                            </Button>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={(e) => e.stopPropagation()}>
-                                    <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Eliminar Presupuesto</span>
-                                </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                <AlertDialogHeader>
-                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                    Esta acción no se puede deshacer. Esto eliminará permanentemente el presupuesto.
-                                    </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={(e) => {e.stopPropagation(); handleDeletePresupuesto(presupuesto.id)}} className="bg-destructive hover:bg-destructive/90">
-                                    Eliminar
-                                    </AlertDialogAction>
-                                </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                          </>
-                        )}
-                    </div>
-                  </div>
-                  <AccordionContent>
-                    <p className="mb-2 text-sm"><strong>Teléfono Cliente:</strong> {presupuesto.telefonoCliente || "N/A"}</p>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tipo Madera</TableHead>
-                          <TableHead>Unid.</TableHead>
-                          <TableHead>Dimensiones</TableHead>
-                          <TableHead>P.Tabl.</TableHead>
-                          <TableHead>Val.Unit.</TableHead>
-                          <TableHead>$/Pie</TableHead>
-                          <TableHead>Cepillado</TableHead>
-                          <TableHead className="text-right">Subtotal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {presupuesto.detalles.map((detalle, index) => (
-                          <TableRow key={detalle.id || index}>
-                            <TableCell>{detalle.tipoMadera}</TableCell>
-                            <TableCell>{detalle.unidades}</TableCell>
-                            <TableCell>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</TableCell>
-                            <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">${detalle.precioPorPie?.toFixed(2)}</TableCell>
-                            <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
-                            <TableCell className="text-right">${detalle.subTotal?.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </AccordionContent>
-                </AccordionItem>
+                <PresupuestoItem
+                  key={presupuesto.id}
+                  presupuesto={presupuesto}
+                  isProcessing={isProcessing}
+                  onDelete={handleDeletePresupuesto}
+                  onConvertToVenta={handlePasarAVenta}
+                  onDownloadPDF={downloadPDF}
+                />
               ))}
             </Accordion>
           )}
