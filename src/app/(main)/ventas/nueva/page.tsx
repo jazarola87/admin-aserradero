@@ -228,14 +228,14 @@ export default function NuevaVentaPage() {
         return 0;
     }
     const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
-    const matchingStock = stockSummary.filter(stockItem => 
+    const matchingStock = stockSummary.find(stockItem => 
         stockItem.tipoMadera === tipoMadera &&
         stockItem.alto === alto &&
         stockItem.ancho === ancho &&
-        stockItem.largo >= largo &&
+        stockItem.largo === largo && // Exact match
         stockItem.cepillado === !!cepillado
     );
-    return matchingStock.reduce((sum, item) => sum + item.unidades, 0);
+    return matchingStock ? matchingStock.unidades : 0;
   };
   
   const findAvailableLengths = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number[] => {
