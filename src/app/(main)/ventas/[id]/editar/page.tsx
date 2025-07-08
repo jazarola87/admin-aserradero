@@ -262,13 +262,20 @@ export default function EditarVentaPage() {
     }
     const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
     
-    const matchingStock = stockSummary.filter(stockItem => 
-        stockItem.tipoMadera === tipoMadera &&
-        stockItem.alto === alto &&
-        stockItem.ancho === ancho &&
-        stockItem.largo >= (largo || 0) &&
-        stockItem.cepillado === !!cepillado
-    );
+    const matchingStock = stockSummary.filter(stockItem => {
+      if (
+        stockItem.tipoMadera !== tipoMadera ||
+        stockItem.alto !== alto ||
+        stockItem.ancho !== ancho ||
+        stockItem.largo < (largo || 0)
+      ) {
+        return false;
+      }
+      
+      // If sale item is cepillado, we can use both cepillado and non-cepillado stock.
+      // If sale item is NOT cepillado, we can ONLY use non-cepillado stock.
+      return cepillado ? true : !stockItem.cepillado;
+    });
 
     if (matchingStock.length === 0) {
       return { total: 0, breakdown: "Stock: 0" };

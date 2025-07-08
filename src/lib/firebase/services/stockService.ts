@@ -160,15 +160,32 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
     if (!tipoMadera || !alto || !ancho || !largo || !unidadesDeStock) continue;
 
     const availableSources = stockSummary
-      .filter(s => 
-        s.tipoMadera === tipoMadera &&
-        s.alto === alto &&
-        s.ancho === ancho &&
-        s.largo >= largo &&
-        s.cepillado === !!cepillado &&
-        s.unidades > 0
-      )
-      .sort((a, b) => a.largo - b.largo);
+      .filter(s => {
+        if (
+          s.tipoMadera !== tipoMadera ||
+          s.alto !== alto ||
+          s.ancho !== ancho ||
+          s.largo < (largo || 0) ||
+          s.unidades <= 0
+        ) return false;
+        
+        // If sale item is cepillado, we can use both cepillado and non-cepillado stock.
+        // If sale item is NOT cepillado, we can ONLY use non-cepillado stock.
+        return cepillado ? true : !s.cepillado;
+      })
+      .sort((a, b) => {
+        // 1. Prioritize shorter lengths first (to use up smaller pieces)
+        if (a.largo < b.largo) return -1;
+        if (a.largo > b.largo) return 1;
+
+        // 2. If lengths are equal and sale is cepillado, prioritize consuming existing cepillado stock first
+        if (cepillado) {
+          if (a.cepillado && !b.cepillado) return -1;
+          if (!a.cepillado && b.cepillado) return 1;
+        }
+        
+        return 0;
+      });
 
     let unitsToConsume = unidadesDeStock;
 
@@ -208,7 +225,8 @@ export async function consumeStockForSale(venta: Venta): Promise<void> {
     }
     
     if (unitsToConsume > 0) {
-      console.warn(`Could not consume ${unitsToConsume} units of ${tipoMadera} for Venta #${venta.id} due to insufficient stock.`);
+      // This might be a race condition, so we just log a warning. The form validation should prevent this.
+      console.warn(`Could not consume ${unitsToConsume} units of ${tipoMadera} for Venta #${venta.id} due to insufficient stock at time of saving.`);
     }
   }
   
