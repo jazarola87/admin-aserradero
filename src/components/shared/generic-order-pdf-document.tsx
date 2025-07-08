@@ -113,7 +113,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
           {customerPhone && <p style={styles.infoP}><strong>Teléfono:</strong> {customerPhone}</p>}
         </div>
         <div style={styles.orderInfo}>
-          <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>
+          {documentType !== 'Presupuesto' && <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>}
           <p style={styles.infoP}><strong>Fecha:</strong> {orderDate}</p>
           {deliveryDate && <p style={styles.infoP}><strong>Entrega Estimada:</strong> {deliveryDate}</p>}
         </div>
@@ -166,7 +166,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
         {sena !== undefined && sena > 0 && (
              <div style={styles.totalRow}>
                 <span style={styles.totalLabel}>Seña:</span>
-                <span style={styles.totalAmount}>-${sena.toLocaleString('es-ES', { minimumFraction Digits: 2, maximumFractionDigits: 2 })}</span>
+                <span style={styles.totalAmount}>-${sena.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
         )}
         <div style={styles.grandTotalRow}>
@@ -184,4 +184,3 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
     </div>
   );
 }
-

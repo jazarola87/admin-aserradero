@@ -183,7 +183,7 @@ export default function PresupuestosPage() {
             });
           }));
 
-          const canvas = await html2canvas(inputElement, { scale: 2, useCORS: true, logging: false });
+          const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
           const imgData = canvas.toDataURL('image/png');
           const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           const pdfWidth = pdf.internal.pageSize.getWidth();

@@ -133,7 +133,7 @@ export default function CronogramaEntregasPage() {
             });
           }));
           
-          const canvas = await html2canvas(inputElement, { scale: 2, useCORS: true, logging: false });
+          const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
           const imgData = canvas.toDataURL('image/png');
           const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           

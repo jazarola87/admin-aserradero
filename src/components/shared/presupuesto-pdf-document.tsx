@@ -113,7 +113,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
           {customerPhone && <p style={styles.infoP}><strong>Teléfono:</strong> {customerPhone}</p>}
         </div>
         <div style={styles.orderInfo}>
-          <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>
+          {documentType !== 'Presupuesto' && <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>}
           <p style={styles.infoP}><strong>Fecha:</strong> {orderDate}</p>
           {deliveryDate && <p style={styles.infoP}><strong>Entrega Estimada:</strong> {deliveryDate}</p>}
         </div>
