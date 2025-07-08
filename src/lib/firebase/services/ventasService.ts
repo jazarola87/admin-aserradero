@@ -126,7 +126,7 @@ export async function deleteVenta(id: string): Promise<void> {
   }
   try {
     const docRef = doc(db, VENTAS_COLLECTION, id);
-    await deleteVenta(id);
+    await deleteDoc(docRef);
     await revertStockConsumption(id);
   } catch (error) {
     console.error(`Error deleting venta with ID ${id}: `, error);
