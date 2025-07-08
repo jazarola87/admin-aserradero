@@ -256,9 +256,9 @@ export default function EditarVentaPage() {
     return unidades * alto * ancho * largo * 0.2734;
   };
 
-  const findUnidadesDisponibles = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
+  const findUnidadesDisponiblesPorLargo = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): { total: number; breakdown: string } => {
     if (!detalle || !detalle.tipoMadera || !detalle.alto || !detalle.ancho || !detalle.largo) {
-        return 0;
+        return { total: 0, breakdown: "Stock: 0" };
     }
     const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
     
@@ -266,12 +266,33 @@ export default function EditarVentaPage() {
         stockItem.tipoMadera === tipoMadera &&
         stockItem.alto === alto &&
         stockItem.ancho === ancho &&
-        stockItem.largo >= largo && // Use >= to match consumption logic
+        stockItem.largo >= (largo || 0) &&
         stockItem.cepillado === !!cepillado
     );
 
-    // Sum the units from all matching sources
-    return matchingStock.reduce((total, item) => total + item.unidades, 0);
+    if (matchingStock.length === 0) {
+      return { total: 0, breakdown: "Stock: 0" };
+    }
+
+    const breakdownMap = new Map<number, number>();
+    let total = 0;
+
+    matchingStock.forEach(item => {
+      const currentUnits = breakdownMap.get(item.largo) || 0;
+      breakdownMap.set(item.largo, currentUnits + item.unidades);
+      total += item.unidades;
+    });
+
+    if (total === 0) {
+      return { total: 0, breakdown: "Stock: 0" };
+    }
+
+    const breakdownString = Array.from(breakdownMap.entries())
+      .sort(([largoA], [largoB]) => largoA - largoB)
+      .map(([largo, unidades]) => `${largo}m: ${unidades}`)
+      .join(', ');
+
+    return { total, breakdown: `Stock: ${breakdownString}` };
   };
   
   async function onSubmit(data: VentaFormValues) {
@@ -281,8 +302,8 @@ export default function EditarVentaPage() {
     const stockItems = data.detalles.filter(d => d.unidadesDeStock && d.unidadesDeStock > 0);
     if (stockItems.length > 0) {
       for (const item of stockItems) {
-        const disponibles = findUnidadesDisponibles(item);
-        if ((item.unidadesDeStock ?? 0) > disponibles) {
+        const stockInfo = findUnidadesDisponiblesPorLargo(item);
+        if ((item.unidadesDeStock ?? 0) > stockInfo.total) {
             toast({ 
                 variant: "destructive", 
                 title: "Stock Insuficiente",
@@ -519,7 +540,7 @@ export default function EditarVentaPage() {
                       }
                       const valorUnitario = (Number(currentDetalle?.unidades) > 0 && subTotal > 0) ? subTotal / Number(currentDetalle.unidades) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
-                      const unidadesDisponibles = findUnidadesDisponibles(currentDetalle);
+                      const stockInfo = findUnidadesDisponiblesPorLargo(currentDetalle);
 
                       return (
                         <TableRow key={item.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
@@ -605,14 +626,14 @@ export default function EditarVentaPage() {
                                         field.onChange(val);
                                         form.trigger(`detalles.${index}`);
                                       }}
-                                      disabled={unidadesDisponibles === 0}
+                                      disabled={stockInfo.total === 0}
                                       min="0"
-                                      max={Math.min(unidadesDisponibles, form.getValues(`detalles.${index}.unidades`) ?? 0)}
+                                      max={Math.min(stockInfo.total, form.getValues(`detalles.${index}.unidades`) ?? 0)}
                                     />
                                   </FormControl>
                                   <div className="text-center mt-1">
-                                    <Badge variant={unidadesDisponibles > 0 ? "default" : "outline"} className="text-xs cursor-default px-1.5 py-0">
-                                        Stock: {unidadesDisponibles}
+                                    <Badge variant={stockInfo.total > 0 ? "default" : "outline"} className="text-xs cursor-default px-1.5 py-0.5 h-auto whitespace-normal text-left">
+                                        {stockInfo.breakdown}
                                     </Badge>
                                   </div>
                                   <FormMessage className="text-xs px-1 text-center" />
