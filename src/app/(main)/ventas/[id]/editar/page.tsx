@@ -270,6 +270,24 @@ export default function EditarVentaPage() {
     );
     return matchingStock.reduce((sum, item) => sum + item.unidades, 0);
   };
+  
+  const findAvailableLengths = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>): number[] => {
+    if (!detalle || !detalle.tipoMadera || !detalle.alto || !detalle.ancho || !detalle.largo) {
+      return [];
+    }
+    const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
+    const matchingStock = stockSummary.filter(stockItem => 
+      stockItem.tipoMadera === tipoMadera &&
+      stockItem.alto === alto &&
+      stockItem.ancho === ancho &&
+      stockItem.largo !== largo &&
+      stockItem.cepillado === !!cepillado &&
+      stockItem.unidades > 0
+    );
+    
+    const availableLengths = [...new Set(matchingStock.map(item => item.largo))];
+    return availableLengths.sort((a, b) => a - b);
+  };
 
   async function onSubmit(data: VentaFormValues) {
     if (!ventaId || !config) return;
@@ -341,7 +359,11 @@ export default function EditarVentaPage() {
     };
 
     if (data.telefonoComprador) ventaActualizadaData.telefonoComprador = data.telefonoComprador;
-    if (data.fechaEntregaEstimada) ventaActualizadaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
+    if (data.fechaEntregaEstimada) {
+      ventaActualizadaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
+    } else {
+      ventaActualizadaData.fechaEntregaEstimada = undefined;
+    }
     if (typeof data.sena === 'number') ventaActualizadaData.sena = data.sena;
     if (typeof data.costoOperario === 'number') ventaActualizadaData.costoOperario = data.costoOperario;
     if (data.idOriginalPresupuesto) ventaActualizadaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
@@ -513,6 +535,7 @@ export default function EditarVentaPage() {
                       const valorUnitario = (Number(currentDetalle?.unidades) > 0 && subTotal > 0) ? subTotal / Number(currentDetalle.unidades) : 0;
                       const isEffectivelyEmpty = isRowEffectivelyEmpty(currentDetalle);
                       const unidadesDisponibles = findUnidadesDisponibles(currentDetalle);
+                      const availableLengths = findAvailableLengths(currentDetalle);
 
                       return (
                         <TableRow key={item.id} className={cn(isEffectivelyEmpty && index >= 1 && "opacity-70 hover:opacity-100 focus-within:opacity-100")}>
@@ -563,7 +586,16 @@ export default function EditarVentaPage() {
                           </TableCell>
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
-                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                              <FormItem>
+                                <FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl>
+                                {availableLengths.length > 0 && (
+                                  <div className="text-xs text-muted-foreground pt-1 px-1">
+                                    Largos en stock: {availableLengths.join('m, ')}m
+                                  </div>
+                                )}
+                                <FormMessage className="text-xs px-1" />
+                              </FormItem> 
+                            )}
                             />
                           </TableCell>
                           <TableCell className="p-1">
