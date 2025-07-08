@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -74,16 +75,23 @@ export default function StockPage() {
   const stockSummary = useMemo(() => {
     if (!stockEntries || stockEntries.length === 0) return [];
 
-    const summaryMap = new Map<string, { tipoMadera: string; alto: number; ancho: number; largo: number; cepillado: boolean; unidades: number }>();
+    const summaryMap = new Map<string, { tipoMadera: string; alto: number; ancho: number; largo: number; cepillado: boolean; unidades: number; piesTablares: number }>();
 
     stockEntries.forEach(entry => {
         (entry.detalles || []).forEach(detalle => {
             if (!detalle.tipoMadera || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return;
             const key = `${detalle.tipoMadera}-${detalle.alto}-${detalle.ancho}-${detalle.largo}-${!!detalle.cepillado}`;
             
+            let piesTablaresDelDetalle = detalle.piesTablares;
+            // Fallback calculation if piesTablares is not stored in the detail, which can happen for consumption entries.
+            if (piesTablaresDelDetalle === undefined || piesTablaresDelDetalle === 0) {
+              piesTablaresDelDetalle = (detalle.unidades || 0) * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
+            }
+
             const existing = summaryMap.get(key);
             if (existing) {
                 existing.unidades += detalle.unidades;
+                existing.piesTablares += piesTablaresDelDetalle;
             } else {
                 summaryMap.set(key, {
                     tipoMadera: detalle.tipoMadera,
@@ -92,6 +100,7 @@ export default function StockPage() {
                     largo: detalle.largo,
                     cepillado: !!detalle.cepillado,
                     unidades: detalle.unidades,
+                    piesTablares: piesTablaresDelDetalle,
                 });
             }
         });
@@ -128,7 +137,7 @@ export default function StockPage() {
              Resumen de Stock Actual
           </CardTitle>
           <CardDescription>
-            Total de unidades en stock agrupadas por tipo de madera y dimensiones.
+            Total de unidades y pies tablares en stock, agrupados por tipo de madera y dimensiones.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -145,17 +154,21 @@ export default function StockPage() {
                             <TableHead>Tipo de Madera</TableHead>
                             <TableHead>Dimensiones (Alto" x Ancho" x Largo m)</TableHead>
                             <TableHead>Cepillado</TableHead>
-                            <TableHead className="text-right">Unidades Totales</TableHead>
+                            <TableHead className="text-right">Unidades</TableHead>
+                            <TableHead className="text-right">Pies Tablares</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {stockSummary.map((item, index) => (
+                           item.unidades > 0 && (
                             <TableRow key={index}>
                                 <TableCell className="font-medium">{item.tipoMadera}</TableCell>
                                 <TableCell>{`${item.alto}" x ${item.ancho}" x ${item.largo}m`}</TableCell>
                                 <TableCell>{item.cepillado ? 'Sí' : 'No'}</TableCell>
                                 <TableCell className="text-right font-semibold">{item.unidades}</TableCell>
+                                <TableCell className="text-right font-semibold">{item.piesTablares.toFixed(2)}</TableCell>
                             </TableRow>
+                           )
                         ))}
                     </TableBody>
                 </Table>
