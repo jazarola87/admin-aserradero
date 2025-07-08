@@ -24,6 +24,7 @@ import { getAllPresupuestos, deletePresupuesto, getPresupuestoById } from "@/lib
 import { addVenta } from "@/lib/firebase/services/ventasService";
 import { format, parseISO, isValid } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Separator } from "@/components/ui/separator";
 
 // Helper to calculate costs for the new Venta, ensuring data integrity at the moment of conversion
 const calculateCostsForVenta = (detalles: PresupuestoDetalle[], config: Configuracion) => {
@@ -73,6 +74,8 @@ export default function PresupuestosPage() {
 
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [rowCounts, setRowCounts] = useState<Record<string, number>>({});
+  const [nombreCliente, setNombreCliente] = useState("");
+  const [telefonoCliente, setTelefonoCliente] = useState("");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -239,7 +242,21 @@ export default function PresupuestosPage() {
   };
 
   const handleGeneratePresupuesto = () => {
+    if (!nombreCliente.trim()) {
+      toast({
+        title: "Campo Requerido",
+        description: "Por favor, ingrese el nombre del cliente para continuar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const params = new URLSearchParams();
+    params.append('cliente', nombreCliente.trim());
+    if (telefonoCliente.trim()) {
+      params.append('telefono', telefonoCliente.trim());
+    }
+
     for (const [tipo, count] of Object.entries(rowCounts)) {
       if (count > 0) {
         params.append(tipo, count.toString());
@@ -259,35 +276,63 @@ export default function PresupuestosPage() {
               Nuevo Presupuesto
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Configurar Nuevo Presupuesto</DialogTitle>
               <DialogDescription>
-                Especifique cuántas filas de producto desea pre-cargar para cada tipo de madera.
+                Complete los datos del cliente y opcionalmente pre-cargue filas de productos.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              {(config?.preciosMadera || []).map(madera => (
-                <div className="grid grid-cols-4 items-center gap-4" key={madera.tipoMadera}>
-                  <Label htmlFor={madera.tipoMadera} className="text-right">
-                    {madera.tipoMadera}
-                  </Label>
-                  <Input
-                    id={madera.tipoMadera}
-                    type="number"
-                    min="0"
-                    value={rowCounts[madera.tipoMadera] || ""}
-                    onChange={(e) => handleRowCountChange(madera.tipoMadera, e.target.value)}
-                    className="col-span-3"
-                    placeholder="N° de filas a pre-cargar"
-                  />
-                </div>
-              ))}
-              {(!config || config.preciosMadera.length === 0) && (
-                  <p className="text-sm text-muted-foreground text-center col-span-4">
-                    No hay tipos de madera definidos en la configuración.
-                  </p>
-                )}
+               <div className="space-y-2">
+                <Label htmlFor="nombreClienteModal">Nombre del Cliente</Label>
+                <Input
+                  id="nombreClienteModal"
+                  value={nombreCliente}
+                  onChange={(e) => setNombreCliente(e.target.value)}
+                  placeholder="Nombre completo del cliente"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="telefonoClienteModal">Teléfono (Opcional)</Label>
+                <Input
+                  id="telefonoClienteModal"
+                  value={telefonoCliente}
+                  onChange={(e) => setTelefonoCliente(e.target.value)}
+                  placeholder="Número de teléfono"
+                />
+              </div>
+              
+              <Separator className="my-4" />
+
+              <div>
+                 <h4 className="text-sm font-medium mb-2">Relleno Rápido de Filas (Opcional)</h4>
+                 <p className="text-sm text-muted-foreground mb-4">Especifique cuántas filas desea pre-cargar para cada tipo de madera.</p>
+                 <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                    {(config?.preciosMadera || []).map(madera => (
+                      <div className="grid grid-cols-3 items-center gap-4" key={madera.tipoMadera}>
+                        <Label htmlFor={madera.tipoMadera} className="text-sm text-right">
+                          {madera.tipoMadera}
+                        </Label>
+                        <Input
+                          id={madera.tipoMadera}
+                          type="number"
+                          min="0"
+                          value={rowCounts[madera.tipoMadera] || ""}
+                          onChange={(e) => handleRowCountChange(madera.tipoMadera, e.target.value)}
+                          className="col-span-2"
+                          placeholder="N° de filas"
+                        />
+                      </div>
+                    ))}
+                    {(!config || config.preciosMadera.length === 0) && (
+                        <p className="text-sm text-muted-foreground text-center col-span-4">
+                          No hay tipos de madera definidos en la configuración.
+                        </p>
+                      )}
+                  </div>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={handleGeneratePresupuesto}>Continuar</Button>

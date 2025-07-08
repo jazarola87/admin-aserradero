@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -106,10 +106,15 @@ export default function NuevoPresupuestoPage() {
         const initialDetails: Partial<z.infer<typeof itemDetalleSchema>>[] = [];
         let prefilledRows = 0;
 
+        const cliente = searchParams.get('cliente') || '';
+        const telefono = searchParams.get('telefono') || '';
+
         if (appConfig?.preciosMadera) {
           const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
 
           for (const [tipoMadera, countStr] of searchParams.entries()) {
+            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') continue;
+
             const count = parseInt(countStr, 10);
             if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
               for (let i = 0; i < count; i++) {
@@ -135,8 +140,8 @@ export default function NuevoPresupuestoPage() {
         
         form.reset({
           fecha: new Date(),
-          nombreCliente: "",
-          telefonoCliente: "",
+          nombreCliente: cliente,
+          telefonoCliente: telefono,
           detalles: initialDetails,
         });
 
@@ -178,7 +183,8 @@ export default function NuevoPresupuestoPage() {
   };
   
   const totalGeneralPresupuesto = useMemo(() => {
-    return (watchedDetalles || []).reduce((acc, detalle) => {
+    if (!watchedDetalles) return 0;
+    return watchedDetalles.reduce((acc, detalle) => {
       if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') { 
         const pies = calcularPiesTablares(detalle);
         return acc + calcularSubtotal(detalle, pies);
