@@ -44,10 +44,10 @@ function StockEntryItemComponent({ entry, onDelete }: StockEntryItemProps) {
         </AccordionTrigger>
         <div className="flex items-center space-x-1 shrink-0">
           {isConsumption && entry.idVentaConsumo ? (
-            <Button asChild variant="ghost" size="icon" title="Ver Registro de Venta">
-              <Link href={`/ventas#${entry.idVentaConsumo}`}>
+            <Button asChild variant="ghost" size="icon" title="Buscar Venta">
+              <Link href={`/ventas?search=${encodeURIComponent(entry.nombreClienteConsumo || '')}`}>
                 <ArrowRightCircle className="h-5 w-5 text-blue-600" />
-                <span className="sr-only">Ir a la Venta</span>
+                <span className="sr-only">Buscar Venta</span>
               </Link>
             </Button>
           ) : (

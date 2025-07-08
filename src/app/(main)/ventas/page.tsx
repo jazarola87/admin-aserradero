@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageTitle } from "@/components/shared/page-title";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ export default function VentasPage() {
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
   const [estadoCobroFilter, setEstadoCobroFilter] = useState<string>("todos");
+  const searchParams = useSearchParams();
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +68,13 @@ export default function VentasPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const searchFromUrl = searchParams.get('search');
+    if (searchFromUrl) {
+        setSearchTerm(searchFromUrl);
+    }
+  }, [searchParams]);
 
 
   const handleDeleteVenta = useCallback(async (idToDelete: string) => {
