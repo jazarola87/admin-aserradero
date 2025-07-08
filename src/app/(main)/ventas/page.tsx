@@ -156,7 +156,7 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
     <AccordionItem value={venta.id} key={venta.id}>
       <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
         <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
-          <div className="flex items-center justify-between w-full">
+           <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
               <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>
               <Badge variant={estadoCobro.variant} className="w-fit text-xs px-2 py-0.5 whitespace-normal sm:whitespace-nowrap h-auto max-w-[250px] sm:max-w-xs text-left">
@@ -166,7 +166,7 @@ function VentaItem({ venta, config, onDelete, onUpdateVenta }: VentaItemProps) {
                 Fecha: {venta.fecha && isValid(parseISO(venta.fecha)) ? format(parseISO(venta.fecha), 'PPP', { locale: es }) : 'Fecha inválida'}
               </span>
             </div>
-            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+            <span className="mr-1 sm:mr-2 font-semibold text-base sm:text-lg self-start sm:self-center mt-2 sm:mt-0">Total: ${venta.totalVenta?.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
           </div>
         </AccordionTrigger>
 
@@ -481,6 +481,37 @@ export default function VentasPage() {
     return tempVentas;
   }, [ventas, searchTerm, estadoCobroFilter]);
 
+  const { ventasDelMesActual, ventasPorMesPasado } = useMemo(() => {
+    const ahora = new Date();
+    const anioActual = ahora.getFullYear();
+    const mesActual = ahora.getMonth();
+
+    const ventasDelMesActual: Venta[] = [];
+    const ventasPasadas: Venta[] = [];
+
+    filteredVentas.forEach(venta => {
+        if (!venta.fecha || !isValid(parseISO(venta.fecha))) return;
+        const fechaVenta = parseISO(venta.fecha);
+        if (fechaVenta.getFullYear() === anioActual && fechaVenta.getMonth() === mesActual) {
+            ventasDelMesActual.push(venta);
+        } else if (fechaVenta < ahora) {
+            ventasPasadas.push(venta);
+        }
+    });
+
+    const ventasAgrupadas = ventasPasadas.reduce((acc, venta) => {
+        const fechaVenta = parseISO(venta.fecha);
+        const claveMes = format(fechaVenta, 'yyyy-MM');
+        if (!acc[claveMes]) {
+            acc[claveMes] = [];
+        }
+        acc[claveMes].push(venta);
+        return acc;
+    }, {} as Record<string, Venta[]>);
+
+    return { ventasDelMesActual, ventasPorMesPasado: ventasAgrupadas };
+  }, [filteredVentas]);
+
   return (
     <div className="container mx-auto py-6">
       <PageTitle title="Registro de Ventas" description="Listado de todas las ventas de madera.">
@@ -535,7 +566,12 @@ export default function VentasPage() {
               <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
               <p>Cargando datos...</p>
             </div>
-          ) : config && ventas.length === 0 && !searchTerm ? (
+          ) : !config ? (
+             <div className="text-center py-10 text-muted-foreground">
+                <Loader2 className="mx-auto h-12 w-12 animate-spin text-destructive mb-4" />
+                <p>Cargando configuración necesaria...</p>
+            </div>
+          ) : ventas.length === 0 && !searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
               <DollarSign className="mx-auto h-12 w-12 mb-4" />
               <p>No hay ventas registradas.</p>
@@ -545,25 +581,52 @@ export default function VentasPage() {
             </div>
           ) : filteredVentas.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
-             <p>No se encontraron ventas que coincidan con su búsqueda.</p>
+             <p>No se encontraron ventas que coincidan con su búsqueda y filtros.</p>
            </div>
-          ) : !config ? (
-             <div className="text-center py-10 text-muted-foreground">
-                <Loader2 className="mx-auto h-12 w-12 animate-spin text-destructive mb-4" />
-                <p>Cargando configuración necesaria...</p>
-            </div>
           ) : (
-            <Accordion type="single" collapsible className="w-full">
-              {filteredVentas.map((venta) => (
-                <VentaItem 
-                  key={venta.id} 
-                  venta={venta} 
-                  config={config!}
-                  onDelete={handleDeleteVenta} 
-                  onUpdateVenta={handleUpdateVenta}
-                />
+            <>
+              {/* Ventas del mes actual */}
+              <div className="mb-8">
+                <h3 className="text-xl font-semibold mb-2 text-primary">Ventas del Mes Actual</h3>
+                {ventasDelMesActual.length > 0 ? (
+                  <Accordion type="single" collapsible className="w-full">
+                    {ventasDelMesActual.map((venta) => (
+                      <VentaItem
+                        key={venta.id}
+                        venta={venta}
+                        config={config!}
+                        onDelete={handleDeleteVenta}
+                        onUpdateVenta={handleUpdateVenta}
+                      />
+                    ))}
+                  </Accordion>
+                ) : (
+                  <p className="text-sm text-muted-foreground pl-2">No hay ventas registradas para el mes actual que coincidan con los filtros.</p>
+                )}
+              </div>
+
+              {/* Ventas de meses anteriores */}
+              {Object.keys(ventasPorMesPasado).length > 0 && <Separator />}
+
+              {Object.keys(ventasPorMesPasado).sort().reverse().map((mesKey) => (
+                <div key={mesKey} className="mt-8">
+                  <h3 className="text-xl font-semibold mb-2 capitalize text-foreground">
+                    {format(parseISO(`${mesKey}-01`), 'MMMM yyyy', { locale: es })}
+                  </h3>
+                  <Accordion type="single" collapsible className="w-full border rounded-md">
+                     {ventasPorMesPasado[mesKey].map((venta) => (
+                      <VentaItem
+                        key={venta.id}
+                        venta={venta}
+                        config={config!}
+                        onDelete={handleDeleteVenta}
+                        onUpdateVenta={handleUpdateVenta}
+                      />
+                    ))}
+                  </Accordion>
+                </div>
               ))}
-            </Accordion>
+            </>
           )}
         </CardContent>
       </Card>
