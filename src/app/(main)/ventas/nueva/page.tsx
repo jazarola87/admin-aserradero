@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, PlusCircle, Save, Trash2, Loader2, Package } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -239,8 +239,6 @@ export default function NuevaVentaPage() {
         return false;
       }
       
-      // If sale item is cepillado, we can use both cepillado and non-cepillado stock.
-      // If sale item is NOT cepillado, we can ONLY use non-cepillado stock.
       return cepillado ? true : !stockItem.cepillado;
     });
 
@@ -337,7 +335,7 @@ export default function NuevaVentaPage() {
       return;
     }
 
-    const nuevaVentaData: Omit<Venta, 'id' | 'sena' | 'costoOperario' | 'telefonoComprador' | 'fechaEntregaEstimada' | 'idOriginalPresupuesto'> & Partial<Pick<Venta, 'sena' | 'costoOperario' | 'telefonoComprador' | 'fechaEntregaEstimada' | 'idOriginalPresupuesto'>> = {
+    const nuevaVentaData: Partial<Venta> = {
         fecha: format(data.fecha, "yyyy-MM-dd"),
         nombreComprador: data.nombreComprador,
         detalles: processedDetalles,
@@ -348,17 +346,15 @@ export default function NuevaVentaPage() {
     };
     
     if (data.telefonoComprador) nuevaVentaData.telefonoComprador = data.telefonoComprador;
-    if (data.fechaEntregaEstimada) {
+    if (data.fechaEntregaEstimada && isValid(data.fechaEntregaEstimada)) {
       nuevaVentaData.fechaEntregaEstimada = format(data.fechaEntregaEstimada, "yyyy-MM-dd");
-    } else {
-      nuevaVentaData.fechaEntregaEstimada = undefined;
     }
     if (typeof data.sena === 'number') nuevaVentaData.sena = data.sena;
     if (typeof data.costoOperario === 'number') nuevaVentaData.costoOperario = data.costoOperario;
     if (data.idOriginalPresupuesto) nuevaVentaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
     
     try {
-        await addVenta(nuevaVentaData);
+        await addVenta(nuevaVentaData as Omit<Venta, 'id'>);
         toast({
           title: "Venta Registrada en Firebase",
           description: `Se ha registrado la venta a ${data.nombreComprador}.`,
