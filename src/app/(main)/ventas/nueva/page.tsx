@@ -261,15 +261,17 @@ export default function NuevaVentaPage() {
     const nuevaVentaData: Omit<Venta, 'id'> = {
       fecha: format(data.fecha, "yyyy-MM-dd"),
       nombreComprador: data.nombreComprador,
-      telefonoComprador: data.telefonoComprador,
-      fechaEntregaEstimada: data.fechaEntregaEstimada ? format(data.fechaEntregaEstimada, "yyyy-MM-dd") : undefined,
-      sena: data.sena && !isNaN(data.sena) ? Number(data.sena) : undefined,
-      costoOperario: data.costoOperario && !isNaN(data.costoOperario) ? Number(data.costoOperario) : undefined,
       detalles: processedDetalles,
       totalVenta: finalTotals.totalVenta,
-      idOriginalPresupuesto: data.idOriginalPresupuesto,
       costoMaderaVentaSnapshot: finalTotals.costoMadera,
       costoAserrioVentaSnapshot: finalTotals.costoAserrio,
+      entregado: false,
+      // Conditionally add optional fields to avoid sending `undefined` to Firestore
+      ...(data.telefonoComprador && { telefonoComprador: data.telefonoComprador }),
+      ...(data.fechaEntregaEstimada && { fechaEntregaEstimada: format(data.fechaEntregaEstimada, "yyyy-MM-dd") }),
+      ...(data.sena && !isNaN(data.sena) && { sena: Number(data.sena) }),
+      ...(data.costoOperario && !isNaN(data.costoOperario) && { costoOperario: Number(data.costoOperario) }),
+      ...(data.idOriginalPresupuesto && { idOriginalPresupuesto: data.idOriginalPresupuesto }),
     };
     
     try {
