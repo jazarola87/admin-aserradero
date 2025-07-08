@@ -10,10 +10,8 @@ import { Input } from "@/components/ui/input";
 import { PlusCircle, Search, Loader2, Database, Package } from "lucide-react";
 import type { StockMaderaAserrada } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import { format, parseISO, isValid } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { getAllStockEntries, deleteStockEntry } from "@/lib/firebase/services/stockService";
-import { Accordion } from "@/components/ui/accordion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockEntryItem } from "@/components/shared/stock-entry-item";
 
 export default function StockPage() {
@@ -73,30 +71,78 @@ export default function StockPage() {
   const stockSummaryByWoodType = useMemo(() => {
     if (!stockEntries || stockEntries.length === 0) return [];
 
-    const summaryMap = new Map<string, { tipoMadera: string; totalPiesTablares: number }>();
+    const summaryMap = new Map<string, { 
+      tipoMadera: string; 
+      medidas: Map<string, {
+        alto: number;
+        ancho: number;
+        largo: number;
+        cepillado: boolean;
+        unidades: number;
+        totalPiesTablares: number;
+      }> 
+    }>();
 
+    // Group by wood type first
     stockEntries.forEach(entry => {
       (entry.detalles || []).forEach(detalle => {
         if (!detalle.tipoMadera || !detalle.unidades) return;
         
+        if (!summaryMap.has(detalle.tipoMadera)) {
+          summaryMap.set(detalle.tipoMadera, {
+            tipoMadera: detalle.tipoMadera,
+            medidas: new Map(),
+          });
+        }
+        
+        const woodTypeEntry = summaryMap.get(detalle.tipoMadera)!;
+        const cepillado = !!detalle.cepillado;
+        const medidaKey = `${detalle.alto}-${detalle.ancho}-${detalle.largo}-${cepillado}`;
+
         let piesTablaresDelDetalle = detalle.piesTablares;
         if (piesTablaresDelDetalle === undefined || piesTablaresDelDetalle === 0) {
           piesTablaresDelDetalle = (detalle.unidades || 0) * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
         }
 
-        const existing = summaryMap.get(detalle.tipoMadera);
-        if (existing) {
-          existing.totalPiesTablares += piesTablaresDelDetalle;
+        const medidaEntry = woodTypeEntry.medidas.get(medidaKey);
+        if (medidaEntry) {
+          medidaEntry.unidades += detalle.unidades;
+          medidaEntry.totalPiesTablares += piesTablaresDelDetalle;
         } else {
-          summaryMap.set(detalle.tipoMadera, {
-            tipoMadera: detalle.tipoMadera,
+          woodTypeEntry.medidas.set(medidaKey, {
+            alto: detalle.alto!,
+            ancho: detalle.ancho!,
+            largo: detalle.largo!,
+            cepillado: cepillado,
+            unidades: detalle.unidades,
             totalPiesTablares: piesTablaresDelDetalle,
           });
         }
       });
     });
+    
+    // Filter out entries with zero or negative units and sort
+    const finalSummary = Array.from(summaryMap.values()).map(woodType => {
+      const filteredMedidas = Array.from(woodType.medidas.values())
+        .filter(m => m.unidades > 0)
+        .sort((a,b) => {
+            if (a.alto !== b.alto) return a.alto - b.alto;
+            if (a.ancho !== b.ancho) return a.ancho - b.ancho;
+            if (a.largo !== b.largo) return a.largo - b.largo;
+            return 0;
+        });
 
-    return Array.from(summaryMap.values()).sort((a, b) => a.tipoMadera.localeCompare(b.tipoMadera));
+      const totalPiesTablaresWoodType = filteredMedidas.reduce((sum, m) => sum + m.totalPiesTablares, 0);
+
+      return {
+        ...woodType,
+        medidas: filteredMedidas,
+        totalPiesTablares: totalPiesTablaresWoodType
+      };
+    }).filter(woodType => woodType.medidas.length > 0)
+      .sort((a, b) => a.tipoMadera.localeCompare(b.tipoMadera));
+
+    return finalSummary;
   }, [stockEntries]);
 
 
@@ -118,7 +164,7 @@ export default function StockPage() {
              Resumen de Stock Actual
           </CardTitle>
           <CardDescription>
-            Total de pies tablares en stock, agrupados por tipo de madera.
+            Inventario detallado de madera aserrada disponible, agrupado por tipo y medidas.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,24 +175,40 @@ export default function StockPage() {
             ) : stockSummaryByWoodType.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No hay stock para mostrar.</p>
             ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Tipo de Madera</TableHead>
-                            <TableHead className="text-right">Total Pies Tablares</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {stockSummaryByWoodType.map((item, index) => (
-                           item.totalPiesTablares !== 0 && (
-                            <TableRow key={index}>
-                                <TableCell className="font-medium">{item.tipoMadera}</TableCell>
-                                <TableCell className="text-right font-semibold">{item.totalPiesTablares.toFixed(2)}</TableCell>
+                <Accordion type="multiple" className="w-full space-y-2">
+                  {stockSummaryByWoodType.map((item) => (
+                    <AccordionItem value={item.tipoMadera} key={item.tipoMadera} className="border rounded-md px-4">
+                      <AccordionTrigger>
+                        <div className="flex justify-between w-full pr-4">
+                          <span className="font-semibold text-lg">{item.tipoMadera}</span>
+                          <span className="text-muted-foreground">Total: <span className="font-semibold text-foreground">{item.totalPiesTablares.toFixed(2)} Pies Tablares</span></span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Dimensiones (Alto" x Ancho" x Largo m)</TableHead>
+                              <TableHead>Cepillado</TableHead>
+                              <TableHead className="text-right">Unidades</TableHead>
+                              <TableHead className="text-right">Pies Tablares</TableHead>
                             </TableRow>
-                           )
-                        ))}
-                    </TableBody>
-                </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {item.medidas.map((medida, index) => (
+                              <TableRow key={index}>
+                                <TableCell>{`${medida.alto}" x ${medida.ancho}" x ${medida.largo}m`}</TableCell>
+                                <TableCell>{medida.cepillado ? "Sí" : "No"}</TableCell>
+                                <TableCell className="text-right font-medium">{medida.unidades}</TableCell>
+                                <TableCell className="text-right">{medida.totalPiesTablares.toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
             )}
         </CardContent>
       </Card>
