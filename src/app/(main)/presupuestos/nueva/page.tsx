@@ -278,7 +278,7 @@ export default function NuevoPresupuestoPage() {
       <PageTitle title="Ingresar Nuevo Presupuesto" description="Registre los detalles de un nuevo presupuesto de madera en Firebase." />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card className="mb-8">
+          <Card>
             <CardHeader>
               <CardTitle>Información del Cliente y Fecha</CardTitle>
             </CardHeader>
@@ -327,42 +327,52 @@ export default function NuevoPresupuestoPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Relleno Rápido de Filas</CardTitle>
+              <CardDescription>
+                Complete automáticamente las filas de detalle vacías con un tipo de madera y su precio.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex items-end gap-4">
+              <div className="flex-1">
+                <Label htmlFor="bulk-fill-type">Tipo de Madera</Label>
+                <Select onValueChange={setBulkFillType} value={bulkFillType}>
+                  <SelectTrigger id="bulk-fill-type" className="mt-2">
+                    <SelectValue placeholder="Seleccione tipo de madera" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {config?.preciosMadera.map(madera => (
+                      <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
+                        {madera.tipoMadera}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="bulk-fill-count">N° de Filas</Label>
+                <Input
+                  id="bulk-fill-count"
+                  type="number"
+                  className="w-24 mt-2"
+                  placeholder="Cant."
+                  value={bulkFillCount}
+                  onChange={(e) => setBulkFillCount(e.target.value)}
+                  min="1"
+                />
+              </div>
+              <Button type="button" onClick={handleBulkFill} disabled={!bulkFillType || !bulkFillCount || Number(bulkFillCount) <= 0}>
+                Rellenar
+              </Button>
+            </CardContent>
+          </Card>
+
+
+          <Card>
+            <CardHeader>
               <CardTitle>Detalles del Presupuesto</CardTitle>
               <CardDescription>Ingrese los productos a presupuestar. Las filas con tipo de madera y unidades se considerarán válidas.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-2 p-4 mb-4 border rounded-lg bg-muted/50">
-                <div className="flex-1">
-                  <Label htmlFor="bulk-fill-type" className="mb-2 block text-sm font-medium">Relleno Rápido de Filas</Label>
-                  <Select onValueChange={setBulkFillType} value={bulkFillType}>
-                    <SelectTrigger id="bulk-fill-type">
-                      <SelectValue placeholder="Seleccione tipo de madera" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {config?.preciosMadera.map(madera => (
-                        <SelectItem key={madera.tipoMadera} value={madera.tipoMadera}>
-                          {madera.tipoMadera}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="bulk-fill-count" className="text-sm font-medium">N° Filas</Label>
-                  <Input
-                    id="bulk-fill-count"
-                    type="number"
-                    className="w-24 mt-2"
-                    placeholder="Cant."
-                    value={bulkFillCount}
-                    onChange={(e) => setBulkFillCount(e.target.value)}
-                    min="1"
-                  />
-                </div>
-                <Button type="button" onClick={handleBulkFill} disabled={!bulkFillType || !bulkFillCount || Number(bulkFillCount) <= 0}>
-                  Rellenar
-                </Button>
-              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -489,5 +499,3 @@ export default function NuevoPresupuestoPage() {
     </div>
   );
 }
-
-    
