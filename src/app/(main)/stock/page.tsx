@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
-import { PlusCircle, Trash2, Search, Loader2, Database } from "lucide-react";
+import { PlusCircle, Trash2, Search, Loader2, Database, Package } from "lucide-react";
 import type { StockMaderaAserrada } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from 'date-fns';
@@ -71,9 +71,48 @@ export default function StockPage() {
     );
   }, [stockEntries, searchTerm]);
 
+  const stockSummary = useMemo(() => {
+    if (!stockEntries || stockEntries.length === 0) return [];
+
+    const summaryMap = new Map<string, { tipoMadera: string; alto: number; ancho: number; largo: number; cepillado: boolean; unidades: number }>();
+
+    stockEntries.forEach(entry => {
+        (entry.detalles || []).forEach(detalle => {
+            if (!detalle.tipoMadera || !detalle.alto || !detalle.ancho || !detalle.largo || !detalle.unidades) return;
+            const key = `${detalle.tipoMadera}-${detalle.alto}-${detalle.ancho}-${detalle.largo}-${!!detalle.cepillado}`;
+            
+            const existing = summaryMap.get(key);
+            if (existing) {
+                existing.unidades += detalle.unidades;
+            } else {
+                summaryMap.set(key, {
+                    tipoMadera: detalle.tipoMadera,
+                    alto: detalle.alto,
+                    ancho: detalle.ancho,
+                    largo: detalle.largo,
+                    cepillado: !!detalle.cepillado,
+                    unidades: detalle.unidades,
+                });
+            }
+        });
+    });
+
+    return Array.from(summaryMap.values()).sort((a, b) => {
+        if (a.tipoMadera < b.tipoMadera) return -1;
+        if (a.tipoMadera > b.tipoMadera) return 1;
+        if (a.alto < b.alto) return -1;
+        if (a.alto > b.alto) return 1;
+        if (a.ancho < b.ancho) return -1;
+        if (a.ancho > b.ancho) return 1;
+        if (a.largo < b.largo) return -1;
+        if (a.largo > b.largo) return 1;
+        return 0;
+    });
+  }, [stockEntries]);
+
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Stock de Madera Aserrada" description="Listado de toda la producción de madera aserrada ingresada al stock.">
+      <PageTitle title="Stock de Madera Aserrada" description="Registro y resumen de la producción de madera para inventario.">
         <Button asChild>
           <Link href="/stock/nueva">
             <PlusCircle className="mr-2 h-4 w-4" />
@@ -81,6 +120,48 @@ export default function StockPage() {
           </Link>
         </Button>
       </PageTitle>
+
+       <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center">
+             <Package className="mr-2 h-5 w-5 text-primary" />
+             Resumen de Stock Actual
+          </CardTitle>
+          <CardDescription>
+            Total de unidades en stock agrupadas por tipo de madera y dimensiones.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                <div className="text-center py-10 text-muted-foreground">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : stockSummary.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay stock para mostrar.</p>
+            ) : (
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Tipo de Madera</TableHead>
+                            <TableHead>Dimensiones (Alto" x Ancho" x Largo m)</TableHead>
+                            <TableHead>Cepillado</TableHead>
+                            <TableHead className="text-right">Unidades Totales</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {stockSummary.map((item, index) => (
+                            <TableRow key={index}>
+                                <TableCell className="font-medium">{item.tipoMadera}</TableCell>
+                                <TableCell>{`${item.alto}" x ${item.ancho}" x ${item.largo}m`}</TableCell>
+                                <TableCell>{item.cepillado ? 'Sí' : 'No'}</TableCell>
+                                <TableCell className="text-right font-semibold">{item.unidades}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
