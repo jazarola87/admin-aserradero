@@ -83,6 +83,8 @@ export default function DashboardPage() {
 
   const [fechaDesde, setFechaDesde] = useState<Date | undefined>(undefined);
   const [fechaHasta, setFechaHasta] = useState<Date | undefined>(undefined);
+  const [isDesdePickerOpen, setIsDesdePickerOpen] = useState(false);
+  const [isHastaPickerOpen, setIsHastaPickerOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -272,7 +274,7 @@ export default function DashboardPage() {
       />
       <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 border rounded-lg shadow-sm bg-card">
         <div className="flex-1">
-          <Popover>
+          <Popover open={isDesdePickerOpen} onOpenChange={setIsDesdePickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant={"outline"}
@@ -289,7 +291,10 @@ export default function DashboardPage() {
               <Calendar
                 mode="single"
                 selected={fechaDesde}
-                onSelect={setFechaDesde}
+                onSelect={(date) => {
+                  setFechaDesde(date);
+                  setIsDesdePickerOpen(false);
+                }}
                 initialFocus
                 locale={es}
               />
@@ -297,7 +302,7 @@ export default function DashboardPage() {
           </Popover>
         </div>
         <div className="flex-1">
-          <Popover>
+          <Popover open={isHastaPickerOpen} onOpenChange={setIsHastaPickerOpen}>
             <PopoverTrigger asChild>
               <Button
                 variant={"outline"}
@@ -314,7 +319,10 @@ export default function DashboardPage() {
               <Calendar
                 mode="single"
                 selected={fechaHasta}
-                onSelect={setFechaHasta}
+                onSelect={(date) => {
+                  setFechaHasta(date);
+                  setIsHastaPickerOpen(false);
+                }}
                 initialFocus
                 locale={es}
                 disabled={(date) => fechaDesde ? date < fechaDesde : false}

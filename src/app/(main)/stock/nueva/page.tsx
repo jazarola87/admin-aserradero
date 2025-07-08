@@ -117,6 +117,7 @@ export default function NuevoIngresoStockPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bulkFillType, setBulkFillType] = useState<string>('');
   const [bulkFillCount, setBulkFillCount] = useState<string>('');
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   
   const form = useForm<StockFormValues>({
     resolver: zodResolver(stockFormSchema),
@@ -291,7 +292,7 @@ export default function NuevoIngresoStockPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Producción</FormLabel>
-                    <Popover>
+                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -301,7 +302,17 @@ export default function NuevoIngresoStockPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsDatePickerOpen(false);
+                          }}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")} 
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />

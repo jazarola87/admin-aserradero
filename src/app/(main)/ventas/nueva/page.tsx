@@ -151,6 +151,8 @@ export default function NuevaVentaPage() {
   const [stockSummary, setStockSummary] = useState<StockSummaryItem[]>([]);
   const [bulkFillType, setBulkFillType] = useState<string>('');
   const [bulkFillCount, setBulkFillCount] = useState<string>('');
+  const [isFechaVentaPickerOpen, setIsFechaVentaPickerOpen] = useState(false);
+  const [isFechaEntregaPickerOpen, setIsFechaEntregaPickerOpen] = useState(false);
   
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -430,7 +432,7 @@ export default function NuevaVentaPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Venta</FormLabel>
-                    <Popover>
+                    <Popover open={isFechaVentaPickerOpen} onOpenChange={setIsFechaVentaPickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -440,7 +442,17 @@ export default function NuevaVentaPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsFechaVentaPickerOpen(false);
+                          }}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")} 
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -469,7 +481,7 @@ export default function NuevaVentaPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Entrega Estimada (Opcional)</FormLabel>
-                    <Popover>
+                    <Popover open={isFechaEntregaPickerOpen} onOpenChange={setIsFechaEntregaPickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -479,7 +491,16 @@ export default function NuevaVentaPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsFechaEntregaPickerOpen(false);
+                          }}
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -506,7 +527,7 @@ export default function NuevaVentaPage() {
                   <FormItem>
                     <FormLabel>Costo Operario ($) (Opcional)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                      <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

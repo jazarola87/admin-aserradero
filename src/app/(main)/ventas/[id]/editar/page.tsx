@@ -150,6 +150,8 @@ export default function EditarVentaPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [stockSummary, setStockSummary] = useState<StockSummaryItem[]>([]);
+  const [isFechaVentaPickerOpen, setIsFechaVentaPickerOpen] = useState(false);
+  const [isFechaEntregaPickerOpen, setIsFechaEntregaPickerOpen] = useState(false);
 
   const form = useForm<VentaFormValues>({
     resolver: zodResolver(ventaFormSchema),
@@ -422,7 +424,7 @@ export default function EditarVentaPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Venta</FormLabel>
-                    <Popover>
+                    <Popover open={isFechaVentaPickerOpen} onOpenChange={setIsFechaVentaPickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -432,7 +434,17 @@ export default function EditarVentaPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsFechaVentaPickerOpen(false);
+                          }}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")} 
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -461,7 +473,7 @@ export default function EditarVentaPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha de Entrega Estimada (Opcional)</FormLabel>
-                    <Popover>
+                    <Popover open={isFechaEntregaPickerOpen} onOpenChange={setIsFechaEntregaPickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -471,7 +483,16 @@ export default function EditarVentaPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsFechaEntregaPickerOpen(false);
+                          }}
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
