@@ -35,6 +35,7 @@ import { getStockSummary, type StockSummaryItem } from "@/lib/firebase/services/
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 const ventaDetalleSchema = z.object({
   tipoMadera: z.string().optional(),
@@ -62,6 +63,7 @@ const ventaFormSchema = z.object({
   fechaEntregaEstimada: z.date().optional(),
   sena: z.coerce.number().nonnegative("La seña no puede ser negativa.").optional(),
   costoOperario: z.coerce.number().nonnegative("El costo de operario no puede ser negativo.").optional(),
+  notas: z.string().optional(),
   detalles: z.array(ventaDetalleSchema)
     .min(1, "Debe agregar al menos un detalle de venta.")
     .refine(
@@ -163,6 +165,7 @@ export default function NuevaVentaPage() {
       fechaEntregaEstimada: undefined,
       sena: undefined,
       costoOperario: undefined,
+      notas: "",
       detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
       idOriginalPresupuesto: undefined,
     },
@@ -387,6 +390,7 @@ export default function NuevaVentaPage() {
     if (typeof data.sena === 'number') nuevaVentaData.sena = data.sena;
     if (typeof data.costoOperario === 'number') nuevaVentaData.costoOperario = data.costoOperario;
     if (data.idOriginalPresupuesto) nuevaVentaData.idOriginalPresupuesto = data.idOriginalPresupuesto;
+    if (data.notas) nuevaVentaData.notas = data.notas;
     
     try {
         await addVenta(nuevaVentaData as Omit<Venta, 'id'>);
@@ -528,6 +532,22 @@ export default function NuevaVentaPage() {
                     <FormLabel>Costo Operario ($) (Opcional)</FormLabel>
                     <FormControl>
                       <Input type="number" step="0.01" placeholder="Ej: 100.00" {...field} value={field.value ?? ""} onChange={e => field.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="notas"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-3">
+                    <FormLabel>Notas (Opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Añadir notas internas sobre la venta, como detalles de entrega, condiciones especiales, etc."
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

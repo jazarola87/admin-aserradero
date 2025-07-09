@@ -38,6 +38,7 @@ const mapDocToVenta = (document: any): Venta => {
     costoMaderaVentaSnapshot: data.costoMaderaVentaSnapshot !== undefined ? Number(data.costoMaderaVentaSnapshot) : undefined,
     costoAserrioVentaSnapshot: data.costoAserrioVentaSnapshot !== undefined ? Number(data.costoAserrioVentaSnapshot) : undefined,
     entregado: data.entregado || false,
+    notas: data.notas || undefined,
   } as Venta;
 };
 

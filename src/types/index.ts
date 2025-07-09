@@ -3,6 +3,7 @@
 
 
 
+
 export interface Compra {
   id: string;
   fecha: string; 
@@ -43,6 +44,7 @@ export interface Venta {
   costoMaderaVentaSnapshot?: number; // Costo de madera calculado al momento de la venta/última edición
   costoAserrioVentaSnapshot?: number; // Costo de aserrío calculado al momento de la venta/última edición
   entregado?: boolean;
+  notas?: string;
 }
 
 export interface PresupuestoDetalle {

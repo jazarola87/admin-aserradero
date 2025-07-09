@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -288,6 +289,14 @@ function VentaItemComponent({ venta, config, onDelete, onUpdateVenta }: VentaIte
           {typeof venta.costoOperario === 'number' && venta.costoOperario > 0 && <p><strong>Costo Operario:</strong> ${venta.costoOperario.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>}
           {venta.idOriginalPresupuesto && <p><strong>Presupuesto Original ID:</strong> {venta.idOriginalPresupuesto}</p>}
         </div>
+        
+        {venta.notas && (
+          <div className="mb-4 p-4 border rounded-md bg-muted/50">
+            <p className="font-semibold text-foreground">Notas:</p>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{venta.notas}</p>
+          </div>
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
