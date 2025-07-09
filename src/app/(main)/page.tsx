@@ -11,11 +11,12 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
-import type { Compra, Venta, VentaDetalle, Configuracion } from "@/types";
+import type { Compra, Venta, VentaDetalle, Configuracion, StockMaderaAserrada } from "@/types";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
 import { useToast } from "@/hooks/use-toast";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
+import { getAllStockEntries } from "@/lib/firebase/services/stockService";
 import { defaultConfig } from "@/lib/config-data";
 
 // Helper to calculate board feet for a single sale item
@@ -77,6 +78,7 @@ const getCostoAserrioParaVenta = (venta: Venta, config: Configuracion): number =
 export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
+  const [stockEntries, setStockEntries] = useState<StockMaderaAserrada[]>([]);
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -89,14 +91,16 @@ export default function DashboardPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [comprasData, configData, ventasData] = await Promise.all([
+      const [comprasData, configData, ventasData, stockData] = await Promise.all([
         getAllCompras(),
         getAppConfig(),
-        getAllVentas()
+        getAllVentas(),
+        getAllStockEntries(),
       ]);
       setComprasList(comprasData);
       setConfig(configData);
       setVentasList(ventasData);
+      setStockEntries(stockData);
 
       if (fechaDesde === undefined && fechaHasta === undefined) {
         const allRecordDates: Date[] = [];
@@ -215,6 +219,7 @@ export default function DashboardPage() {
       }
     });
 
+    // Consumo de materia prima por producción para ventas
     ventasList.forEach(venta => {
       (venta.detalles || []).forEach(detalle => {
         if (!detalle.tipoMadera || !detalle.unidades) return;
@@ -224,7 +229,6 @@ export default function DashboardPage() {
         const unidadesNuevas = totalUnidades - unidadesDeStock;
 
         if (unidadesNuevas > 0) {
-          // Calculate pies for the new production part only
           const piesTablaresNuevos = unidadesNuevas * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
           
           if (stockMap[detalle.tipoMadera]) {
@@ -236,6 +240,26 @@ export default function DashboardPage() {
       });
     });
 
+    // Consumo de materia prima por producción directa a stock
+    stockEntries.forEach(entry => {
+      // Solo contar ingresos de producción (no consumos)
+      if (!entry.idVentaConsumo) {
+        (entry.detalles || []).forEach(detalle => {
+          if (!detalle.tipoMadera) return;
+
+          const piesTablares = detalle.piesTablares || calcularPiesTablaresItem(detalle);
+          
+          if (piesTablares > 0) {
+            if (stockMap[detalle.tipoMadera]) {
+              stockMap[detalle.tipoMadera].vendidosPies += piesTablares;
+            } else {
+              stockMap[detalle.tipoMadera] = { compradosM3: 0, vendidosPies: piesTablares };
+            }
+          }
+        });
+      }
+    });
+
     return Object.entries(stockMap).map(([tipoMadera, data]) => {
       const vendidosM3 = data.vendidosPies / 200;
       return {
@@ -245,7 +269,7 @@ export default function DashboardPage() {
         stockM3: data.compradosM3 - vendidosM3,
       };
     }).filter(item => item.compradosM3 > 0 || item.vendidosM3 > 0 || item.stockM3 !== 0); 
-  }, [comprasList, ventasList, config]);
+  }, [comprasList, ventasList, stockEntries, config]);
 
 
   const displayDateRange = useMemo(() => {
