@@ -38,7 +38,7 @@ const preciosVentaFormSchema = z.object({
     message: "El nombre del aserradero debe tener al menos 3 caracteres.",
   }),
   logoUrl: z.string().optional().or(z.literal("")),
-  qrCodeUrl: z.string().optional().or(z.literal("")),
+  enlaceWhatsApp: z.string().url({ message: "Por favor, ingrese una URL válida." }).or(z.literal("")).optional(),
   telefonoEmpresa: z.string().optional(),
   lemaEmpresa: z.string().optional(),
   preciosMadera: z.array(precioMaderaSchema).optional(), // Selling prices per board foot
@@ -55,14 +55,13 @@ export default function PreciosVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | undefined>(undefined);
-  const [qrCodePreview, setQrCodePreview] = useState<string | undefined>(undefined);
-
+  
   const form = useForm<PreciosVentaFormValues>({
     resolver: zodResolver(preciosVentaFormSchema),
     defaultValues: {
       nombreAserradero: "",
       logoUrl: "",
-      qrCodeUrl: "",
+      enlaceWhatsApp: "",
       telefonoEmpresa: "",
       lemaEmpresa: "",
       preciosMadera: [],
@@ -78,14 +77,13 @@ export default function PreciosVentaPage() {
         form.reset({
           nombreAserradero: config.nombreAserradero,
           logoUrl: config.logoUrl,
-          qrCodeUrl: config.qrCodeUrl,
+          enlaceWhatsApp: config.enlaceWhatsApp,
           telefonoEmpresa: config.telefonoEmpresa,
           lemaEmpresa: config.lemaEmpresa,
           preciosMadera: config.preciosMadera,
           precioCepilladoPorPie: config.precioCepilladoPorPie,
         });
         setLogoPreview(config.logoUrl);
-        setQrCodePreview(config.qrCodeUrl);
       } catch (error) {
         toast({
           title: "Error al Cargar Configuración",
@@ -117,20 +115,7 @@ export default function PreciosVentaPage() {
       reader.readAsDataURL(file);
     }
   };
-
-  const handleQrCodeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const dataUri = reader.result as string;
-        form.setValue("qrCodeUrl", dataUri, { shouldValidate: true });
-        setQrCodePreview(dataUri);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
+  
   async function onSubmit(data: PreciosVentaFormValues) {
     setIsSubmitting(true);
     try {
@@ -189,8 +174,7 @@ export default function PreciosVentaPage() {
                 )}
               />
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-                <FormItem>
+              <FormItem>
                   <FormLabel>Logo de la Empresa</FormLabel>
                   <FormControl>
                     <Input 
@@ -211,31 +195,24 @@ export default function PreciosVentaPage() {
                   )}
                   <FormDescription>Logo para presupuestos y facturas.</FormDescription>
                   {form.formState.errors.logoUrl && <FormMessage>{form.formState.errors.logoUrl.message}</FormMessage>}
-                </FormItem>
-
-                <FormItem>
-                  <FormLabel>Código QR de WhatsApp</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleQrCodeChange} 
-                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    />
-                  </FormControl>
-                  {qrCodePreview ? (
-                    <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
-                      <Image src={qrCodePreview} alt="Vista previa del Código QR" width={100} height={100} className="object-contain rounded" data-ai-hint="QR code"/>
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[104px] h-[104px]">
-                      <ImageIcon className="w-10 h-10 text-muted-foreground" />
-                    </div>
-                  )}
-                  <FormDescription>QR para el pie de los presupuestos.</FormDescription>
-                  {form.formState.errors.qrCodeUrl && <FormMessage>{form.formState.errors.qrCodeUrl.message}</FormMessage>}
-                </FormItem>
-              </div>
+              </FormItem>
+              
+              <FormField
+                control={form.control}
+                name="enlaceWhatsApp"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Enlace de WhatsApp</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://wa.me/54911..." {...field} value={field.value ?? ""} />
+                    </FormControl>
+                     <FormDescription>
+                       El enlace completo de WhatsApp (incluyendo https://) que se usará en los PDFs.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -246,7 +223,7 @@ export default function PreciosVentaPage() {
                     <FormControl>
                       <Input placeholder="Ej: +54 9 11 1234-5678" {...field} />
                     </FormControl>
-                    <FormDescription>El número de teléfono principal para contacto.</FormDescription>
+                    <FormDescription>El número de teléfono principal para contacto (informativo).</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

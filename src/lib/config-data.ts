@@ -22,7 +22,7 @@ const defaultCostosMadera: CostoMaderaMetroCubico[] = defaultPreciosMadera.map(p
 export const defaultConfig: Configuracion = {
   nombreAserradero: "Aserradero El Roble",
   logoUrl: "",
-  qrCodeUrl: "",
+  enlaceWhatsApp: "",
   telefonoEmpresa: "",
   lemaEmpresa: "Calidad y tradición en maderas desde 1980.",
   preciosMadera: defaultPreciosMadera,

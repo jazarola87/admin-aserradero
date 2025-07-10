@@ -28,7 +28,14 @@ export async function getAppConfig(): Promise<Configuracion> {
     if (docSnap.exists()) {
       // Merge fetched data with defaults to ensure all keys are present
       const fetchedData = docSnap.data() as Partial<Configuracion>;
-      return { ...defaultConfig, ...fetchedData };
+      // Ensure prices and costs arrays are not undefined if they exist on fetchedData but are empty
+      const finalConfig = { 
+        ...defaultConfig, 
+        ...fetchedData,
+        preciosMadera: fetchedData.preciosMadera || defaultConfig.preciosMadera,
+        costosMaderaMetroCubico: fetchedData.costosMaderaMetroCubico || defaultConfig.costosMaderaMetroCubico,
+      };
+      return finalConfig;
     } else {
       // Config does not exist, so create it with default values
       console.log("No configuration found in Firestore. Creating new one with default values.");

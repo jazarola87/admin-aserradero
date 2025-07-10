@@ -145,7 +145,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'normal');
   doc.text(config.telefonoEmpresa || '', pageWidth / 2, cursorY, { align: 'center' });
 
-  if (documentType === 'Presupuesto') {
+  if (documentType === 'Presupuesto' && config.enlaceWhatsApp) {
       cursorY += 6;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -154,21 +154,8 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
       doc.text(ctaText, textX, cursorY);
-      if (config.telefonoEmpresa) {
-        const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
-        const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
-        doc.link(textX, cursorY - 3, textWidth, 5, { url: whatsappLink });
-      }
-
-      if (config.qrCodeUrl) {
-          cursorY += 4;
-          try {
-            doc.addImage(config.qrCodeUrl, 'PNG', (pageWidth - 25) / 2, cursorY, 25, 25);
-          } catch(e) {
-            console.error("Error adding QR Code to PDF:", e);
-          }
-      }
-  } else {
+      doc.link(textX, cursorY - 3, textWidth, 5, { url: config.enlaceWhatsApp });
+  } else if (documentType === 'Venta') {
       cursorY += 6;
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
@@ -177,5 +164,3 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   return doc;
 };
-
-    
