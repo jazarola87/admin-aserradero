@@ -1,217 +1,181 @@
 
-"use client"; 
+"use client";
 
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import type { Presupuesto, Venta, Configuracion } from '@/types';
 
-interface GenericOrderPDFDocumentProps {
-  order: Presupuesto | Venta;
-  config: Configuracion;
-  elementId: string;
-  documentType: 'Presupuesto' | 'Venta';
-}
+// Function to generate the PDF
+export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuracion, documentType: 'Presupuesto' | 'Venta') => {
+  const doc = new jsPDF({
+    orientation: 'p',
+    unit: 'mm',
+    format: 'a4',
+  });
 
-export function GenericOrderPDFDocument({ order, config, elementId, documentType }: GenericOrderPDFDocumentProps) {
-  const isPresupuesto = documentType === 'Presupuesto';
-  const styles = {
-    container: { 
-      fontFamily: 'Arial, sans-serif', 
-      fontSize: '10pt',
-      padding: '10mm',
-      width: '190mm', 
-      margin: 'auto',
-      boxSizing: 'border-box' as const,
-      backgroundColor: '#ffffff', // Ensure background is white for PDF
-    },
-    header: { textAlign: 'center' as const, marginBottom: '10mm' },
-    logo: { 
-      maxWidth: '60mm', 
-      maxHeight: '30mm', 
-      margin: '0 auto 5mm auto', 
-      display: 'block' 
-    },
-    companyName: { fontSize: '14pt', fontWeight: 'bold' as const, color: '#333333', marginBottom: '2mm' },
-    companyContact: { fontSize: '9pt', color: '#555555', marginBottom: '2mm'},
-    lema: { fontSize: '9pt', fontStyle: 'italic' as const, marginBottom: '8mm', color: '#555555' },
-    documentTitle: { fontSize: '16pt', fontWeight: 'bold' as const, marginBottom: '8mm', color: '#333333' },
-    infoSection: { 
-      display: 'flex', 
-      justifyContent: 'space-between' as const, 
-      marginBottom: '8mm', 
-      borderBottom: '1px solid #cccccc', 
-      paddingBottom: '5mm', 
-      fontSize: '10pt' 
-    },
-    clientInfo: { textAlign: 'left' as const, maxWidth: '60%' },
-    orderInfo: { textAlign: 'right' as const, maxWidth: '35%' },
-    infoP: { margin: '2mm 0', lineHeight: '1.4' },
-    detailsTable: { 
-      width: '100%', 
-      borderCollapse: 'collapse' as const, 
-      fontSize: '9pt', 
-      marginBottom: '8mm',
-      tableLayout: 'fixed' as const,
-    },
-    th: { 
-      border: '1px solid #dddddd', 
-      padding: '2.5mm 1.5mm', 
-      backgroundColor: '#f0f0f0', 
-      textAlign: 'left' as const,
-      fontWeight: 'bold' as const,
-      color: '#333333',
-      wordWrap: 'break-word' as const,
-    },
-    td: { 
-      border: '1px solid #dddddd', 
-      padding: '2.5mm 1.5mm', 
-      textAlign: 'left' as const,
-      wordWrap: 'break-word' as const,
-    },
-    tdNumeric: {
-      border: '1px solid #dddddd', 
-      padding: '2.5mm 1.5mm', 
-      textAlign: 'right' as const,
-      wordWrap: 'break-word' as const,
-    },
-    totalSection: { marginTop: '8mm', fontSize: '10pt', display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-end' as const },
-    totalRow: { display: 'flex', justifyContent: 'space-between' as const, width: '60%', marginBottom: '1.5mm'},
-    totalLabel: { fontWeight: 'normal' as const, color: '#444444' },
-    totalAmount: { fontWeight: 'bold' as const, textAlign: 'right' as const, color: '#333333' },
-    grandTotalRow: { display: 'flex', justifyContent: 'space-between' as const, width: '60%', marginTop: '3mm', paddingTop: '3mm', borderTop: '1px solid #cccccc'},
-    grandTotalLabel: { fontSize: '12pt', fontWeight: 'bold' as const, color: '#333333'},
-    grandTotalAmount: { fontSize: '12pt', fontWeight: 'bold' as const, textAlign: 'right' as const, color: '#333333' },
-    footer: {
-      fontSize: '8pt',
-      textAlign: 'center' as const,
-      marginTop: '10mm',
-      borderTop: '1px solid #cccccc',
-      paddingTop: '5mm',
-      color: '#777777',
-    },
-    qrCodeImage: {
-      display: 'block',
-      margin: '5mm auto 0 auto',
-      width: '35mm',
-      height: '35mm',
-    },
-    ctaMessage: {
-      fontWeight: 'bold' as const,
-      fontSize: '9pt',
-      color: '#333333',
-      marginTop: '2mm',
-      textDecoration: 'underline',
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 15;
+  let cursorY = margin;
+
+  // --- Header ---
+  if (config.logoUrl) {
+    try {
+        // Assuming the logo is square for simplicity, adjust as needed.
+        doc.addImage(config.logoUrl, 'PNG', margin, cursorY, 25, 25);
+    } catch (e) {
+        console.error("Error adding logo image to PDF:", e);
     }
-  };
+  }
+
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 10, { align: 'center' });
+  
+  if (config.lemaEmpresa) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text(config.lemaEmpresa, pageWidth / 2, cursorY + 16, { align: 'center' });
+  }
+  
+  cursorY += 30;
+
+  // --- Document Title & Info ---
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY, { align: 'center' });
+  
+  cursorY += 10;
+  
+  doc.setLineWidth(0.5);
+  doc.line(margin, cursorY, pageWidth - margin, cursorY);
+  cursorY += 10;
+
+  // --- Client & Order Details ---
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
 
   const customerName = 'nombreCliente' in order ? order.nombreCliente : order.nombreComprador;
   const customerPhone = 'telefonoCliente' in order ? order.telefonoCliente : ('telefonoComprador' in order ? order.telefonoComprador : undefined);
+  const orderDate = order.fecha ? new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
+  
+  doc.text(`Cliente: ${customerName}`, margin, cursorY);
+  if (documentType === 'Venta') {
+      doc.text(`N° Venta: ${order.id}`, pageWidth - margin, cursorY, { align: 'right'});
+  }
+  cursorY += 6;
+  if(customerPhone) doc.text(`Teléfono: ${customerPhone}`, margin, cursorY);
+  doc.text(`Fecha: ${orderDate}`, pageWidth - margin, cursorY, { align: 'right'});
+  cursorY += 10;
+
+
+  // --- Table ---
+  const head = [['Tipo Madera', 'Unid.', 'Dimensiones', 'Cepill.', 'P.Tabl.', '$/Pie', 'Val.Unit.', 'Subtotal']];
+  const body = order.detalles.map(d => [
+    d.tipoMadera || '-',
+    d.unidades?.toString() || '0',
+    `${d.alto}" x ${d.ancho}" x ${d.largo}m`,
+    d.cepillado ? 'Sí' : 'No',
+    d.piesTablares?.toFixed(2) || '0.00',
+    `$${d.precioPorPie?.toFixed(2) || '0.00'}`,
+    `$${d.valorUnitario?.toFixed(2) || '0.00'}`,
+    `$${d.subTotal?.toFixed(2) || '0.00'}`
+  ]);
+
+  autoTable(doc, {
+    startY: cursorY,
+    head: head,
+    body: body,
+    theme: 'grid',
+    headStyles: { fillColor: [230, 230, 230], textColor: [30, 30, 30] },
+    styles: { fontSize: 8, cellPadding: 2 },
+    columnStyles: {
+        0: { cellWidth: 35 }, // Tipo Madera
+        1: { cellWidth: 12, halign: 'right' }, // Unid.
+        2: { cellWidth: 30 }, // Dimensiones
+        3: { cellWidth: 15 }, // Cepill.
+        4: { cellWidth: 18, halign: 'right' }, // P.Tabl
+        5: { halign: 'right' }, // $/Pie
+        6: { halign: 'right' }, // Val.Unit
+        7: { halign: 'right' }, // Subtotal
+    },
+    didDrawPage: (data) => {
+        cursorY = data.cursor?.y || cursorY;
+    }
+  });
+
+  cursorY = (doc as any).lastAutoTable.finalY + 10;
+
+  // --- Totals ---
   const orderTotal = 'totalPresupuesto' in order ? order.totalPresupuesto : order.totalVenta;
   const sena = documentType === 'Venta' && 'sena' in order ? order.sena : undefined;
-  const saldoPendiente = (sena !== undefined && orderTotal !== undefined) ? orderTotal - sena : undefined;
-  const orderDate = order.fecha ? new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
-  const deliveryDate = documentType === 'Venta' && 'fechaEntregaEstimada' in order && order.fechaEntregaEstimada ? 
-                       new Date(order.fechaEntregaEstimada + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
+  
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  const totalLabel = documentType === 'Presupuesto' ? 'TOTAL PRESUPUESTO:' : 'TOTAL VENTA:';
+  doc.text(totalLabel, pageWidth - margin - 50, cursorY, { align: 'right' });
+  doc.text(`$${orderTotal?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
 
+  if (sena !== undefined && sena > 0) {
+      cursorY += 7;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Seña:', pageWidth - margin - 50, cursorY, { align: 'right' });
+      doc.text(`-$${sena.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
 
-  return (
-    <div id={elementId} style={styles.container}>
-      <div style={styles.header}>
-        {config.logoUrl && (
-          <img src={config.logoUrl} alt="Logo de la Empresa" style={styles.logo} data-ai-hint="company logo" />
-        )}
-        <div style={styles.companyName}>{config.nombreAserradero || 'Nombre de Empresa'}</div>
-        {config.telefonoEmpresa && <p style={styles.companyContact}>Tel: {config.telefonoEmpresa}</p>}
-        {config.lemaEmpresa && <p style={styles.lema}>{config.lemaEmpresa}</p>}
-        <div style={styles.documentTitle}>{documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA'}</div>
-      </div>
-
-      <div style={styles.infoSection}>
-        <div style={styles.clientInfo}>
-          <p style={styles.infoP}><strong>Cliente:</strong> {customerName}</p>
-          {customerPhone && <p style={styles.infoP}><strong>Teléfono:</strong> {customerPhone}</p>}
-        </div>
-        <div style={styles.orderInfo}>
-          {documentType !== 'Presupuesto' && <p style={styles.infoP}><strong>N° {documentType}:</strong> {order.id}</p>}
-          <p style={styles.infoP}><strong>Fecha:</strong> {orderDate}</p>
-          {deliveryDate && <p style={styles.infoP}><strong>Entrega Estimada:</strong> {deliveryDate}</p>}
-        </div>
-      </div>
-
-      <table style={styles.detailsTable}>
-        <colgroup>
-          <col style={{width: '10.5%'}} />
-          <col style={{width: '7%'}} />
-          <col style={{width: '22%'}} />
-          <col style={{width: '7%'}} />
-          <col style={{width: '10%'}} />
-          <col style={{width: '9%'}} />
-          <col style={{width: '9%'}} />
-          <col style={{width: '25.5%'}} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={styles.th}>Tipo Madera</th>
-            <th style={styles.th}>Unid.</th>
-            <th style={styles.th}>Dimensiones</th>
-            <th style={styles.th}>Cepill.</th>
-            <th style={styles.tdNumeric}>P.Tabl.</th>
-            <th style={styles.tdNumeric}>$/Pie</th>
-            <th style={styles.tdNumeric}>Val.Unit.</th>
-            <th style={styles.tdNumeric}>Subtotal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {order.detalles.map((detalle, index) => (
-            <tr key={detalle.id || `detalle-${index}`}>
-              <td style={styles.td}>{detalle.tipoMadera}</td>
-              <td style={styles.tdNumeric}>{detalle.unidades}</td>
-              <td style={styles.td}>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</td>
-              <td style={styles.td}>{detalle.cepillado ? 'Sí' : 'No'}</td>
-              <td style={styles.tdNumeric}>{detalle.piesTablares?.toFixed(2)}</td>
-              <td style={styles.tdNumeric}>${detalle.precioPorPie?.toFixed(2)}</td>
-              <td style={styles.tdNumeric}>${detalle.valorUnitario?.toFixed(2)}</td>
-              <td style={styles.tdNumeric}>${detalle.subTotal?.toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      cursorY += 7;
+      doc.setLineWidth(0.2);
+      doc.line(pageWidth - margin - 60, cursorY, pageWidth - margin, cursorY);
+      cursorY += 7;
       
-      <div style={styles.totalSection}>
-        <div style={styles.totalRow}>
-            <span style={styles.totalLabel}>Subtotal:</span>
-            <span style={styles.totalAmount}>${orderTotal?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </div>
-        {sena !== undefined && sena > 0 && (
-             <div style={styles.totalRow}>
-                <span style={styles.totalLabel}>Seña:</span>
-                <span style={styles.totalAmount}>-${sena.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-            </div>
-        )}
-        <div style={styles.grandTotalRow}>
-          <span style={styles.grandTotalLabel}>{documentType === 'Presupuesto' ? 'TOTAL PRESUPUESTO:' : (sena !== undefined && sena > 0 && saldoPendiente !== undefined ? 'SALDO PENDIENTE:' : 'TOTAL VENTA:')}</span>
-          <span style={styles.grandTotalAmount}>
-            ${((sena !== undefined && sena > 0 && saldoPendiente !== undefined) ? saldoPendiente : (orderTotal ?? 0)).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-        </div>
-      </div>
+      const saldoPendiente = orderTotal! - sena;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('SALDO PENDIENTE:', pageWidth - margin - 50, cursorY, { align: 'right' });
+      doc.text(`$${saldoPendiente.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
+  }
 
-      <div style={styles.footer}>
-        <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
-        {documentType === 'Presupuesto' ? (
-          <>
-            <p style={styles.ctaMessage}>
-              Para realizar el pedido haga clic aquí
-            </p>
-            {config.qrCodeUrl && (
-              <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />
-            )}
-          </>
-        ) : (
-          config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
-        )}
-        {documentType === 'Venta' && (
-           <p>¡Gracias por su compra!</p>
-        )}
-      </div>
-    </div>
-  );
-}
+  // --- Footer ---
+  cursorY = pageHeight - 35;
+  doc.setLineWidth(0.5);
+  doc.line(margin, cursorY, pageWidth - margin, cursorY);
+  cursorY += 8;
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(config.telefonoEmpresa || '', pageWidth / 2, cursorY, { align: 'center' });
+
+  if (documentType === 'Presupuesto') {
+      cursorY += 6;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 102, 204); // Blue color for link
+      const ctaText = 'Para realizar su pedido haga clic aquí';
+      const textWidth = doc.getTextWidth(ctaText);
+      const textX = (pageWidth - textWidth) / 2;
+      doc.text(ctaText, textX, cursorY);
+      if (config.telefonoEmpresa) {
+        const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
+        const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
+        doc.link(textX, cursorY - 3, textWidth, 5, { url: whatsappLink });
+      }
+
+      if (config.qrCodeUrl) {
+          cursorY += 4;
+          try {
+            doc.addImage(config.qrCodeUrl, 'PNG', (pageWidth - 25) / 2, cursorY, 25, 25);
+          } catch(e) {
+            console.error("Error adding QR Code to PDF:", e);
+          }
+      }
+  } else {
+      cursorY += 6;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'italic');
+      doc.text('¡Gracias por su compra!', pageWidth / 2, cursorY, { align: 'center' });
+  }
+
+  return doc;
+};
+
+    

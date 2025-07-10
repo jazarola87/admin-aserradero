@@ -14,9 +14,7 @@ import { Input } from "@/components/ui/input";
 import { PlusCircle, Trash2, ClipboardList, Search, Send, Download, Pencil, Loader2 } from "lucide-react";
 import type { Presupuesto, Venta, Configuracion, PresupuestoDetalle } from "@/types";
 import { useToast } from "@/hooks/use-toast";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-import { GenericOrderPDFDocument } from '@/components/shared/generic-order-pdf-document';
+import { generateOrderPDF } from '@/components/shared/generic-order-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllPresupuestos, deletePresupuesto, getPresupuestoById } from "@/lib/firebase/services/presupuestosService";
 import { addVenta } from "@/lib/firebase/services/ventasService";
@@ -68,7 +66,6 @@ export default function PresupuestosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null); // To track which budget is being processed
   const [searchTerm, setSearchTerm] = useState("");
-  const [pdfTarget, setPdfTarget] = useState<{presupuesto: Presupuesto, id: string} | null>(null);
 
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [rowCounts, setRowCounts] = useState<Record<string, number>>({});
@@ -166,69 +163,21 @@ export default function PresupuestosPage() {
     }
   }, [router, toast]);
 
-  const downloadPDF = useCallback(async (presupuesto: Presupuesto) => {
+  const downloadPDF = useCallback((presupuesto: Presupuesto) => {
     if (!config) {
-      toast({ title: "Error", description: "La configuración no se ha cargado todavía.", variant: "destructive"});
+      toast({ title: "Error", description: "La configuración no se ha cargado todavía.", variant: "destructive" });
       return;
     }
-    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`;
-    setPdfTarget({ presupuesto, id: uniqueId });
-  
-    toast({ title: "Generando PDF...", description: "Por favor espere."});
-
-    setTimeout(async () => {
-      const inputElement = document.getElementById(uniqueId);
-      if (inputElement) {
-        try {
-          const images = Array.from(inputElement.getElementsByTagName('img'));
-          await Promise.all(images.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve(); 
-            return new Promise(resolve => { 
-              img.onload = resolve; 
-              img.onerror = () => { console.warn(`Failed to load image for PDF: ${img.src}`); resolve(null); };
-            });
-          }));
-
-          const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
-          const imgData = canvas.toDataURL('image/jpeg', 0.9);
-          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-          const margin = 10; 
-          const availableWidth = pdfWidth - 2 * margin;
-          const availableHeight = pdfHeight - 2 * margin;
-          const aspectRatio = canvas.width / canvas.height;
-          let imgRenderWidth = availableWidth;
-          let imgRenderHeight = availableWidth / aspectRatio;
-           if (imgRenderHeight > availableHeight) {
-             imgRenderHeight = availableHeight;
-             imgRenderWidth = imgRenderHeight * aspectRatio;
-           }
-          const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
-          const imgY = margin;
-          pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
-          
-          if (config.telefonoEmpresa) {
-              const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
-              const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
-              const linkYPosition = 245; 
-              const linkXPosition = 75;
-              const linkWidth = 60;
-              const linkHeight = 5;
-              pdf.link(linkXPosition, linkYPosition, linkWidth, linkHeight, { url: whatsappLink });
-          }
-
-          pdf.save(`presupuesto_${presupuesto.nombreCliente.replace(/\s+/g, '_')}_${presupuesto.fecha}.pdf`);
-          toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
-        } catch (error) {
-          console.error("Error generating PDF:", error);
-          toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
-        }
-      } else {
-        toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
-      }
-      setPdfTarget(null);
-    }, 500); 
+    try {
+      toast({ title: "Generando PDF...", description: "Por favor espere." });
+      const doc = generateOrderPDF(presupuesto, config, 'Presupuesto');
+      const filename = `presupuesto_${presupuesto.nombreCliente.replace(/\s+/g, '_')}_${presupuesto.fecha}.pdf`;
+      doc.save(filename);
+      toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF." });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
+    }
   }, [config, toast]);
 
 
@@ -405,16 +354,6 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
-      {pdfTarget && config && (
-        <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
-          <GenericOrderPDFDocument
-            order={pdfTarget.presupuesto}
-            config={config}
-            elementId={pdfTarget.id}
-            documentType="Presupuesto"
-          />
-        </div>
-      )}
     </div>
   );
 }

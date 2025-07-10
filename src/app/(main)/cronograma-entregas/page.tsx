@@ -12,10 +12,8 @@ import type { Venta, VentaDetalle, Configuracion } from "@/types";
 import { format, parseISO, isValid } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
-import { GenericOrderPDFDocument } from '@/components/shared/generic-order-pdf-document';
+import { generateOrderPDF } from '@/components/shared/generic-order-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllVentas, updateVenta } from "@/lib/firebase/services/ventasService";
 import { Badge } from "@/components/ui/badge";
@@ -45,8 +43,6 @@ export default function CronogramaEntregasPage() {
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-  const [selectedVentaForPdf, setSelectedVentaForPdf] = useState<Venta | null>(null);
-  const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -107,65 +103,21 @@ export default function CronogramaEntregasPage() {
     }
 };
 
-  const downloadVentaPDF = async (venta: Venta) => {
+  const downloadVentaPDF = (venta: Venta) => {
     if (!config) {
       toast({ title: "Error", description: "La configuración no se ha cargado.", variant: "destructive"});
       return;
     }
-    const uniqueId = `pdf-venta-${venta.id}-${Date.now()}`;
-    setSelectedVentaForPdf(venta);
-    setPdfTargetId(uniqueId);
-
-    toast({ title: "Generando PDF...", description: "Por favor espere." });
-
-    setTimeout(async () => {
-      const inputElement = document.getElementById(uniqueId);
-      if (inputElement) {
-        try {
-          const images = Array.from(inputElement.getElementsByTagName('img'));
-          await Promise.all(images.map(img => {
-            if (img.complete && img.naturalHeight !== 0) return Promise.resolve();
-            return new Promise(resolve => { 
-              img.onload = resolve; 
-              img.onerror = () => { 
-                console.warn(`Failed to load image for PDF: ${img.src}`);
-                resolve(null);
-              };
-            });
-          }));
-          
-          const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
-          const imgData = canvas.toDataURL('image/jpeg', 0.9);
-          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-          
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-          const margin = 10;
-          const availableWidth = pdfWidth - 2 * margin;
-          const availableHeight = pdfHeight - 2 * margin;
-          const aspectRatio = canvas.width / canvas.height;
-          let imgRenderWidth = availableWidth;
-          let imgRenderHeight = availableWidth / aspectRatio;
-          if (imgRenderHeight > availableHeight) {
-            imgRenderHeight = availableHeight;
-            imgRenderWidth = imgRenderHeight * aspectRatio;
-          }
-          const imgX = margin + (availableWidth - imgRenderWidth) / 2;
-          const imgY = margin;
-
-          pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
-          pdf.save(`nota_venta_${venta.nombreComprador.replace(/\s+/g, '_')}_${venta.fecha}.pdf`);
-          toast({ title: "PDF Descargado", description: "La nota de venta se ha descargado como PDF." });
-        } catch (error) {
-          console.error("Error generating PDF:", error);
-          toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
-        }
-      } else {
-        toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
-      }
-      setSelectedVentaForPdf(null);
-      setPdfTargetId(null);
-    }, 300);
+    try {
+      toast({ title: "Generando PDF...", description: "Por favor espere." });
+      const doc = generateOrderPDF(venta, config, 'Venta');
+      const filename = `nota_venta_${venta.nombreComprador.replace(/\s+/g, '_')}_${venta.fecha}.pdf`;
+      doc.save(filename);
+      toast({ title: "PDF Descargado", description: "La nota de venta se ha descargado como PDF." });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({ title: "Error al generar PDF", description: "No se pudo generar el PDF.", variant: "destructive" });
+    }
   };
 
 
@@ -313,16 +265,6 @@ export default function CronogramaEntregasPage() {
           )}
         </CardContent>
       </Card>
-      {selectedVentaForPdf && config && pdfTargetId && (
-        <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
-          <GenericOrderPDFDocument
-            order={selectedVentaForPdf}
-            config={config}
-            elementId={pdfTargetId}
-            documentType="Venta"
-          />
-        </div>
-      )}
     </div>
   );
 }
