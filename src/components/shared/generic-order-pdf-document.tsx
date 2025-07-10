@@ -19,7 +19,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   let cursorY = margin;
 
   // --- Header ---
-  const logoSize = 25 * 1.30; // Increased logo size by 30%
+  const logoSize = 25; 
   if (config.logoUrl) {
     try {
         doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize);
@@ -32,8 +32,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'bold');
   doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 12, { align: 'center' });
   
-  // Adjusted cursor to reduce space between company name and title
-  cursorY = Math.max(cursorY, logoSize + margin) + 5; 
+  cursorY = Math.max(cursorY, logoSize + margin);
 
   // --- Document Title & Info ---
   doc.setFontSize(18);
