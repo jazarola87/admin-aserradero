@@ -209,7 +209,7 @@ export default function PresupuestosPage() {
           const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
           const imgY = margin;
           pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
-          pdf.save(`presupuesto-${presupuesto.id}-${presupuesto.nombreCliente.replace(/\s+/g, '_')}.pdf`);
+          pdf.save(`presupuesto_${presupuesto.nombreCliente.replace(/\s+/g, '_')}_${presupuesto.fecha}.pdf`);
           toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
         } catch (error) {
           console.error("Error generating PDF:", error);

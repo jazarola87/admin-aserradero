@@ -154,7 +154,7 @@ export default function CronogramaEntregasPage() {
           const imgY = margin;
 
           pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
-          pdf.save(`nota_venta-${venta.id}-${venta.nombreComprador.replace(/\s+/g, '_')}.pdf`);
+          pdf.save(`nota_venta_${venta.nombreComprador.replace(/\s+/g, '_')}_${venta.fecha}.pdf`);
           toast({ title: "PDF Descargado", description: "La nota de venta se ha descargado como PDF." });
         } catch (error) {
           console.error("Error generating PDF:", error);
