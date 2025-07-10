@@ -1,4 +1,3 @@
-
 "use client";
 
 import jsPDF from 'jspdf';
@@ -142,7 +141,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
 
-  const thankYouText = `Gracias por su consulta ${config.nombreAserradero || ''}.`;
+  const thankYouText = `Gracias por tu consulta ${config.nombreAserradero || ''}.`;
   doc.text(thankYouText, pageWidth / 2, cursorY, { align: 'center' });
   cursorY += 5;
 
@@ -161,7 +160,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 102, 204);
       
-      const ctaText = 'Para confirmar su pedido ingrese aquí';
+      const ctaText = 'Para confirmar tu pedido ingrese aquí';
       
       const formattedDate = new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const message = `Hola, quiero confirmar el pedido del presupuesto a nombre de ${customerName} del día ${formattedDate}`;
@@ -185,7 +184,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       cursorY += 6;
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
-      doc.text('¡Gracias por su compra!', pageWidth / 2, cursorY, { align: 'center' });
+      doc.text('¡Gracias por tu compra!', pageWidth / 2, cursorY, { align: 'center' });
   }
 
   return doc;

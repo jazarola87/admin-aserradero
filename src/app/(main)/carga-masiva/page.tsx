@@ -414,7 +414,7 @@ export default function CargaMasivaPage() {
     <div className="container mx-auto py-6">
       <PageTitle
         title="Carga Masiva de Compras y Ventas"
-        description="Descargue las plantillas proforma (formato XLSX), complete sus datos y luego cargue los archivos para registrar múltiples operaciones a la vez en Firebase."
+        description="Descarga las plantillas proforma (formato XLSX), completa tus datos y luego carga los archivos para registrar múltiples operaciones a la vez en Firebase."
       />
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -422,7 +422,7 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Compras</CardTitle>
             <CardDescription>
-              Descargue la plantilla, complete sus datos y cargue el archivo para guardarlo en Firebase.
+              Descarga la plantilla, completa tus datos y carga el archivo para guardarlo en Firebase.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -445,7 +445,7 @@ export default function CargaMasivaPage() {
           <CardHeader>
             <CardTitle>Carga Masiva de Ventas</CardTitle>
             <CardDescription>
-              Descargue la plantilla, complete sus datos y cargue el archivo para guardarlo en Firebase.
+              Descarga la plantilla, completa tus datos y carga el archivo para guardarlo en Firebase.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -118,7 +118,7 @@ export default function ComprasPage() {
             </div>
           ) : filteredCompras.length === 0 && searchTerm ? (
              <div className="text-center py-10 text-muted-foreground">
-              <p>No se encontraron compras que coincidan con su búsqueda.</p>
+              <p>No se encontraron compras que coincidan con tu búsqueda.</p>
             </div>
           ) : (
             <Table>
