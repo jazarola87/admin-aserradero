@@ -68,7 +68,7 @@ export default function PresupuestosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null); // To track which budget is being processed
   const [searchTerm, setSearchTerm] = useState("");
-  const [pdfTarget, setPdfTarget] = useState<{presupuesto: Presupuesto, id: string, doc: any} | null>(null);
+  const [pdfTarget, setPdfTarget] = useState<{presupuesto: Presupuesto, id: string} | null>(null);
 
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [rowCounts, setRowCounts] = useState<Record<string, number>>({});
@@ -171,9 +171,8 @@ export default function PresupuestosPage() {
       toast({ title: "Error", description: "La configuración no se ha cargado todavía.", variant: "destructive"});
       return;
     }
-    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; 
-    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    setPdfTarget({ presupuesto, id: uniqueId, doc: pdf });
+    const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`;
+    setPdfTarget({ presupuesto, id: uniqueId });
   
     toast({ title: "Generando PDF...", description: "Por favor espere."});
 
@@ -192,6 +191,7 @@ export default function PresupuestosPage() {
 
           const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
           const imgData = canvas.toDataURL('image/jpeg', 0.9);
+          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
           const margin = 10; 
@@ -412,7 +412,6 @@ export default function PresupuestosPage() {
             config={config}
             elementId={pdfTarget.id}
             documentType="Presupuesto"
-            jsPDFDoc={pdfTarget.doc}
           />
         </div>
       )}

@@ -8,10 +8,9 @@ interface GenericOrderPDFDocumentProps {
   config: Configuracion;
   elementId: string;
   documentType: 'Presupuesto' | 'Venta';
-  jsPDFDoc?: any;
 }
 
-export function GenericOrderPDFDocument({ order, config, elementId, documentType, jsPDFDoc }: GenericOrderPDFDocumentProps) {
+export function GenericOrderPDFDocument({ order, config, elementId, documentType }: GenericOrderPDFDocumentProps) {
   const isPresupuesto = documentType === 'Presupuesto';
   const styles = {
     container: { 
@@ -113,22 +112,6 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
                        new Date(order.fechaEntregaEstimada + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
 
 
-  if (jsPDFDoc && documentType === 'Presupuesto' && config.telefonoEmpresa) {
-    const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
-    const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
-    
-    // These coordinates are an estimation. Might need fine-tuning.
-    // Assuming A4 page (210x297mm), link at bottom.
-    // Y: 297mm (page height) - 10mm (bottom margin) - 35mm (qr) - 10mm (text padding) = ~242mm
-    // X: Centered
-    const linkYPosition = 250; 
-    const linkXPosition = 70;
-    const linkWidth = 70;
-    const linkHeight = 5;
-
-    jsPDFDoc.link(linkXPosition, linkYPosition, linkWidth, linkHeight, { url: whatsappLink });
-  }
-
   return (
     <div id={elementId} style={styles.container}>
       <div style={styles.header}>
@@ -154,7 +137,16 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        <colgroup><col style={{width: '10.5%'}} /><col style={{width: '7%'}} /><col style={{width: '22%'}} /><col style={{width: '7%'}} /><col style={{width: '10%'}} /><col style={{width: '9%'}} /><col style={{width: '9%'}} /><col style={{width: '25.5%'}} /></colgroup>
+        <colgroup>
+          <col style={{width: '10.5%'}} />
+          <col style={{width: '7%'}} />
+          <col style={{width: '22%'}} />
+          <col style={{width: '7%'}} />
+          <col style={{width: '10%'}} />
+          <col style={{width: '9%'}} />
+          <col style={{width: '9%'}} />
+          <col style={{width: '25.5%'}} />
+        </colgroup>
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>

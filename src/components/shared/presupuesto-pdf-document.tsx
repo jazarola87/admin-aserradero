@@ -97,7 +97,8 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       fontWeight: 'bold' as const,
       fontSize: '9pt',
       color: '#333333',
-      marginTop: '2mm'
+      marginTop: '2mm',
+      textDecoration: 'underline',
     }
   };
 
@@ -136,16 +137,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        <colgroup>
-            <col style={{width: '10.5%'}} />
-            <col style={{width: '7%'}} />
-            <col style={{width: '22%'}} />
-            <col style={{width: '7%'}} />
-            <col style={{width: '10%'}} />
-            <col style={{width: '9%'}} />
-            <col style={{width: '9%'}} />
-            <col style={{width: '25.5%'}} />
-        </colgroup>
+        <colgroup><col style={{width: '10.5%'}} /><col style={{width: '7%'}} /><col style={{width: '22%'}} /><col style={{width: '7%'}} /><col style={{width: '10%'}} /><col style={{width: '9%'}} /><col style={{width: '9%'}} /><col style={{width: '25.5%'}} /></colgroup>
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>
@@ -198,7 +190,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
         {documentType === 'Presupuesto' ? (
           <>
             <p style={styles.ctaMessage}>
-              Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+              Para realizar el pedido haga clic aquí
             </p>
             {config.qrCodeUrl && (
               <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />
