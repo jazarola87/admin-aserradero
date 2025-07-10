@@ -69,14 +69,13 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
 
   // --- Table ---
-  const head = [['Tipo Madera', 'Unid.', 'Dimensiones', 'Cepill.', 'P.Tabl.', '$/Pie', 'Val.Unit.', 'Subtotal']];
+  const head = [['Tipo Madera', 'Unid.', 'Dimensiones', 'Cepill.', 'P.Tabl.', 'Val.Unit.', 'Subtotal']];
   const body = order.detalles.map(d => [
     d.tipoMadera || '-',
     d.unidades?.toString() || '0',
     `${d.alto}" x ${d.ancho}" x ${d.largo}m`,
     d.cepillado ? 'Sí' : 'No',
     d.piesTablares?.toFixed(2) || '0.00',
-    `$${d.precioPorPie?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`,
     `$${d.valorUnitario?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`,
     `$${d.subTotal?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`
   ]);
@@ -89,14 +88,13 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     headStyles: { fillColor: [230, 230, 230], textColor: [30, 30, 30], fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: {
-        0: { cellWidth: 35 }, // Tipo Madera
+        0: { cellWidth: 45 }, // Tipo Madera
         1: { cellWidth: 12, halign: 'right' }, // Unid.
-        2: { cellWidth: 30 }, // Dimensiones
+        2: { cellWidth: 35 }, // Dimensiones
         3: { cellWidth: 15 }, // Cepill.
         4: { cellWidth: 18, halign: 'right' }, // P.Tabl
-        5: { halign: 'right' }, // $/Pie
-        6: { halign: 'right' }, // Val.Unit
-        7: { halign: 'right' }, // Subtotal
+        5: { halign: 'right' }, // Val.Unit
+        6: { halign: 'right' }, // Subtotal
     },
     didDrawPage: (data) => {
         cursorY = data.cursor?.y || cursorY;
