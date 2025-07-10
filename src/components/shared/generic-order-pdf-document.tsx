@@ -20,7 +20,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const standardLineHeight = 6;
 
   // --- Header ---
-  const logoSize = 20; 
+  const logoSize = 24; 
   const textStartX = margin + logoSize + 5;
   
   const headerBlockStartY = cursorY;
