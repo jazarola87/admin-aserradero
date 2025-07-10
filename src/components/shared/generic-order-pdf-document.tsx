@@ -181,8 +181,14 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
 
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
-        {config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>}
-        <p>{documentType === 'Presupuesto' ? 'Gracias por su consulta. Presupuesto válido por 15 días.' : '¡Gracias por su compra!'}</p>
+        {documentType === 'Presupuesto' ? (
+          <p>
+            Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+          </p>
+        ) : (
+          config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
+        )}
+        <p>{documentType === 'Venta' ? '¡Gracias por su compra!' : ''}</p>
       </div>
     </div>
   );
