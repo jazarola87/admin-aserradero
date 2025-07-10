@@ -29,23 +29,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 8, { align: 'center' });
-  
-  cursorY += 8;
-  
-  if (config.telefonoEmpresa) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(config.telefonoEmpresa, pageWidth / 2, cursorY + 6, { align: 'center' });
-      cursorY += 6;
-  }
-
-  if (config.lemaEmpresa) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      doc.text(config.lemaEmpresa, pageWidth / 2, cursorY + 4, { align: 'center' });
-      cursorY += 4;
-  }
+  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 12, { align: 'center' });
   
   cursorY = Math.max(cursorY, 45); // Ensure cursor is below the logo area
 
