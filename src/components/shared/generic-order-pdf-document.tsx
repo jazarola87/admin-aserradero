@@ -1,3 +1,4 @@
+
 "use client";
 
 import jsPDF from 'jspdf';
@@ -16,7 +17,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let cursorY = margin;
-  const standardLineHeight = 6; // Use a standard line height for consistency
+  const standardLineHeight = 6;
 
   // --- Header ---
   const logoSize = 23;
@@ -28,20 +29,23 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     }
   }
 
+  const textStartX = margin + logoSize + 10;
+  
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 7, { align: 'center' });
+  doc.text(config.nombreAserradero || 'Aserradero', textStartX, cursorY + 7);
   
-  let headerBottomY = Math.max(cursorY + logoSize, cursorY + 14);
-  cursorY = headerBottomY;
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
+  const titleWidth = doc.getStringUnitWidth(docTitle) * doc.getFontSize() / doc.internal.scaleFactor;
+  const titleY = cursorY + 16;
+  doc.text(docTitle, textStartX, titleY);
+  doc.setLineWidth(0.5);
+  doc.line(textStartX, titleY + 1, textStartX + titleWidth, titleY + 1);
 
-  // --- Document Title & Info ---
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'normal'); // Title is NOT bold now
-  // Position adjusted for consistent line height
-  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY + standardLineHeight, { align: 'center' });
-  
-  cursorY += standardLineHeight + 4; // Add a bit more space before the line
+  let headerBottomY = Math.max(cursorY + logoSize, titleY + 5);
+  cursorY = headerBottomY;
   
   doc.setLineWidth(0.5);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
@@ -56,12 +60,14 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'normal');
 
   doc.text(`Cliente: ${customerName}`, margin, cursorY);
-  if (documentType === 'Venta') {
-      doc.text(`N° Venta: ${order.id}`, pageWidth - margin, cursorY, { align: 'right'});
+  if(customerPhone) {
+    cursorY += standardLineHeight;
+    doc.text(`Teléfono: ${customerPhone}`, margin, cursorY);
   }
-  cursorY += standardLineHeight;
-  if(customerPhone) doc.text(`Teléfono: ${customerPhone}`, margin, cursorY);
-  doc.text(`Fecha: ${orderDate}`, pageWidth - margin, cursorY, { align: 'right'});
+  
+  const dateTextY = cursorY - (customerPhone ? standardLineHeight : 0);
+  doc.text(`Fecha: ${orderDate}`, pageWidth - margin, dateTextY, { align: 'right'});
+  
   cursorY += 10;
 
 
@@ -73,9 +79,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     `${d.alto}" x ${d.ancho}" x ${d.largo}m`,
     d.cepillado ? 'Sí' : 'No',
     d.piesTablares?.toFixed(2) || '0.00',
-    `$${d.precioPorPie?.toFixed(2) || '0.00'}`,
-    `$${d.valorUnitario?.toFixed(2) || '0.00'}`,
-    `$${d.subTotal?.toFixed(2) || '0.00'}`
+    `$${d.precioPorPie?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`,
+    `$${d.valorUnitario?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`,
+    `$${d.subTotal?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}`
   ]);
 
   autoTable(doc, {
@@ -83,7 +89,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     head: head,
     body: body,
     theme: 'grid',
-    headStyles: { fillColor: [230, 230, 230], textColor: [30, 30, 30] },
+    headStyles: { fillColor: [230, 230, 230], textColor: [30, 30, 30], fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: {
         0: { cellWidth: 35 }, // Tipo Madera
@@ -100,36 +106,17 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     }
   });
 
-  cursorY = (doc as any).lastAutoTable.finalY + 10;
+  cursorY = (doc as any).lastAutoTable.finalY + 15;
 
   // --- Totals ---
   const orderTotal = 'totalPresupuesto' in order ? order.totalPresupuesto : order.totalVenta;
-  const sena = documentType === 'Venta' && 'sena' in order ? order.sena : undefined;
   
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  const totalLabel = documentType === 'Presupuesto' ? 'TOTAL PRESUPUESTO:' : 'TOTAL VENTA:';
-  doc.text(totalLabel, pageWidth - margin - 50, cursorY, { align: 'right' });
+  const totalLabel = `TOTAL ${documentType.toUpperCase()}:`;
+  doc.text(totalLabel, margin, cursorY);
   doc.text(`$${orderTotal?.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
 
-  if (sena !== undefined && sena > 0) {
-      cursorY += 7;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Seña:', pageWidth - margin - 50, cursorY, { align: 'right' });
-      doc.text(`-$${sena.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
-
-      cursorY += 7;
-      doc.setLineWidth(0.2);
-      doc.line(pageWidth - margin - 60, cursorY, pageWidth - margin, cursorY);
-      cursorY += 7;
-      
-      const saldoPendiente = orderTotal! - sena;
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('SALDO PENDIENTE:', pageWidth - margin - 50, cursorY, { align: 'right' });
-      doc.text(`$${saldoPendiente.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin, cursorY, { align: 'right' });
-  }
 
   // --- Footer ---
   cursorY = pageHeight - 35;
@@ -141,21 +128,20 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
 
-  const thankYouText = `Gracias por tu consulta ${config.nombreAserradero || ''}.`;
+  const thankYouText = `Gracias por tu consulta Aserradero LHM.`;
   doc.text(thankYouText, pageWidth / 2, cursorY, { align: 'center' });
   cursorY += 5;
 
   const footerTextParts = [];
   if (config.lemaEmpresa) footerTextParts.push(config.lemaEmpresa);
 
-  if (footerTextParts.length > 0) {
-    doc.text(footerTextParts.join(' - '), pageWidth / 2, cursorY, { align: 'center' });
-  }
+  doc.text("Madera de calidad para tu proyecto", pageWidth / 2, cursorY, { align: 'center' });
+  
 
   doc.setTextColor(0, 0, 0);
 
   if (documentType === 'Presupuesto' && config.enlaceWhatsApp) {
-      cursorY += 6;
+      cursorY += 10;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 102, 204);
@@ -172,19 +158,12 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       const textWidth = doc.getStringUnitWidth(ctaText) * doc.getFontSize() / doc.internal.scaleFactor;
       const textX = (pageWidth - textWidth) / 2;
 
-      // Draw the frame
-      doc.setDrawColor(150, 150, 150); // Light gray border
+      doc.setDrawColor(150, 150, 150);
       doc.setLineWidth(0.3);
       doc.roundedRect(textX - 2, cursorY - 4, textWidth + 4, 6, 1.5, 1.5, 'S');
       
       doc.textWithLink(ctaText, pageWidth / 2, cursorY, { url: finalUrl, align: 'center' });
 
-
-  } else if (documentType === 'Venta') {
-      cursorY += 6;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'italic');
-      doc.text('¡Gracias por tu compra!', pageWidth / 2, cursorY, { align: 'center' });
   }
 
   return doc;
