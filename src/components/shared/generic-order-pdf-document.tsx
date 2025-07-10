@@ -87,6 +87,12 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       paddingTop: '5mm',
       color: '#777777',
     },
+    qrCodeImage: {
+      display: 'block',
+      margin: '5mm auto 0 auto',
+      width: '35mm',
+      height: '35mm',
+    },
     ctaMessage: {
       fontWeight: 'bold' as const,
       fontSize: '9pt',
@@ -181,9 +187,14 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
         {documentType === 'Presupuesto' ? (
-          <p style={styles.ctaMessage}>
-            Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
-          </p>
+          <>
+            <p style={styles.ctaMessage}>
+              Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+            </p>
+            {config.qrCodeUrl && (
+              <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />
+            )}
+          </>
         ) : (
           config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
         )}
