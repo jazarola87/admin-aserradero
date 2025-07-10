@@ -23,18 +23,22 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const logoSize = 30;
   const textStartX = margin + logoSize + 10;
   
+  // Calculate the total height of the text block to vertically center the logo
   doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
+  const companyNameText = config.nombreAserradero || 'Aserradero';
+  const companyNameHeight = doc.getTextDimensions(companyNameText).h;
   
   doc.setFontSize(14);
-  doc.setFont('helvetica', 'normal');
   const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
-  const titleY = cursorY + 7 + standardLineHeight; 
-
-  const headerTextHeight = titleY + standardLineHeight - cursorY;
-  const headerBlockHeight = Math.max(logoSize, headerTextHeight);
+  const titleHeight = doc.getTextDimensions(docTitle).h;
   
-  // Vertically center the logo within the header block
+  // Total height of the text part of the header (including the space between lines)
+  const textBlockHeight = companyNameHeight + standardLineHeight + titleHeight;
+  
+  // Determine header block height based on the taller element: logo or text block
+  const headerBlockHeight = Math.max(logoSize, textBlockHeight);
+  
+  // Calculate the Y position to center the logo vertically within the header block
   const logoY = cursorY + (headerBlockHeight - logoSize) / 2;
 
   if (config.logoUrl) {
@@ -45,14 +49,16 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     }
   }
 
+  // Draw the text
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(config.nombreAserradero || 'Aserradero', textStartX, cursorY + 7);
+  doc.text(companyNameText, textStartX, cursorY + 7);
   
   doc.setFontSize(14);
   doc.setFont('helvetica', 'normal');
-  doc.text(docTitle, textStartX, titleY);
+  doc.text(docTitle, textStartX, cursorY + 7 + standardLineHeight);
 
+  // Move cursor below the header block
   cursorY += headerBlockHeight;
   
   doc.setLineWidth(0.5);
