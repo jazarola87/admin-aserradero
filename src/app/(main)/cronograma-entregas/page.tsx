@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useToast } from "@/hooks/use-toast";
-import { GenericOrderPDFDocument } from '@/components/shared/presupuesto-pdf-document';
+import { GenericOrderPDFDocument } from '@/components/shared/generic-order-pdf-document';
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllVentas, updateVenta } from "@/lib/firebase/services/ventasService";
 import { Badge } from "@/components/ui/badge";
@@ -133,8 +134,8 @@ export default function CronogramaEntregasPage() {
             });
           }));
           
-          const canvas = await html2canvas(inputElement, { scale: 4, useCORS: true, logging: false });
-          const imgData = canvas.toDataURL('image/png');
+          const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
+          const imgData = canvas.toDataURL('image/jpeg', 0.9);
           const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           
           const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -152,7 +153,7 @@ export default function CronogramaEntregasPage() {
           const imgX = margin + (availableWidth - imgRenderWidth) / 2;
           const imgY = margin;
 
-          pdf.addImage(imgData, 'PNG', imgX, imgY, imgRenderWidth, imgRenderHeight);
+          pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
           pdf.save(`nota_venta-${venta.id}-${venta.nombreComprador.replace(/\s+/g, '_')}.pdf`);
           toast({ title: "PDF Descargado", description: "La nota de venta se ha descargado como PDF." });
         } catch (error) {
@@ -325,3 +326,5 @@ export default function CronogramaEntregasPage() {
     </div>
   );
 }
+
+    
