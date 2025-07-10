@@ -159,12 +159,12 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 102, 204);
-      const ctaText = 'Para realizar su pedido haga clic aquí';
+      const ctaText = 'Para confirmar su pedido haga clic aquí';
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
 
       const formattedDate = new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const message = `Hola, quiero confirmar el presupuesto para ${customerName} del día ${formattedDate}.`;
+      const message = `Hola, quiero confirmar el pedido del presupuesto a nombre de ${customerName} del día ${formattedDate}`;
 
       let url = new URL(config.enlaceWhatsApp);
       url.searchParams.set('text', message);
