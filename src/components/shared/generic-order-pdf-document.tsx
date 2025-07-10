@@ -19,10 +19,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   let cursorY = margin;
 
   // --- Header ---
-  const logoSize = 34;
+  const logoSize = 34 * 1.35; // Increased by 35%
   if (config.logoUrl) {
     try {
-        // Add image with MEDIUM compression to reduce file size
         doc.addImage(config.logoUrl, 'JPEG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
@@ -39,9 +38,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   // --- Document Title & Info ---
   doc.setFontSize(18);
   doc.setFont('helvetica', 'bold');
-  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY, { align: 'center' });
+  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY - 5, { align: 'center' });
   
-  cursorY += 10;
+  cursorY += 5; // Reduced space
   
   doc.setLineWidth(0.5);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
@@ -163,8 +162,14 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       const ctaText = 'Para realizar su pedido haga clic aquí';
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
+
+      const message = "Hola, quiero realizar el pedido de este presupuesto";
+      let url = new URL(config.enlaceWhatsApp);
+      url.searchParams.set('text', message);
+      const finalUrl = url.toString();
+      
       doc.text(ctaText, textX, cursorY);
-      doc.link(textX, cursorY - 3, textWidth, 5, { url: config.enlaceWhatsApp });
+      doc.link(textX, cursorY - 3, textWidth, 5, { url: finalUrl });
   } else if (documentType === 'Venta') {
       cursorY += 6;
       doc.setFontSize(9);
