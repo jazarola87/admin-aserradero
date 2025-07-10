@@ -20,7 +20,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const standardLineHeight = 6;
 
   // --- Header ---
-  const logoSize = 30; // Increased logo size as indicated by the circle
+  const logoSize = 30;
   if (config.logoUrl) {
     try {
         doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
@@ -29,21 +29,20 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     }
   }
 
+  const textStartX = margin + logoSize + 10;
+  
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  const textStartX = margin + logoSize + 10;
   doc.text(config.nombreAserradero || 'Aserradero', textStartX, cursorY + 7);
   
   doc.setFontSize(14);
   doc.setFont('helvetica', 'normal');
   const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
-  const titleWidth = doc.getStringUnitWidth(docTitle) * doc.getFontSize() / doc.internal.scaleFactor;
-  const titleY = cursorY + 15; 
+  const titleY = cursorY + 7 + standardLineHeight; 
   doc.text(docTitle, textStartX, titleY);
 
-  // Moved the separator line down as indicated by the arrow
-  let headerBottomY = Math.max(cursorY + logoSize, titleY + 5);
-  cursorY = headerBottomY + 5; // Added extra space before the line
+  let headerBottomY = Math.max(cursorY + logoSize, titleY + standardLineHeight);
+  cursorY = headerBottomY;
   
   doc.setLineWidth(0.5);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
