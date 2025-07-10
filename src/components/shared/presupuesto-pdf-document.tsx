@@ -29,6 +29,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       display: 'block' 
     },
     companyName: { fontSize: '14pt', fontWeight: 'bold' as const, color: '#333333', marginBottom: '2mm' },
+    companyContact: { fontSize: '9pt', color: '#555555', marginBottom: '2mm'},
     lema: { fontSize: '9pt', fontStyle: 'italic' as const, marginBottom: '8mm', color: '#555555' },
     documentTitle: { fontSize: '16pt', fontWeight: 'bold' as const, marginBottom: '8mm', color: '#333333' },
     infoSection: { 
@@ -56,6 +57,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       textAlign: 'left' as const,
       fontWeight: 'bold' as const,
       color: '#333333',
+      wordWrap: 'break-word' as const,
     },
     td: { 
       border: '1px solid #dddddd', 
@@ -103,6 +105,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
           <img src={config.logoUrl} alt="Logo de la Empresa" style={styles.logo} data-ai-hint="company logo" />
         )}
         <div style={styles.companyName}>{config.nombreAserradero || 'Nombre de Empresa'}</div>
+        {config.telefonoEmpresa && <p style={styles.companyContact}>Tel: {config.telefonoEmpresa}</p>}
         {config.lemaEmpresa && <p style={styles.lema}>{config.lemaEmpresa}</p>}
         <div style={styles.documentTitle}>{documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA'}</div>
       </div>
@@ -120,28 +123,16 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        {isPresupuesto ? (
-          <colgroup>
-            <col style={{width: '25%'}} />
-            <col style={{width: '8%'}} />
-            <col style={{width: '20%'}} />
-            <col style={{width: '10%'}} />
-            <col style={{width: '10%'}} />
-            <col style={{width: '13.5%'}} />
-            <col style={{width: '13.5%'}} />
-          </colgroup>
-        ) : (
-          <colgroup>
-            <col style={{width: '25%'}} />
-            <col style={{width: '8%'}} />
-            <col style={{width: '20%'}} />
-            <col style={{width: '10%'}} />
-            <col style={{width: '10%'}} />
-            <col style={{width: '9%'}} />
-            <col style={{width: '9%'}} />
-            <col style={{width: '9%'}} />
-          </colgroup>
-        )}
+        <colgroup>
+            <col style={{width: '10.5%'}} /> {/* Tipo Madera - Reducido */}
+            <col style={{width: '7%'}} />    {/* Unid. */}
+            <col style={{width: '22%'}} />   {/* Dimensiones */}
+            <col style={{width: '7%'}} />    {/* Cepill. */}
+            <col style={{width: '10%'}} />   {/* P.Tabl. */}
+            <col style={{width: '9%'}} />    {/* $/Pie */}
+            <col style={{width: '9%'}} />    {/* Val.Unit. */}
+            <col style={{width: '25.5%'}} /> {/* Subtotal - Aumentado */}
+        </colgroup>
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>
@@ -149,7 +140,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
             <th style={styles.th}>Dimensiones</th>
             <th style={styles.th}>Cepill.</th>
             <th style={styles.tdNumeric}>P.Tabl.</th>
-            {!isPresupuesto && <th style={styles.tdNumeric}>$/Pie</th>}
+            <th style={styles.tdNumeric}>$/Pie</th>
             <th style={styles.tdNumeric}>Val.Unit.</th>
             <th style={styles.tdNumeric}>Subtotal</th>
           </tr>
@@ -162,7 +153,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
               <td style={styles.td}>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</td>
               <td style={styles.td}>{detalle.cepillado ? 'Sí' : 'No'}</td>
               <td style={styles.tdNumeric}>{detalle.piesTablares?.toFixed(2)}</td>
-              {!isPresupuesto && <td style={styles.tdNumeric}>${detalle.precioPorPie?.toFixed(2)}</td>}
+              <td style={styles.tdNumeric}>${detalle.precioPorPie?.toFixed(2)}</td>
               <td style={styles.tdNumeric}>${detalle.valorUnitario?.toFixed(2)}</td>
               <td style={styles.tdNumeric}>${detalle.subTotal?.toFixed(2)}</td>
             </tr>
@@ -191,7 +182,16 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
 
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
-        <p>{documentType === 'Presupuesto' ? 'Gracias por su consulta. Presupuesto válido por 15 días.' : '¡Gracias por su compra!'}</p>
+        {documentType === 'Presupuesto' ? (
+          <p>
+            Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+          </p>
+        ) : (
+          config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
+        )}
+        {documentType === 'Venta' && (
+           <p>¡Gracias por su compra!</p>
+        )}
       </div>
     </div>
   );
