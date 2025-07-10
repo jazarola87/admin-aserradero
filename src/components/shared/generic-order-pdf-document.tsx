@@ -19,7 +19,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   let cursorY = margin;
 
   // --- Header ---
-  const logoSize = 25; 
+  const logoSize = 34; // Increased size by ~35% from 25
   if (config.logoUrl) {
     try {
         doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize);
@@ -32,7 +32,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'bold');
   doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 12, { align: 'center' });
   
-  cursorY = Math.max(cursorY, logoSize + margin);
+  // Adjust cursorY to be below the logo if it's taller than the text part
+  let headerBottomY = Math.max(cursorY + logoSize, cursorY + 20);
+  cursorY = headerBottomY;
 
   // --- Document Title & Info ---
   doc.setFontSize(18);
@@ -137,23 +139,27 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(150, 150, 150); // Set color to gray
+  doc.setTextColor(150, 150, 150);
+
+  const thankYouText = `Gracias por su consulta ${config.nombreAserradero || ''}.`;
+  doc.text(thankYouText, pageWidth / 2, cursorY, { align: 'center' });
+  cursorY += 5;
 
   const footerTextParts = [];
-  if (documentType === 'Presupuesto') {
-    footerTextParts.push(`Gracias por su consulta ${config.nombreAserradero || ''}.`);
-  }
   if (config.telefonoEmpresa) footerTextParts.push(`Tel: ${config.telefonoEmpresa}`);
   if (config.lemaEmpresa) footerTextParts.push(config.lemaEmpresa);
 
-  doc.text(footerTextParts.join(' - '), pageWidth / 2, cursorY, { align: 'center' });
-  doc.setTextColor(0, 0, 0); // Reset color to black
+  if (footerTextParts.length > 0) {
+    doc.text(footerTextParts.join(' - '), pageWidth / 2, cursorY, { align: 'center' });
+  }
+
+  doc.setTextColor(0, 0, 0);
 
   if (documentType === 'Presupuesto' && config.enlaceWhatsApp) {
       cursorY += 6;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 102, 204); // Blue color for link
+      doc.setTextColor(0, 102, 204);
       const ctaText = 'Para realizar su pedido haga clic aquí';
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
