@@ -189,7 +189,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
         {documentType === 'Presupuesto' ? (
           <>
             <p style={styles.ctaMessage}>
-              Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+              Para realizar el pedido, comuníquese por WhatsApp al {config.telefonoEmpresa || '[número de empresa no configurado]'}.
             </p>
             {config.qrCodeUrl && (
               <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />
