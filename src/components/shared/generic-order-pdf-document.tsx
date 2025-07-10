@@ -47,13 +47,13 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   cursorY += 10;
 
   // --- Client & Order Details ---
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-
   const customerName = 'nombreCliente' in order ? order.nombreCliente : order.nombreComprador;
   const customerPhone = 'telefonoCliente' in order ? order.telefonoCliente : ('telefonoComprador' in order ? order.telefonoComprador : undefined);
   const orderDate = order.fecha ? new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
   
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+
   doc.text(`Cliente: ${customerName}`, margin, cursorY);
   if (documentType === 'Venta') {
       doc.text(`N° Venta: ${order.id}`, pageWidth - margin, cursorY, { align: 'right'});
@@ -163,7 +163,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
 
-      const message = "Hola, quiero realizar el pedido de este presupuesto";
+      const formattedDate = new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const message = `Hola, quiero confirmar el presupuesto para ${customerName} del día ${formattedDate}.`;
+
       let url = new URL(config.enlaceWhatsApp);
       url.searchParams.set('text', message);
       const finalUrl = url.toString();
