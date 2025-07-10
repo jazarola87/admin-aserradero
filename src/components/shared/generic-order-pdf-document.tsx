@@ -1,3 +1,4 @@
+
 "use client"; 
 
 import type { Presupuesto, Venta, Configuracion } from '@/types';
@@ -10,6 +11,7 @@ interface GenericOrderPDFDocumentProps {
 }
 
 export function GenericOrderPDFDocument({ order, config, elementId, documentType }: GenericOrderPDFDocumentProps) {
+  const isPresupuesto = documentType === 'Presupuesto';
   const styles = {
     container: { 
       fontFamily: 'Arial, sans-serif', 
@@ -84,6 +86,12 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       borderTop: '1px solid #cccccc',
       paddingTop: '5mm',
       color: '#777777',
+    },
+    ctaMessage: {
+      fontWeight: 'bold' as const,
+      fontSize: '9pt',
+      color: '#333333',
+      marginTop: '2mm'
     }
   };
 
@@ -122,16 +130,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        <colgroup>
-            <col style={{width: '10.5%'}} /> {/* Tipo Madera - Reducido */}
-            <col style={{width: '7%'}} />    {/* Unid. */}
-            <col style={{width: '22%'}} />   {/* Dimensiones */}
-            <col style={{width: '7%'}} />    {/* Cepill. */}
-            <col style={{width: '10%'}} />   {/* P.Tabl. */}
-            <col style={{width: '9%'}} />    {/* $/Pie */}
-            <col style={{width: '9%'}} />    {/* Val.Unit. */}
-            <col style={{width: '25.5%'}} /> {/* Subtotal - Aumentado */}
-        </colgroup>
+        <colgroup><col style={{width: '10.5%'}} /><col style={{width: '7%'}} /><col style={{width: '22%'}} /><col style={{width: '7%'}} /><col style={{width: '10%'}} /><col style={{width: '9%'}} /><col style={{width: '9%'}} /><col style={{width: '25.5%'}} /></colgroup>
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>
@@ -182,13 +181,15 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
         {documentType === 'Presupuesto' ? (
-          <p>
+          <p style={styles.ctaMessage}>
             Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
           </p>
         ) : (
           config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
         )}
-        <p>{documentType === 'Venta' ? '¡Gracias por su compra!' : ''}</p>
+        {documentType === 'Venta' && (
+           <p>¡Gracias por su compra!</p>
+        )}
       </div>
     </div>
   );
