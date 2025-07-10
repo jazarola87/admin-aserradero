@@ -5,6 +5,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Presupuesto, Venta, Configuracion } from '@/types';
 
+// WhatsApp icon as a Base64 encoded string
+const whatsappIconBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEMyNEEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMiAzaC0xNmExIDEgMCAwIDAgLTEgMXYxNmExIDEgMCAwIDAgMSAxaDZhMSA0IDAgMCAxIDEtMyAxIDQgMCAwIDEtMy0xIDEgNCAwIDAgMS0xLTMgMSA0IDAgMCAxIDEtMyAxIDQgMCAwIDEgMy0xIDEgNCAwIDAgMSAzeiIvPjxwYXRoIGQ9Ik0xNi41IDVjLTEuNS41LTEuNSA0LjUtMS41IDUgMCAxLjUgMiAzIDMgNC41cy0zIDYtNCA3LjVjLTEuNSA0LjUtNC41IDQuNS02IDRzLTQuNS0xLjUtNC41LTZoMSAydi0zIi8+PC9zdmc+';
+
+
 // Function to generate the PDF
 export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuracion, documentType: 'Presupuesto' | 'Venta') => {
   const doc = new jsPDF({
@@ -19,7 +23,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   let cursorY = margin;
 
   // --- Header ---
-  const logoSize = 34 * 1.35; // Increased by 35%
+  const logoSize = 34 * 1.35;
   if (config.logoUrl) {
     try {
         doc.addImage(config.logoUrl, 'JPEG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
@@ -159,9 +163,15 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 102, 204);
+      
       const ctaText = 'Para confirmar su pedido ingrese aquí';
       const textWidth = doc.getTextWidth(ctaText);
-      const textX = (pageWidth - textWidth) / 2;
+      const iconSize = 5;
+      const totalWidth = textWidth + iconSize + 2; // Add 2mm for spacing
+      const startX = (pageWidth - totalWidth) / 2;
+
+      // Draw Icon
+      doc.addImage(whatsappIconBase64, 'SVG', startX, cursorY - (iconSize/2) - 1, iconSize, iconSize);
 
       const formattedDate = new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const message = `Hola, quiero confirmar el pedido del presupuesto a nombre de ${customerName} del día ${formattedDate}`;
@@ -170,8 +180,9 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       url.searchParams.set('text', message);
       const finalUrl = url.toString();
       
-      doc.text(ctaText, textX, cursorY);
-      doc.link(textX, cursorY - 3, textWidth, 5, { url: finalUrl });
+      const textX = startX + iconSize + 2;
+      doc.textWithLink(ctaText, textX, cursorY, { url: finalUrl });
+
   } else if (documentType === 'Venta') {
       cursorY += 6;
       doc.setFontSize(9);
