@@ -17,12 +17,13 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let cursorY = margin;
+  const standardLineHeight = 6; // Use a standard line height for consistency
 
   // --- Header ---
-  const logoSize = 24 * 1.3;
+  const logoSize = 23;
   if (config.logoUrl) {
     try {
-        doc.addImage(config.logoUrl, 'JPEG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
+        doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
     }
@@ -37,10 +38,11 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   // --- Document Title & Info ---
   doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY + 5, { align: 'center' });
+  doc.setFont('helvetica', 'normal'); // Title is NOT bold now
+  // Position adjusted for consistent line height
+  doc.text(documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA', pageWidth / 2, cursorY + standardLineHeight, { align: 'center' });
   
-  cursorY += 10;
+  cursorY += standardLineHeight + 4; // Add a bit more space before the line
   
   doc.setLineWidth(0.5);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
@@ -58,7 +60,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   if (documentType === 'Venta') {
       doc.text(`N° Venta: ${order.id}`, pageWidth - margin, cursorY, { align: 'right'});
   }
-  cursorY += 6;
+  cursorY += standardLineHeight;
   if(customerPhone) doc.text(`Teléfono: ${customerPhone}`, margin, cursorY);
   doc.text(`Fecha: ${orderDate}`, pageWidth - margin, cursorY, { align: 'right'});
   cursorY += 10;
@@ -168,7 +170,16 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       url.searchParams.set('text', message);
       const finalUrl = url.toString();
       
+      const textWidth = doc.getStringUnitWidth(ctaText) * doc.getFontSize() / doc.internal.scaleFactor;
+      const textX = (pageWidth - textWidth) / 2;
+
+      // Draw the frame
+      doc.setDrawColor(150, 150, 150); // Light gray border
+      doc.setLineWidth(0.3);
+      doc.roundedRect(textX - 2, cursorY - 4, textWidth + 4, 6, 1.5, 1.5, 'S');
+      
       doc.textWithLink(ctaText, pageWidth / 2, cursorY, { url: finalUrl, align: 'center' });
+
 
   } else if (documentType === 'Venta') {
       cursorY += 6;
