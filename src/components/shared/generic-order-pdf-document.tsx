@@ -28,6 +28,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       display: 'block' 
     },
     companyName: { fontSize: '14pt', fontWeight: 'bold' as const, color: '#333333', marginBottom: '2mm' },
+    companyContact: { fontSize: '9pt', color: '#555555', marginBottom: '2mm'},
     lema: { fontSize: '9pt', fontStyle: 'italic' as const, marginBottom: '8mm', color: '#555555' },
     documentTitle: { fontSize: '16pt', fontWeight: 'bold' as const, marginBottom: '8mm', color: '#333333' },
     infoSection: { 
@@ -103,6 +104,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
           <img src={config.logoUrl} alt="Logo de la Empresa" style={styles.logo} data-ai-hint="company logo" />
         )}
         <div style={styles.companyName}>{config.nombreAserradero || 'Nombre de Empresa'}</div>
+        {config.telefonoEmpresa && <p style={styles.companyContact}>Tel: {config.telefonoEmpresa}</p>}
         {config.lemaEmpresa && <p style={styles.lema}>{config.lemaEmpresa}</p>}
         <div style={styles.documentTitle}>{documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA'}</div>
       </div>
@@ -179,6 +181,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
 
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
+        {config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>}
         <p>{documentType === 'Presupuesto' ? 'Gracias por su consulta. Presupuesto válido por 15 días.' : '¡Gracias por su compra!'}</p>
       </div>
     </div>

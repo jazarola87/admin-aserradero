@@ -38,6 +38,7 @@ const preciosVentaFormSchema = z.object({
     message: "El nombre del aserradero debe tener al menos 3 caracteres.",
   }),
   logoUrl: z.string().optional().or(z.literal("")), // Will store Data URI or existing URL
+  telefonoEmpresa: z.string().optional(),
   lemaEmpresa: z.string().optional(),
   preciosMadera: z.array(precioMaderaSchema).optional(), // Selling prices per board foot
   precioCepilladoPorPie: z.coerce.number().nonnegative({
@@ -59,6 +60,7 @@ export default function PreciosVentaPage() {
     defaultValues: {
       nombreAserradero: "",
       logoUrl: "",
+      telefonoEmpresa: "",
       lemaEmpresa: "",
       preciosMadera: [],
       precioCepilladoPorPie: 0,
@@ -73,6 +75,7 @@ export default function PreciosVentaPage() {
         form.reset({
           nombreAserradero: config.nombreAserradero,
           logoUrl: config.logoUrl,
+          telefonoEmpresa: config.telefonoEmpresa,
           lemaEmpresa: config.lemaEmpresa,
           preciosMadera: config.preciosMadera,
           precioCepilladoPorPie: config.precioCepilladoPorPie,
@@ -191,6 +194,21 @@ export default function PreciosVentaPage() {
                 <FormDescription>Seleccione un archivo de imagen para el logo (PNG, JPG, etc.).</FormDescription>
                 {form.formState.errors.logoUrl && <FormMessage>{form.formState.errors.logoUrl.message}</FormMessage>}
               </FormItem>
+
+              <FormField
+                control={form.control}
+                name="telefonoEmpresa"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Teléfono de la Empresa (Opcional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ej: +54 9 11 1234-5678" {...field} />
+                    </FormControl>
+                    <FormDescription>El número de teléfono principal para contacto.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
