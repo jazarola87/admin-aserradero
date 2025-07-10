@@ -125,14 +125,16 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(150, 150, 150);
 
-  const thankYouText = `Gracias por tu consulta Aserradero LHM.`;
+  const thankYouText = `Gracias por tu consulta! ${config.nombreAserradero || ''}`;
   doc.text(thankYouText, pageWidth / 2, cursorY, { align: 'center' });
   cursorY += 5;
 
-  const footerTextParts = [];
-  if (config.lemaEmpresa) footerTextParts.push(config.lemaEmpresa);
-
-  doc.text("Madera de calidad para tu proyecto", pageWidth / 2, cursorY, { align: 'center' });
+  const footerLine2Parts = [];
+  if (config.telefonoEmpresa) footerLine2Parts.push(`Tel: ${config.telefonoEmpresa}`);
+  if (config.lemaEmpresa) footerLine2Parts.push(config.lemaEmpresa);
+  
+  const footerLine2Text = footerLine2Parts.join(' - ');
+  doc.text(footerLine2Text, pageWidth / 2, cursorY, { align: 'center' });
   
 
   doc.setTextColor(0, 0, 0);
