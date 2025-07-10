@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -59,7 +60,7 @@ const presupuestoFormSchema = z.object({
         d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
       ),
       {
-        message: "Debe completar al menos una fila de producto con todos sus campos (Tipo, Unidades, Dimensiones).",
+        message: "Debe completar al menos una fila de producto con todos sus campos (Tipo, Unidades, Dimensiones, Precio/Pie).",
       }
     ),
 });
@@ -354,6 +355,7 @@ export default function EditarPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
+                      <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -418,6 +420,11 @@ export default function EditarPresupuestoPage() {
                           <TableCell className="p-1">
                             <FormField control={form.control} name={`detalles.${index}.largo`} render={({ field: f }) => (
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                            />
+                          </TableCell>
+                          <TableCell className="p-1">
+                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
                           <TableCell className="p-1 text-center align-middle">

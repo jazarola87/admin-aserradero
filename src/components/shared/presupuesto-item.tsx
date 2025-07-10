@@ -88,8 +88,6 @@ function PresupuestoItemComponent({ presupuesto, isProcessing, onDelete, onConve
               <TableHead>Unid.</TableHead>
               <TableHead>Dimensiones</TableHead>
               <TableHead>P.Tabl.</TableHead>
-              <TableHead>Val.Unit.</TableHead>
-              <TableHead>$/Pie</TableHead>
               <TableHead>Cepillado</TableHead>
               <TableHead className="text-right">Subtotal</TableHead>
             </TableRow>
@@ -101,8 +99,6 @@ function PresupuestoItemComponent({ presupuesto, isProcessing, onDelete, onConve
                 <TableCell>{detalle.unidades}</TableCell>
                 <TableCell>{`${detalle.alto}" x ${detalle.ancho}" x ${detalle.largo}m`}</TableCell>
                 <TableCell>{detalle.piesTablares?.toFixed(2)}</TableCell>
-                <TableCell className="text-right">${detalle.valorUnitario?.toFixed(2)}</TableCell>
-                <TableCell className="text-right">${detalle.precioPorPie?.toFixed(2)}</TableCell>
                 <TableCell>{detalle.cepillado ? "Sí" : "No"}</TableCell>
                 <TableCell className="text-right">${detalle.subTotal?.toFixed(2)}</TableCell>
               </TableRow>
