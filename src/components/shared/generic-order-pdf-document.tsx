@@ -8,9 +8,10 @@ interface GenericOrderPDFDocumentProps {
   config: Configuracion;
   elementId: string;
   documentType: 'Presupuesto' | 'Venta';
+  jsPDFDoc?: any;
 }
 
-export function GenericOrderPDFDocument({ order, config, elementId, documentType }: GenericOrderPDFDocumentProps) {
+export function GenericOrderPDFDocument({ order, config, elementId, documentType, jsPDFDoc }: GenericOrderPDFDocumentProps) {
   const isPresupuesto = documentType === 'Presupuesto';
   const styles = {
     container: { 
@@ -97,7 +98,8 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       fontWeight: 'bold' as const,
       fontSize: '9pt',
       color: '#333333',
-      marginTop: '2mm'
+      marginTop: '2mm',
+      textDecoration: 'underline',
     }
   };
 
@@ -110,6 +112,22 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
   const deliveryDate = documentType === 'Venta' && 'fechaEntregaEstimada' in order && order.fechaEntregaEstimada ? 
                        new Date(order.fechaEntregaEstimada + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
 
+
+  if (jsPDFDoc && documentType === 'Presupuesto' && config.telefonoEmpresa) {
+    const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
+    const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
+    
+    // These coordinates are an estimation. Might need fine-tuning.
+    // Assuming A4 page (210x297mm), link at bottom.
+    // Y: 297mm (page height) - 10mm (bottom margin) - 35mm (qr) - 10mm (text padding) = ~242mm
+    // X: Centered
+    const linkYPosition = 250; 
+    const linkXPosition = 70;
+    const linkWidth = 70;
+    const linkHeight = 5;
+
+    jsPDFDoc.link(linkXPosition, linkYPosition, linkWidth, linkHeight, { url: whatsappLink });
+  }
 
   return (
     <div id={elementId} style={styles.container}>
@@ -189,7 +207,7 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
         {documentType === 'Presupuesto' ? (
           <>
             <p style={styles.ctaMessage}>
-              Para realizar el pedido, comuníquese por WhatsApp al {config.telefonoEmpresa || '[número de empresa no configurado]'}.
+              Para realizar el pedido haga clic aquí
             </p>
             {config.qrCodeUrl && (
               <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />

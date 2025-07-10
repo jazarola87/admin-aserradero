@@ -68,8 +68,7 @@ export default function PresupuestosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null); // To track which budget is being processed
   const [searchTerm, setSearchTerm] = useState("");
-  const [pdfTargetId, setPdfTargetId] = useState<string | null>(null);
-  const [selectedPresupuestoForPdf, setSelectedPresupuestoForPdf] = useState<Presupuesto | null>(null);
+  const [pdfTarget, setPdfTarget] = useState<{presupuesto: Presupuesto, id: string, doc: any} | null>(null);
 
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
   const [rowCounts, setRowCounts] = useState<Record<string, number>>({});
@@ -173,8 +172,8 @@ export default function PresupuestosPage() {
       return;
     }
     const uniqueId = `pdf-presupuesto-${presupuesto.id}-${Date.now()}`; 
-    setSelectedPresupuestoForPdf(presupuesto);
-    setPdfTargetId(uniqueId);
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+    setPdfTarget({ presupuesto, id: uniqueId, doc: pdf });
   
     toast({ title: "Generando PDF...", description: "Por favor espere."});
 
@@ -193,7 +192,6 @@ export default function PresupuestosPage() {
 
           const canvas = await html2canvas(inputElement, { scale: 3, useCORS: true, logging: false });
           const imgData = canvas.toDataURL('image/jpeg', 0.9);
-          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = pdf.internal.pageSize.getHeight();
           const margin = 10; 
@@ -209,6 +207,17 @@ export default function PresupuestosPage() {
           const imgX = margin + (availableWidth - imgRenderWidth) / 2; 
           const imgY = margin;
           pdf.addImage(imgData, 'JPEG', imgX, imgY, imgRenderWidth, imgRenderHeight);
+          
+          if (config.telefonoEmpresa) {
+              const cleanPhoneNumber = config.telefonoEmpresa.replace(/\s|\+|-/g, '');
+              const whatsappLink = `https://wa.me/${cleanPhoneNumber}`;
+              const linkYPosition = 245; 
+              const linkXPosition = 75;
+              const linkWidth = 60;
+              const linkHeight = 5;
+              pdf.link(linkXPosition, linkYPosition, linkWidth, linkHeight, { url: whatsappLink });
+          }
+
           pdf.save(`presupuesto_${presupuesto.nombreCliente.replace(/\s+/g, '_')}_${presupuesto.fecha}.pdf`);
           toast({ title: "PDF Descargado", description: "El presupuesto se ha descargado como PDF."});
         } catch (error) {
@@ -218,9 +227,8 @@ export default function PresupuestosPage() {
       } else {
         toast({ title: "Error al generar PDF", description: "No se encontró el elemento para PDF.", variant: "destructive" });
       }
-      setSelectedPresupuestoForPdf(null);
-      setPdfTargetId(null);
-    }, 300); 
+      setPdfTarget(null);
+    }, 500); 
   }, [config, toast]);
 
 
@@ -397,13 +405,14 @@ export default function PresupuestosPage() {
           )}
         </CardContent>
       </Card>
-      {selectedPresupuestoForPdf && config && pdfTargetId && (
+      {pdfTarget && config && (
         <div style={{ position: 'absolute', left: '-99999px', top: '-99999px', width: '210mm', backgroundColor: 'white', padding: '20px', boxSizing: 'border-box' }}>
           <GenericOrderPDFDocument
-            order={selectedPresupuestoForPdf}
+            order={pdfTarget.presupuesto}
             config={config}
-            elementId={pdfTargetId}
+            elementId={pdfTarget.id}
             documentType="Presupuesto"
+            jsPDFDoc={pdfTarget.doc}
           />
         </div>
       )}
