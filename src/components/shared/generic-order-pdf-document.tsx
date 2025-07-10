@@ -21,7 +21,6 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   // --- Header ---
   if (config.logoUrl) {
     try {
-        // Assuming the logo is square for simplicity, adjust as needed.
         doc.addImage(config.logoUrl, 'PNG', margin, cursorY, 25, 25);
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
@@ -30,15 +29,25 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 10, { align: 'center' });
+  doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 8, { align: 'center' });
   
+  cursorY += 8;
+  
+  if (config.telefonoEmpresa) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(config.telefonoEmpresa, pageWidth / 2, cursorY + 6, { align: 'center' });
+      cursorY += 6;
+  }
+
   if (config.lemaEmpresa) {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'italic');
-      doc.text(config.lemaEmpresa, pageWidth / 2, cursorY + 16, { align: 'center' });
+      doc.text(config.lemaEmpresa, pageWidth / 2, cursorY + 4, { align: 'center' });
+      cursorY += 4;
   }
   
-  cursorY += 30;
+  cursorY = Math.max(cursorY, 45); // Ensure cursor is below the logo area
 
   // --- Document Title & Info ---
   doc.setFontSize(18);
@@ -143,7 +152,17 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(config.telefonoEmpresa || '', pageWidth / 2, cursorY, { align: 'center' });
+  doc.setTextColor(150, 150, 150); // Set color to gray
+
+  const footerTextParts = [];
+  if (documentType === 'Presupuesto') {
+    footerTextParts.push(`Gracias por su consulta ${config.nombreAserradero || ''}.`);
+  }
+  if (config.telefonoEmpresa) footerTextParts.push(`Tel: ${config.telefonoEmpresa}`);
+  if (config.lemaEmpresa) footerTextParts.push(config.lemaEmpresa);
+
+  doc.text(footerTextParts.join(' - '), pageWidth / 2, cursorY, { align: 'center' });
+  doc.setTextColor(0, 0, 0); // Reset color to black
 
   if (documentType === 'Presupuesto' && config.enlaceWhatsApp) {
       cursorY += 6;
