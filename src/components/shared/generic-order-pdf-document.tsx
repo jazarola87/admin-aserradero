@@ -20,69 +20,57 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   const standardLineHeight = 6;
 
   // --- Header ---
-  const logoSize = 30;
-  const textStartX = margin + logoSize + 10;
+  const logoSize = 20; 
+  const textStartX = margin + logoSize + 5;
   
-  // Calculate the total height of the text block to vertically center the logo
-  doc.setFontSize(16);
-  const companyNameText = config.nombreAserradero || 'Aserradero';
-  const companyNameHeight = doc.getTextDimensions(companyNameText).h;
-  
-  doc.setFontSize(14);
-  const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
-  const titleHeight = doc.getTextDimensions(docTitle).h;
-  
-  // Total height of the text part of the header (including the space between lines)
-  const textBlockHeight = companyNameHeight + standardLineHeight + titleHeight;
-  
-  // Determine header block height based on the taller element: logo or text block
-  const headerBlockHeight = Math.max(logoSize, textBlockHeight);
-  
-  // Calculate the Y position to center the logo vertically within the header block
-  const logoY = cursorY + (headerBlockHeight - logoSize) / 2;
+  const headerBlockStartY = cursorY;
 
+  // Draw Logo
   if (config.logoUrl) {
     try {
-        doc.addImage(config.logoUrl, 'PNG', margin, logoY, logoSize, logoSize, undefined, 'MEDIUM');
+        doc.addImage(config.logoUrl, 'PNG', margin, headerBlockStartY, logoSize, logoSize, undefined, 'MEDIUM');
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
     }
   }
 
-  // Draw the text
+  // Draw Header Text
+  const companyNameText = config.nombreAserradero || 'Aserradero';
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(companyNameText, textStartX, cursorY + 7);
+  doc.text(companyNameText, textStartX, headerBlockStartY + 7);
   
-  doc.setFontSize(14);
+  const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'normal');
-  doc.text(docTitle, textStartX, cursorY + 7 + standardLineHeight);
-
-  // Move cursor below the header block
-  cursorY += headerBlockHeight;
+  doc.text(docTitle, textStartX, headerBlockStartY + 7 + standardLineHeight);
   
-  doc.setLineWidth(0.5);
-  doc.line(margin, cursorY, pageWidth - margin, cursorY);
-  cursorY += 10;
+  cursorY += logoSize + 5; // Move cursor below header area
 
   // --- Client & Order Details ---
   const customerName = 'nombreCliente' in order ? order.nombreCliente : order.nombreComprador;
   const customerPhone = 'telefonoCliente' in order ? order.telefonoCliente : ('telefonoComprador' in order ? order.telefonoComprador : undefined);
   const orderDate = order.fecha ? new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
   
+  const clientInfoY = cursorY;
+  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-
   doc.text(`Cliente: ${customerName}`, margin, cursorY);
   if(customerPhone) {
     cursorY += standardLineHeight;
     doc.text(`Teléfono: ${customerPhone}`, margin, cursorY);
   }
   
-  const dateTextY = cursorY - (customerPhone ? standardLineHeight : 0);
+  const dateTextY = clientInfoY;
   doc.text(`Fecha: ${orderDate}`, pageWidth - margin, dateTextY, { align: 'right'});
   
-  cursorY += 10;
+  cursorY += standardLineHeight + 5;
+  
+  // Line Separator
+  doc.setLineWidth(0.3);
+  doc.line(margin, cursorY, pageWidth - margin, cursorY);
+  cursorY += 5;
 
 
   // --- Table ---
@@ -102,7 +90,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
     head: head,
     body: body,
     theme: 'grid',
-    headStyles: { fillColor: [230, 230, 230], textColor: [30, 30, 30], fontStyle: 'bold' },
+    headStyles: { fillColor: [240, 240, 240], textColor: [30, 30, 30], fontStyle: 'bold' },
     styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: {
         0: { cellWidth: 45 }, // Tipo Madera
@@ -132,7 +120,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   // --- Footer ---
   cursorY = pageHeight - 35;
-  doc.setLineWidth(0.5);
+  doc.setLineWidth(0.3);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
   cursorY += 8;
 
