@@ -19,9 +19,10 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   let cursorY = margin;
 
   // --- Header ---
+  const logoSize = 25 * 1.30; // Increased logo size by 30%
   if (config.logoUrl) {
     try {
-        doc.addImage(config.logoUrl, 'PNG', margin, cursorY, 25, 25);
+        doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize);
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
     }
@@ -31,7 +32,8 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   doc.setFont('helvetica', 'bold');
   doc.text(config.nombreAserradero || 'Aserradero', pageWidth / 2, cursorY + 12, { align: 'center' });
   
-  cursorY = Math.max(cursorY, 45); // Ensure cursor is below the logo area
+  // Adjusted cursor to reduce space between company name and title
+  cursorY = Math.max(cursorY, logoSize + margin) + 5; 
 
   // --- Document Title & Info ---
   doc.setFontSize(18);
