@@ -159,7 +159,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 102, 204);
-      const ctaText = 'Para confirmar su pedido haga clic aquí';
+      const ctaText = 'Para confirmar su pedido ingrese aquí';
       const textWidth = doc.getTextWidth(ctaText);
       const textX = (pageWidth - textWidth) / 2;
 
