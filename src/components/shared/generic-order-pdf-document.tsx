@@ -5,8 +5,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Presupuesto, Venta, Configuracion } from '@/types';
 
-// WhatsApp icon as a Base64 encoded string
-const whatsappIconBase64 = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMwMEMyNEEiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMiAzaC0xNmExIDEgMCAwIDAgLTEgMXYxNmExIDEgMCAwIDAgMSAxaDZhMSA0IDAgMCAxIDEtMyAxIDQgMCAwIDEtMy0xIDEgNCAwIDAgMS0xLTMgMSA0IDAgMCAxIDEtMyAxIDQgMCAwIDEgMy0xIDEgNCAwIDAgMSAzeiIvPjxwYXRoIGQ9Ik0xNi41IDVjLTEuNS41LTEuNSA0LjUtMS41IDUgMCAxLjUgMiAzIDMgNC41cy0zIDYtNCA3LjVjLTEuNSA0LjUtNC41IDQuNS02IDRzLTQuNS0xLjUtNC41LTZoMSAydi0zIi8+PC9zdmc+';
+// WhatsApp icon as a Base64 encoded PNG string
+const whatsappIconBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACrElEQVR4nO2Yy27TQBCG/wUqCKE2qE2IqrgosbM32VskKq9IrI9Q1JcID1D1BAlUFKhoCElHiEKcECLpQ1Lq6pGdpLUkccrFmcyMs+f77U5+dk4s+M8W/GkAMgAiACoAJgAuAHQAlQApAEoAqgAUAE4Avk141/M/VpCxRNJ2kl5KelYklSR9PZJ1aVfSbwD8kvSjRLM5k3QtwBfVfH4z++4A3NL0k5tQ2Vp3GgBvSrqdZM5Z0rMgfG8Z3LTSs6T7JH2T9FNJN5O0Osk/S5oA8Hvy7gBYkXQLwI8AjgCsSFr51jRZAJZI+lPSvSTT0qr0oQAkjCj5UVIHwBuAVwA+AXBap/1gP4k/k/QewB+AJRLd3Yl8pCSgSg4AzgF4IekTwK/5egA0S3oQYJpC/RZo92gfYWp+PYBfNf1qAdu2Afgp6V5JA3JzckvSGSTNCvMpcgGclHQDwBeAfQJ8jPDs/PxSNfHjMjwA1CS9wPqM7wP4q6SA2Skp4A7AkuK/CV+a9m3gC4B3L/APyHsd2gTwC4ADZ37aVrLpS6mUv5+2tTjP/2wA/ADgE0kXgH12hL9A0n+SZgB4SVIZ2L4A3pS0AOCkl9O230zgp9M2AD5KugjgjwC/ARxn6YI/k7QKwD8AugXA/0naB+AnADaVdG0pA+B9kmYBeEfSFQCfA3hK0iYAVwA8BfBfSaNlA3BG0uYAbgN4S9JnAFwH8DfJH0m3ARwB8J2kp4BsA/iVpFcAIQB2ALwF8B+A7WwBSBkB2G3pTx5Uf4mks541pL0kXUuyD+B/AWwB+HqSxy/gD5IaAPwP4E0A/gLwvSSrL0i/b9pU/yZpZ5LNDYJ/A95OshngF5K+AfD6tGkVgC/S/pL/Bfj4f/gAnj8A3wD8q5+a70m/APCWpD8A/ID02QCYjE+k6W4AywG49wP4jKRbAPZLedfH5f4D8Hmf/gB8pCBJ2lHSAx/a9pGkS0m3Sjp5G3i2psg7AAA6ADoAOgA6ADoAOgA6gOsA/wCwA/AKoGIAmADoAMgA6ADoAMgA/gP47wM+Mv5d1QAAAABJRU5ErkJggg==';
 
 
 // Function to generate the PDF
@@ -171,7 +171,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
       const startX = (pageWidth - totalWidth) / 2;
 
       // Draw Icon
-      doc.addImage(whatsappIconBase64, 'SVG', startX, cursorY - (iconSize/2) - 1, iconSize, iconSize);
+      doc.addImage(whatsappIconBase64, 'PNG', startX, cursorY - (iconSize/2) - 1, iconSize, iconSize);
 
       const formattedDate = new Date(order.fecha + 'T00:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const message = `Hola, quiero confirmar el pedido del presupuesto a nombre de ${customerName} del día ${formattedDate}`;
