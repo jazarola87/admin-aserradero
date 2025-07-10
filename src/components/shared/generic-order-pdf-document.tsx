@@ -21,28 +21,39 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
 
   // --- Header ---
   const logoSize = 30;
+  const textStartX = margin + logoSize + 10;
+  
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
+  const titleY = cursorY + 7 + standardLineHeight; 
+
+  const headerTextHeight = titleY + standardLineHeight - cursorY;
+  const headerBlockHeight = Math.max(logoSize, headerTextHeight);
+  
+  // Vertically center the logo within the header block
+  const logoY = cursorY + (headerBlockHeight - logoSize) / 2;
+
   if (config.logoUrl) {
     try {
-        doc.addImage(config.logoUrl, 'PNG', margin, cursorY, logoSize, logoSize, undefined, 'MEDIUM');
+        doc.addImage(config.logoUrl, 'PNG', margin, logoY, logoSize, logoSize, undefined, 'MEDIUM');
     } catch (e) {
         console.error("Error adding logo image to PDF:", e);
     }
   }
 
-  const textStartX = margin + logoSize + 10;
-  
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text(config.nombreAserradero || 'Aserradero', textStartX, cursorY + 7);
   
   doc.setFontSize(14);
   doc.setFont('helvetica', 'normal');
-  const docTitle = documentType === 'Presupuesto' ? 'PRESUPUESTO' : 'NOTA DE VENTA';
-  const titleY = cursorY + 7 + standardLineHeight; 
   doc.text(docTitle, textStartX, titleY);
 
-  let headerBottomY = Math.max(cursorY + logoSize, titleY + standardLineHeight);
-  cursorY = headerBottomY;
+  cursorY += headerBlockHeight;
   
   doc.setLineWidth(0.5);
   doc.line(margin, cursorY, pageWidth - margin, cursorY);
