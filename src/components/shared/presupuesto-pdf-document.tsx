@@ -1,3 +1,4 @@
+
 "use client"; 
 
 import type { Presupuesto, Venta, Configuracion } from '@/types';
@@ -85,6 +86,18 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       borderTop: '1px solid #cccccc',
       paddingTop: '5mm',
       color: '#777777',
+    },
+    qrCodeImage: {
+      display: 'block',
+      margin: '5mm auto 0 auto',
+      width: '35mm',
+      height: '35mm',
+    },
+    ctaMessage: {
+      fontWeight: 'bold' as const,
+      fontSize: '9pt',
+      color: '#333333',
+      marginTop: '2mm'
     }
   };
 
@@ -123,7 +136,16 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       </div>
 
       <table style={styles.detailsTable}>
-        <colgroup><col style={{width: '10.5%'}} /><col style={{width: '7%'}} /><col style={{width: '22%'}} /><col style={{width: '7%'}} /><col style={{width: '10%'}} /><col style={{width: '9%'}} /><col style={{width: '9%'}} /><col style={{width: '25.5%'}} /></colgroup>
+        <colgroup>
+            <col style={{width: '10.5%'}} />
+            <col style={{width: '7%'}} />
+            <col style={{width: '22%'}} />
+            <col style={{width: '7%'}} />
+            <col style={{width: '10%'}} />
+            <col style={{width: '9%'}} />
+            <col style={{width: '9%'}} />
+            <col style={{width: '25.5%'}} />
+        </colgroup>
         <thead>
           <tr>
             <th style={styles.th}>Tipo Madera</th>
@@ -174,9 +196,14 @@ export function GenericOrderPDFDocument({ order, config, elementId, documentType
       <div style={styles.footer}>
         <p>{config.nombreAserradero || 'Nombre de Empresa'}</p>
         {documentType === 'Presupuesto' ? (
-          <p>
-            Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
-          </p>
+          <>
+            <p style={styles.ctaMessage}>
+              Para realizar el pedido comuníquese por WhatsApp al {config.telefonoEmpresa || 'número no especificado'}.
+            </p>
+            {config.qrCodeUrl && (
+              <img src={config.qrCodeUrl} alt="Código QR de WhatsApp" style={styles.qrCodeImage} data-ai-hint="QR code" />
+            )}
+          </>
         ) : (
           config.telefonoEmpresa && <p>Tel: {config.telefonoEmpresa}</p>
         )}

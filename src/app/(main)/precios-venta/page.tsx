@@ -37,7 +37,8 @@ const preciosVentaFormSchema = z.object({
   nombreAserradero: z.string().min(3, {
     message: "El nombre del aserradero debe tener al menos 3 caracteres.",
   }),
-  logoUrl: z.string().optional().or(z.literal("")), // Will store Data URI or existing URL
+  logoUrl: z.string().optional().or(z.literal("")),
+  qrCodeUrl: z.string().optional().or(z.literal("")),
   telefonoEmpresa: z.string().optional(),
   lemaEmpresa: z.string().optional(),
   preciosMadera: z.array(precioMaderaSchema).optional(), // Selling prices per board foot
@@ -54,12 +55,14 @@ export default function PreciosVentaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | undefined>(undefined);
+  const [qrCodePreview, setQrCodePreview] = useState<string | undefined>(undefined);
 
   const form = useForm<PreciosVentaFormValues>({
     resolver: zodResolver(preciosVentaFormSchema),
     defaultValues: {
       nombreAserradero: "",
       logoUrl: "",
+      qrCodeUrl: "",
       telefonoEmpresa: "",
       lemaEmpresa: "",
       preciosMadera: [],
@@ -75,12 +78,14 @@ export default function PreciosVentaPage() {
         form.reset({
           nombreAserradero: config.nombreAserradero,
           logoUrl: config.logoUrl,
+          qrCodeUrl: config.qrCodeUrl,
           telefonoEmpresa: config.telefonoEmpresa,
           lemaEmpresa: config.lemaEmpresa,
           preciosMadera: config.preciosMadera,
           precioCepilladoPorPie: config.precioCepilladoPorPie,
         });
         setLogoPreview(config.logoUrl);
+        setQrCodePreview(config.qrCodeUrl);
       } catch (error) {
         toast({
           title: "Error al Cargar Configuración",
@@ -108,6 +113,19 @@ export default function PreciosVentaPage() {
         const dataUri = reader.result as string;
         form.setValue("logoUrl", dataUri, { shouldValidate: true });
         setLogoPreview(dataUri);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleQrCodeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const dataUri = reader.result as string;
+        form.setValue("qrCodeUrl", dataUri, { shouldValidate: true });
+        setQrCodePreview(dataUri);
       };
       reader.readAsDataURL(file);
     }
@@ -171,29 +189,53 @@ export default function PreciosVentaPage() {
                 )}
               />
               
-              <FormItem>
-                <FormLabel>Logo de la Empresa</FormLabel>
-                <FormControl>
-                  <Input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleLogoChange} 
-                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                  />
-                </FormControl>
-                {logoPreview && (
-                  <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
-                    <Image src={logoPreview} alt="Vista previa del logo" width={100} height={100} className="object-contain rounded" data-ai-hint="logo company"/>
-                  </div>
-                )}
-                 {!logoPreview && (
-                  <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[100px] h-[100px]">
-                    <ImageIcon className="w-10 h-10 text-muted-foreground" />
-                  </div>
-                )}
-                <FormDescription>Seleccione un archivo de imagen para el logo (PNG, JPG, etc.).</FormDescription>
-                {form.formState.errors.logoUrl && <FormMessage>{form.formState.errors.logoUrl.message}</FormMessage>}
-              </FormItem>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                <FormItem>
+                  <FormLabel>Logo de la Empresa</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleLogoChange} 
+                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                    />
+                  </FormControl>
+                  {logoPreview ? (
+                    <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
+                      <Image src={logoPreview} alt="Vista previa del logo" width={100} height={100} className="object-contain rounded" data-ai-hint="logo company"/>
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[104px] h-[104px]">
+                      <ImageIcon className="w-10 h-10 text-muted-foreground" />
+                    </div>
+                  )}
+                  <FormDescription>Logo para presupuestos y facturas.</FormDescription>
+                  {form.formState.errors.logoUrl && <FormMessage>{form.formState.errors.logoUrl.message}</FormMessage>}
+                </FormItem>
+
+                <FormItem>
+                  <FormLabel>Código QR de WhatsApp</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleQrCodeChange} 
+                      className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                    />
+                  </FormControl>
+                  {qrCodePreview ? (
+                    <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
+                      <Image src={qrCodePreview} alt="Vista previa del Código QR" width={100} height={100} className="object-contain rounded" data-ai-hint="QR code"/>
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-2 border rounded-md inline-flex items-center justify-center bg-muted w-[104px] h-[104px]">
+                      <ImageIcon className="w-10 h-10 text-muted-foreground" />
+                    </div>
+                  )}
+                  <FormDescription>QR para el pie de los presupuestos.</FormDescription>
+                  {form.formState.errors.qrCodeUrl && <FormMessage>{form.formState.errors.qrCodeUrl.message}</FormMessage>}
+                </FormItem>
+              </div>
 
               <FormField
                 control={form.control}

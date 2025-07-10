@@ -5,6 +5,7 @@
 
 
 
+
 export interface Compra {
   id: string;
   fecha: string; 
@@ -95,6 +96,7 @@ export interface CostoMaderaMetroCubico {
 export interface Configuracion {
   nombreAserradero: string;
   logoUrl?: string;
+  qrCodeUrl?: string;
   telefonoEmpresa?: string;
   lemaEmpresa?: string;
   preciosMadera: PrecioMadera[];
