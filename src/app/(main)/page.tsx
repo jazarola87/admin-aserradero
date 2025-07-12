@@ -281,7 +281,7 @@ export default function DashboardPage() {
   }, [fechaDesde, fechaHasta, isLoading]);
 
 
-  if (isLoading) {
+  if (isLoading || !config) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
         <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
