@@ -357,7 +357,8 @@ export default function CargaMasivaPage() {
                       costoOperario: !isNaN(costoOperario) ? costoOperario : undefined,
                       detalles: detallesVenta,
                       totalVenta: detallesVenta.reduce((sum, d) => sum + (d.subTotal || 0), 0),
-                      costoMaderaVentaSnapshot, costoAserrioVentaSnapshot,
+                      costoMaderaVentaSnapshot: costoMaderaSnapshot, 
+                      costoAserrioVentaSnapshot: costoAserrioSnapshot,
                   };
                   newRecords.push(nuevaVenta);
                   processedCount++;
