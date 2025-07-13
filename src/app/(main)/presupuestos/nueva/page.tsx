@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, PlusCircle, Save, Trash2, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { format, isValid } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -112,7 +112,7 @@ export default function NuevoPresupuestoPage() {
 
         if (appConfig?.preciosMadera) {
           const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
-
+          
           searchParams.forEach((countStr, tipoMadera) => {
             if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
 
@@ -484,5 +484,3 @@ export default function NuevoPresupuestoPage() {
     </div>
   );
 }
-
-    
