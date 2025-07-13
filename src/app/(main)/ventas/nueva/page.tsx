@@ -228,8 +228,7 @@ export default function NuevaVentaPage() {
   };
 
   const handleBulkFill = () => {
-    if (!bulkFillType || !bulkFillCount || !config) return;
-
+    if (!bulkFillType || !bulkFillCount) return;
     const count = Number(bulkFillCount);
     if (isNaN(count) || count <= 0) return;
 
