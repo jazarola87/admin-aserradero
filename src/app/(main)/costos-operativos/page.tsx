@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,8 +50,8 @@ export default function CostosOperativosPage() {
   const form = useForm<CostosOperativosFormValues>({
     resolver: zodResolver(costosOperativosFormSchema),
     defaultValues: {
-      precioLitroNafta: undefined,
-      precioAfiladoSierra: undefined,
+      precioLitroNafta: 0,
+      precioAfiladoSierra: 0,
       costosMaderaMetroCubico: [],
     },
   });
