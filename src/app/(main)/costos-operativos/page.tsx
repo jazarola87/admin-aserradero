@@ -21,8 +21,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Save, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { getAppConfig, updateAppConfig } from "@/lib/firebase/services/configuracionService";
-import type { Configuracion, CostoMaderaMetroCubico } from "@/types";
-import React, { useEffect, useState, useMemo } from "react";
+import type { Configuracion } from "@/types";
+import React, { useEffect, useState } from "react";
 
 const costoMaderaMetroCubicoSchema = z.object({
   tipoMadera: z.string(), // This will be read-only from config.preciosMadera
@@ -39,14 +39,13 @@ const costosOperativosFormSchema = z.object({
   costosMaderaMetroCubico: z.array(costoMaderaMetroCubicoSchema).optional(),
 });
 
-type CostosOperativosFormValues = Pick<Configuracion, 'precioLitroNafta' | 'precioAfiladoSierra' | 'costosMaderaMetroCubico'>;
+type CostosOperativosFormValues = z.infer<typeof costosOperativosFormSchema>;
 
 export default function CostosOperativosPage() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tiposMaderaVenta, setTiposMaderaVenta] = useState<string[]>([]);
-
+  
   const form = useForm<CostosOperativosFormValues>({
     resolver: zodResolver(costosOperativosFormSchema),
     defaultValues: {
@@ -56,7 +55,7 @@ export default function CostosOperativosPage() {
     },
   });
   
-  const { fields, replace } = useFieldArray({
+  const { fields } = useFieldArray({
     control: form.control,
     name: "costosMaderaMetroCubico",
   });
@@ -67,18 +66,16 @@ export default function CostosOperativosPage() {
       try {
         const config = await getAppConfig();
         
-        setTiposMaderaVenta(config.preciosMadera.map(pm => pm.tipoMadera));
-
         const costosExistentesMap = new Map(config.costosMaderaMetroCubico?.map(c => [c.tipoMadera, c.costoPorMetroCubico]));
 
         const costosMaderaParaForm = config.preciosMadera.map(pm => ({
           tipoMadera: pm.tipoMadera,
-          costoPorMetroCubico: costosExistentesMap.get(pm.tipoMadera) ?? undefined,
+          costoPorMetroCubico: costosExistentesMap.get(pm.tipoMadera) ?? 0,
         }));
 
         form.reset({
-          precioLitroNafta: config.precioLitroNafta ?? undefined,
-          precioAfiladoSierra: config.precioAfiladoSierra ?? undefined,
+          precioLitroNafta: config.precioLitroNafta ?? 0,
+          precioAfiladoSierra: config.precioAfiladoSierra ?? 0,
           costosMaderaMetroCubico: costosMaderaParaForm,
         });
 
