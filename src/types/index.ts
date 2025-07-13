@@ -1,12 +1,3 @@
-
-
-
-
-
-
-
-
-
 export interface Compra {
   id: string;
   fecha: string; 
@@ -106,4 +97,3 @@ export interface Configuracion {
   precioAfiladoSierra?: number;
   costosMaderaMetroCubico?: CostoMaderaMetroCubico[];
 }
-
