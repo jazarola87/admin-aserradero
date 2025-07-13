@@ -80,8 +80,8 @@ export default function PreciosVentaPage() {
           enlaceWhatsApp: config.enlaceWhatsApp,
           telefonoEmpresa: config.telefonoEmpresa,
           lemaEmpresa: config.lemaEmpresa,
-          preciosMadera: config.preciosMadera,
-          precioCepilladoPorPie: config.precioCepilladoPorPie,
+          preciosMadera: config.preciosMadera || [],
+          precioCepilladoPorPie: config.precioCepilladoPorPie || 0,
         });
         setLogoPreview(config.logoUrl);
       } catch (error) {
@@ -184,7 +184,7 @@ export default function PreciosVentaPage() {
                       className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
                     />
                   </FormControl>
-                  {logoPreview ? (
+                  {logoPreview && logoPreview.startsWith('data:image') ? (
                     <div className="mt-2 p-2 border rounded-md inline-block bg-muted">
                       <Image src={logoPreview} alt="Vista previa del logo" width={100} height={100} className="object-contain rounded" data-ai-hint="logo company"/>
                     </div>
