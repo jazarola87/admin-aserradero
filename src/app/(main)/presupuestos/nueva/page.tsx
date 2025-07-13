@@ -113,8 +113,8 @@ export default function NuevoPresupuestoPage() {
         if (appConfig?.preciosMadera) {
           const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
 
-          for (const [tipoMadera, countStr] of searchParams.entries()) {
-            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') continue;
+          searchParams.forEach((countStr, tipoMadera) => {
+            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
 
             const count = parseInt(countStr, 10);
             if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
@@ -131,7 +131,7 @@ export default function NuevoPresupuestoPage() {
               }
               prefilledRows += count;
             }
-          }
+          });
         }
 
         const emptyRowsToAdd = Math.max(0, initialDetallesCount - prefilledRows);
