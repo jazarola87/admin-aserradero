@@ -116,20 +116,17 @@ export default function PresupuestosPage() {
   const handlePasarAVenta = useCallback(async (presupuestoId: string) => {
     setIsProcessing(presupuestoId);
     try {
-      const [presupuestoAFacturar, appConfig] = await Promise.all([
-        getPresupuestoById(presupuestoId),
-        getAppConfig()
-      ]);
+      const presupuestoAFacturar = await getPresupuestoById(presupuestoId);
 
       if (!presupuestoAFacturar) {
         throw new Error("El presupuesto ya no existe. Pudo haber sido eliminado o convertido por otro usuario.");
       }
       
-      if (!appConfig) {
+      if (!config) {
         throw new Error("No se pudo cargar la configuración de la aplicación para calcular los costos.");
       }
 
-      const { costoMadera, costoAserrio } = calculateCostsForVenta(presupuestoAFacturar.detalles, appConfig);
+      const { costoMadera, costoAserrio } = calculateCostsForVenta(presupuestoAFacturar.detalles, config);
 
       const ventaData: Omit<Venta, 'id'> = {
         fecha: format(new Date(), "yyyy-MM-dd"),
@@ -161,7 +158,7 @@ export default function PresupuestosPage() {
     } finally {
       setIsProcessing(null);
     }
-  }, [router, toast]);
+  }, [router, toast, config]);
 
   const downloadPDF = useCallback((presupuesto: Presupuesto) => {
     if (!config) {
@@ -331,7 +328,7 @@ export default function PresupuestosPage() {
               <ClipboardList className="mx-auto h-12 w-12 mb-4" />
               <p>No hay presupuestos registrados en Firebase.</p>
               <Button variant="link" asChild className="mt-2">
-                <Link href="/presupuestos/configurar">Registrar el primer presupuesto</Link>
+                <Link href="/presupuestos/nueva">Registrar el primer presupuesto</Link>
               </Button>
             </div>
           ) : filteredPresupuestos.length === 0 ? (
