@@ -78,7 +78,7 @@ export default function StockPage() {
     if (!searchTerm) return productionEntries;
     return productionEntries.filter(entry =>
       entry.notas?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entry.detalles.some(d => d.tipoMadera?.toLowerCase().includes(searchTerm.toLowerCase()))
+      (entry.detalles || []).some(d => d.tipoMadera?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [productionEntries, searchTerm]);
 
@@ -113,7 +113,7 @@ export default function StockPage() {
         const medidaKey = `${detalle.alto}-${detalle.ancho}-${detalle.largo}-${cepillado}`;
 
         let piesTablaresDelDetalle = detalle.piesTablares;
-        if (piesTablaresDelDetalle === undefined) {
+        if (piesTablaresDelDetalle === undefined || piesTablaresDelDetalle === null) {
           piesTablaresDelDetalle = (detalle.unidades || 0) * (detalle.alto || 0) * (detalle.ancho || 0) * (detalle.largo || 0) * 0.2734;
         }
 
@@ -123,9 +123,9 @@ export default function StockPage() {
           medidaEntry.totalPiesTablares += piesTablaresDelDetalle;
         } else {
           woodTypeEntry.medidas.set(medidaKey, {
-            alto: detalle.alto!,
-            ancho: detalle.ancho!,
-            largo: detalle.largo!,
+            alto: detalle.alto,
+            ancho: detalle.ancho,
+            largo: detalle.largo,
             cepillado: cepillado,
             unidades: detalle.unidades,
             totalPiesTablares: piesTablaresDelDetalle,
