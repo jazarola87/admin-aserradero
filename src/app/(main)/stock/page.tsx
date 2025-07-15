@@ -188,8 +188,8 @@ export default function StockPage() {
                 <p className="text-sm text-muted-foreground">No hay stock para mostrar.</p>
             ) : (
                 <Accordion type="multiple" className="w-full space-y-2">
-                  {stockSummaryByWoodType.map((item) => (
-                    <AccordionItem value={item.tipoMadera} key={item.tipoMadera} className="border rounded-md px-4">
+                  {stockSummaryByWoodType.map((item, index) => (
+                    <AccordionItem value={`item-${index}`} key={item.tipoMadera} className="border rounded-md px-4">
                       <AccordionTrigger>
                         <div className="flex justify-between w-full pr-4">
                           <span className="font-semibold text-lg">{item.tipoMadera}</span>
@@ -207,8 +207,8 @@ export default function StockPage() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {item.medidas.map((medida, index) => (
-                              <TableRow key={index}>
+                            {item.medidas.map((medida, medidaIndex) => (
+                              <TableRow key={`${item.tipoMadera}-${medidaIndex}`}>
                                 <TableCell>{`${medida.alto}" x ${medida.ancho}" x ${medida.largo}m`}</TableCell>
                                 <TableCell>{medida.cepillado ? "Sí" : "No"}</TableCell>
                                 <TableCell className="text-right font-medium">{medida.unidades}</TableCell>

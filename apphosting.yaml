@@ -3,3 +3,6 @@
 location: us-central1
 runConfig:
   maxInstances: 1
+# Explicitly set the branch to 'master'
+source:
+  branch: master

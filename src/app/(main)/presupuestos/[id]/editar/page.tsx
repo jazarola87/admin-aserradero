@@ -131,10 +131,9 @@ export default function EditarPresupuestoPage() {
             
             replace(loadedDetails);
 
-            let currentLength = loadedDetails.length;
-            while (currentLength < initialDetallesCount) {
+            const emptyRowsToAdd = Math.max(0, initialDetallesCount - loadedDetails.length);
+            for (let i = 0; i < emptyRowsToAdd; i++) {
                 append(createEmptyDetalle(), { shouldFocus: false });
-                currentLength++;
             }
             form.trigger();
         } else {
@@ -477,3 +476,5 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
+
+    

@@ -23,39 +23,24 @@ AccordionItem.displayName = "AccordionItem"
 
 const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger> & { asChild?: boolean }
->(({ className, children, asChild, ...props }, ref) => {
-  const commonTriggerClassName = "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline";
-
-  return (
-    <AccordionPrimitive.Header className="flex">
-      {asChild ? (
-        <AccordionPrimitive.Trigger
-          ref={ref}
-          className={cn(commonTriggerClassName, className)}
-          {...props} // Spread props, which includes asChild from consumer
-        >
-          {children} {/* Consumer provides the entire content, including any custom chevron */}
-        </AccordionPrimitive.Trigger>
-      ) : (
-        <AccordionPrimitive.Trigger
-          ref={ref}
-          className={cn(
-            commonTriggerClassName,
-            "[&[data-state=open]>svg:not([data-manual-chevron])]:rotate-180", // Default chevron rotation
-            className
-          )}
-          {...props} // asChild is false or undefined here
-        >
-          {children}
-          {/* Default Chevron, not rendered if 'asChild' is true due to the explicit check or by consumer not including it */}
-          <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
-        </AccordionPrimitive.Trigger>
+  React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Trigger
+      ref={ref}
+      className={cn(
+        "flex flex-1 items-center justify-between py-4 font-medium transition-all hover:underline [&[data-state=open]>svg]:rotate-180",
+        className
       )}
-    </AccordionPrimitive.Header>
-  )
-})
+      {...props}
+    >
+      {children}
+      <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
+    </AccordionPrimitive.Trigger>
+  </AccordionPrimitive.Header>
+))
 AccordionTrigger.displayName = AccordionPrimitive.Trigger.displayName
+
 
 const AccordionContent = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Content>,

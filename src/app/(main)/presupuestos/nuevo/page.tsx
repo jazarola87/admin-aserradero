@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -30,10 +30,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
 import { addPresupuesto } from "@/lib/firebase/services/presupuestosService";
 import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const itemDetalleSchema = z.object({
-  tipoMadera: z.string().min(1, "Debe seleccionar un tipo.").optional().or(z.literal("")),
+  tipoMadera: z.string().optional(),
   unidades: z.coerce.number().int().positive({ message: "Debe ser > 0" }).optional(),
   ancho: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
   alto: z.coerce.number().positive({ message: "Debe ser > 0" }).optional(), 
@@ -49,9 +49,16 @@ const presupuestoFormSchema = z.object({
   detalles: z.array(itemDetalleSchema)
     .min(1, "Debe agregar al menos un detalle.")
     .refine(
-      (arr) => arr.some(d => d.tipoMadera && d.tipoMadera.length > 0 && d.unidades && d.unidades > 0 && typeof d.precioPorPie === 'number'),
+      (detalles) => detalles.some(d => 
+        d.tipoMadera && d.tipoMadera.length > 0 &&
+        d.unidades && d.unidades > 0 &&
+        d.alto && d.alto > 0 &&
+        d.ancho && d.ancho > 0 &&
+        d.largo && d.largo > 0 &&
+        d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
+      ),
       {
-        message: "Debe ingresar al menos un artículo válido en los detalles (con tipo de madera, unidades y precio por pie).",
+        message: "Debe completar al menos una fila de producto con todos sus campos (Tipo, Unidades, Dimensiones, Precio/Pie).",
       }
     ),
 });
@@ -70,48 +77,86 @@ const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
 
 const initialDetallesCount = 15;
 
-
-export default function NuevoPresupuestoPage() {
+function NuevoPresupuestoFormComponent() {
   const { toast } = useToast();
   const router = useRouter(); 
+  const searchParams = useSearchParams();
   const [config, setConfig] = useState<Configuracion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
-    defaultValues: {
-      fecha: new Date(), 
-      nombreCliente: "",
-      telefonoCliente: "",
-      detalles: Array(initialDetallesCount).fill(null).map(() => createEmptyDetalle()),
-    },
+  });
+  
+  const { fields, append, remove, replace } = useFieldArray({
+    control: form.control,
+    name: "detalles",
   });
 
   useEffect(() => {
-    async function loadConfig() {
+    async function loadInitialData() {
       setIsLoading(true);
       try {
         const appConfig = await getAppConfig();
         setConfig(appConfig);
+
+        const initialDetails: Partial<z.infer<typeof itemDetalleSchema>>[] = [];
+        let prefilledRows = 0;
+
+        const cliente = searchParams.get('cliente') || '';
+        const telefono = searchParams.get('telefono') || '';
+
+        if (appConfig?.preciosMadera) {
+          const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
+          
+          searchParams.forEach((countStr, tipoMadera) => {
+            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
+
+            const count = parseInt(countStr, 10);
+            if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
+              for (let i = 0; i < count; i++) {
+                initialDetails.push({
+                  tipoMadera: tipoMadera,
+                  precioPorPie: preciosMap.get(tipoMadera),
+                  unidades: undefined,
+                  ancho: undefined,
+                  alto: undefined,
+                  largo: undefined,
+                  cepillado: false,
+                });
+              }
+              prefilledRows += count;
+            }
+          });
+        }
+
+        const emptyRowsToAdd = Math.max(0, initialDetallesCount - prefilledRows);
+        for (let i = 0; i < emptyRowsToAdd; i++) {
+          initialDetails.push(createEmptyDetalle());
+        }
+        
+        form.reset({
+          fecha: new Date(),
+          nombreCliente: cliente,
+          telefonoCliente: telefono,
+          detalles: initialDetails,
+        });
+
       } catch (error) {
         toast({
           title: "Error al Cargar Configuración",
-          description: "No se pudieron obtener los tipos de madera y precios.",
+          description: "No se pudieron obtener los tipos de madera y precios. " + (error instanceof Error ? error.message : ""),
           variant: "destructive"
         });
       } finally {
         setIsLoading(false);
       }
     }
-    loadConfig();
-  }, [toast]);
+    loadInitialData();
+  }, [searchParams, form, toast, replace, append]);
 
-
-  const { fields, append, remove } = useFieldArray({
-    control: form.control,
-    name: "detalles",
-  });
 
   const watchedDetalles = form.watch("detalles");
 
@@ -136,8 +181,8 @@ export default function NuevoPresupuestoPage() {
     return subtotal;
   };
   
-  const totalGeneralPresupuesto = watchedDetalles.reduce((acc, detalle) => {
-    if (detalle && detalle.tipoMadera && detalle.tipoMadera.length > 0 && Number(detalle.unidades) > 0 && typeof Number(detalle.precioPorPie) === 'number' && !isNaN(Number(detalle.precioPorPie))) { 
+  const totalGeneralPresupuesto = (watchedDetalles || []).reduce((acc, detalle) => {
+    if (detalle && detalle.tipoMadera && detalle.unidades && detalle.alto && detalle.ancho && detalle.largo && typeof detalle.precioPorPie === 'number') {
       const pies = calcularPiesTablares(detalle);
       return acc + calcularSubtotal(detalle, pies);
     }
@@ -154,34 +199,47 @@ export default function NuevoPresupuestoPage() {
     }
   };
 
+  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
+    if (!detalle) return true;
+    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
+  };
+
   async function onSubmit(data: PresupuestoFormValues) {
     setIsSubmitting(true);
     try {
-      const processedDetalles = data.detalles.filter(
-        d_form => d_form.tipoMadera && d_form.tipoMadera.length > 0 && Number(d_form.unidades) > 0 && typeof Number(d_form.precioPorPie) === 'number' && !isNaN(Number(d_form.precioPorPie))
-      ).map((d_form, index) => {
-        const d = d_form as Required<Omit<PresupuestoDetalle, 'id' | 'piesTablares' | 'subTotal' | 'valorUnitario'>>;
-        const pies = calcularPiesTablares(d);
-        const sub = calcularSubtotal(d, pies);
-        const valorUnit = (Number(d.unidades) > 0 && sub > 0) ? sub / Number(d.unidades) : 0;
-        return { 
-          ...d, 
-          unidades: Number(d.unidades),
-          ancho: Number(d.ancho),
-          alto: Number(d.alto),
-          largo: Number(d.largo),
-          precioPorPie: Number(d.precioPorPie),
-          piesTablares: pies, 
-          subTotal: sub, 
-          valorUnitario: valorUnit, 
-          id: `pd-${Date.now()}-${index}-${Math.random().toString(36).substring(2,7)}` 
-        } as PresupuestoDetalle;
-      });
+      const processedDetalles = data.detalles
+        .filter(d => 
+            d.tipoMadera && d.tipoMadera.length > 0 &&
+            d.unidades && d.unidades > 0 &&
+            d.alto && d.alto > 0 &&
+            d.ancho && d.ancho > 0 &&
+            d.largo && d.largo > 0 &&
+            d.precioPorPie !== undefined && !isNaN(d.precioPorPie)
+        )
+        .map((d, index) => {
+            const pies = calcularPiesTablares(d);
+            const sub = calcularSubtotal(d, pies);
+            const valorUnit = d.unidades! > 0 && sub > 0 ? sub / d.unidades! : 0;
+            
+            return {
+                id: `pd-new-${Date.now()}-${index}`,
+                tipoMadera: d.tipoMadera!,
+                unidades: d.unidades!,
+                ancho: d.ancho!,
+                alto: d.alto!,
+                largo: d.largo!,
+                precioPorPie: d.precioPorPie!,
+                cepillado: d.cepillado ?? false,
+                piesTablares: pies,
+                subTotal: sub,
+                valorUnitario: valorUnit,
+            } as PresupuestoDetalle;
+        });
 
       if (processedDetalles.length === 0) {
         toast({
-          title: "Error en el Presupuesto",
-          description: "No hay artículos válidos para registrar. Asegúrese de completar tipo de madera, unidades y precio.",
+          title: "Formulario Incompleto",
+          description: "Debe completar al menos una fila con todos los datos requeridos (tipo, unidades, dimensiones, precio/pie).",
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -195,13 +253,11 @@ export default function NuevoPresupuestoPage() {
         detalles: processedDetalles,
         totalPresupuesto: processedDetalles.reduce((sum, item) => sum + (item.subTotal || 0), 0)
       };
-
-      await addPresupuesto(nuevoPresupuestoData);
       
+      await addPresupuesto(nuevoPresupuestoData);
       toast({
         title: "Presupuesto Registrado en Firebase",
         description: `Se ha registrado el presupuesto para ${data.nombreCliente}.`,
-        variant: "default"
       });
       router.push('/presupuestos');
 
@@ -217,11 +273,6 @@ export default function NuevoPresupuestoPage() {
     }
   }
 
-  const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof itemDetalleSchema>>) => {
-    if (!detalle) return true;
-    return !detalle.tipoMadera && !detalle.unidades && !detalle.alto && !detalle.ancho && !detalle.largo && (detalle.precioPorPie === undefined || isNaN(Number(detalle.precioPorPie))) && !detalle.cepillado;
-  };
-  
   if (isLoading) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
@@ -233,10 +284,10 @@ export default function NuevoPresupuestoPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <PageTitle title="Ingresar Nuevo Presupuesto" description="Registre los detalles de un nuevo presupuesto de madera." />
+      <PageTitle title="Ingresar Nuevo Presupuesto" description="Registre los detalles de un nuevo presupuesto de madera en Firebase." />
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <Card className="mb-8">
+          <Card>
             <CardHeader>
               <CardTitle>Información del Cliente y Fecha</CardTitle>
             </CardHeader>
@@ -247,7 +298,7 @@ export default function NuevoPresupuestoPage() {
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Fecha del Presupuesto</FormLabel>
-                    <Popover>
+                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -257,7 +308,17 @@ export default function NuevoPresupuestoPage() {
                         </FormControl>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={(date) => date > new Date() || date < new Date("1900-01-01")} initialFocus locale={es} />
+                        <Calendar 
+                          mode="single" 
+                          selected={field.value} 
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsDatePickerOpen(false);
+                          }}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")} 
+                          initialFocus 
+                          locale={es} 
+                        />
                       </PopoverContent>
                     </Popover>
                     <FormMessage />
@@ -298,7 +359,7 @@ export default function NuevoPresupuestoPage() {
                       <TableHead className="min-w-[90px]">Alto (pulg)</TableHead>
                       <TableHead className="min-w-[90px]">Ancho (pulg)</TableHead>
                       <TableHead className="min-w-[100px]">Largo (m)</TableHead>
-                      {/* Columna Precio/Pie Oculta */}
+                      <TableHead className="min-w-[120px]">Precio/Pie ($)</TableHead>
                       <TableHead className="w-[90px] text-center">Cepillado</TableHead>
                       <TableHead className="min-w-[110px] text-right">Pies Tabl.</TableHead>
                       <TableHead className="min-w-[120px] text-right">Valor Unit. ($)</TableHead>
@@ -308,7 +369,8 @@ export default function NuevoPresupuestoPage() {
                   </TableHeader>
                   <TableBody>
                     {fields.map((item, index) => {
-                      const currentDetalle = watchedDetalles[index];
+                      const currentDetalle = watchedDetalles?.[index];
+                      if (!currentDetalle) return null;
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
                       const valorUnitario = (currentDetalle?.unidades && currentDetalle.unidades > 0 && subTotal > 0) ? subTotal / currentDetalle.unidades : 0;
@@ -365,6 +427,11 @@ export default function NuevoPresupuestoPage() {
                               <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 3.05" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
                             />
                           </TableCell>
+                           <TableCell className="p-1">
+                            <FormField control={form.control} name={`detalles.${index}.precioPorPie`} render={({ field: f }) => (
+                              <FormItem><FormControl><Input type="number" step="0.01" placeholder="Ej: 2.50" {...f} value={f.value ?? ""} onChange={e => f.onChange(e.target.value === '' ? undefined : parseFloat(e.target.value))} /></FormControl><FormMessage className="text-xs px-1" /></FormItem> )}
+                            />
+                          </TableCell>
                           <TableCell className="p-1 text-center align-middle">
                             <FormField control={form.control} name={`detalles.${index}.cepillado`} render={({ field: f }) => (
                               <FormItem className="flex justify-center items-center h-full"><FormControl><Checkbox checked={f.value} onCheckedChange={f.onChange} /></FormControl></FormItem> )}
@@ -413,5 +480,13 @@ export default function NuevoPresupuestoPage() {
         </form>
       </Form>
     </div>
+  );
+}
+
+export default function NuevoPresupuestoPage() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <NuevoPresupuestoFormComponent />
+    </Suspense>
   );
 }

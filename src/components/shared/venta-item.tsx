@@ -133,8 +133,8 @@ function VentaItemComponent({ venta, config, onDelete, onUpdateVenta }: VentaIte
 
   return (
     <AccordionItem value={venta.id} id={venta.id}>
-      <div className="flex items-center w-full py-3 px-2 group hover:bg-muted/50 rounded-md">
-        <AccordionTrigger className="flex-1 text-left p-0 m-0 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
+      <div className="flex items-center w-full py-2 px-2 group hover:bg-muted/50 rounded-md">
+        <AccordionTrigger className="flex-1 text-left p-2 hover:no-underline focus:outline-none data-[state=open]:[&>svg]:rotate-180 mr-2">
            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
             <div className="flex flex-col sm:flex-row sm:items-center gap-x-3 gap-y-1">
               <span className="font-semibold text-base">Venta a: {venta.nombreComprador}</span>

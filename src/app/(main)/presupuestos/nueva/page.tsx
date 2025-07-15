@@ -110,30 +110,28 @@ export default function NuevoPresupuestoPage() {
         const cliente = searchParams.get('cliente') || '';
         const telefono = searchParams.get('telefono') || '';
 
-        if (appConfig?.preciosMadera) {
-          const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
-          
-          searchParams.forEach((countStr, tipoMadera) => {
-            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
+        const preciosMap = new Map(appConfig?.preciosMadera?.map(p => [p.tipoMadera, p.precioPorPie]));
 
-            const count = parseInt(countStr, 10);
-            if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
-              for (let i = 0; i < count; i++) {
-                initialDetails.push({
-                  tipoMadera: tipoMadera,
-                  precioPorPie: preciosMap.get(tipoMadera),
-                  unidades: undefined,
-                  ancho: undefined,
-                  alto: undefined,
-                  largo: undefined,
-                  cepillado: false,
-                });
-              }
-              prefilledRows += count;
+        searchParams.forEach((countStr, tipoMadera) => {
+          if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
+
+          const count = parseInt(countStr, 10);
+          if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
+            for (let i = 0; i < count; i++) {
+              initialDetails.push({
+                tipoMadera: tipoMadera,
+                precioPorPie: preciosMap.get(tipoMadera),
+                unidades: undefined,
+                ancho: undefined,
+                alto: undefined,
+                largo: undefined,
+                cepillado: false,
+              });
             }
-          });
-        }
-
+            prefilledRows += count;
+          }
+        });
+        
         const emptyRowsToAdd = Math.max(0, initialDetallesCount - prefilledRows);
         for (let i = 0; i < emptyRowsToAdd; i++) {
           initialDetails.push(createEmptyDetalle());
@@ -485,3 +483,4 @@ export default function NuevoPresupuestoPage() {
   );
 }
 
+    
