@@ -1,8 +1,0 @@
-# Settings to manage and configure a Firebase App Hosting backend.
-# https://firebase.google.com/docs/app-hosting/configure
-location: us-central1
-runConfig:
-  maxInstances: 1
-source:
-  # The branch is now implicitly set to the default branch of the repository ('master').
-  repository: https://github.com/jazarola87/admin-aserradero
