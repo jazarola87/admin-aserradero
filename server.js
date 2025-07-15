@@ -1,3 +1,4 @@
+
 const {https} = require("firebase-functions");
 const {default: next} = require("next");
 const path = require("path");

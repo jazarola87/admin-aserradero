@@ -5,14 +5,17 @@
     "runtime": "nodejs20"
   },
   "hosting": {
-    "source": ".",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ],
-    "frameworksBackend": {
-      "region": "us-central1"
-    }
+    "rewrites": [
+      {
+        "source": "**",
+        "function": "nextServer"
+      }
+    ]
   }
 }
