@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -524,8 +525,12 @@ const sidebarMenuButtonVariants = cva(
     variants: {
       variant: {
         default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        destructive: "hover:bg-destructive/80 hover:text-destructive-foreground",
         outline:
-          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+          "bg-transparent shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+        secondary: "hover:bg-secondary/80 hover:text-secondary-foreground",
+        ghost: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        link: "text-sidebar-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-8 text-sm",
