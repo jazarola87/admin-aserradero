@@ -82,7 +82,7 @@ function AppShellFooter() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  const { config } = useConfig(); // Use the context to get config
+  const { config } = useConfig();
   const { logoUrl, nombreAserradero } = config;
 
   const isDataUri = (string: string | undefined) => {
