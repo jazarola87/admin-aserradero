@@ -23,9 +23,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { NAV_ITEMS } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
 import { LogOut, PanelLeft } from "lucide-react";
-import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { useAuth } from "@/contexts/authContext";
 import { signOut } from "@/lib/firebase/services/authService";
+import { useConfig } from "@/contexts/configContext"; // Import useConfig
 
 function SidebarNav() {
   const pathname = usePathname();
@@ -82,31 +82,8 @@ function AppShellFooter() {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  const pathname = usePathname();
-  const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
-  const [nombreAserradero, setNombreAserradero] = React.useState<string>("Cargando...");
-
-  React.useEffect(() => {
-    async function fetchConfig() {
-      try {
-        const config = await getAppConfig();
-        setLogoUrl(config.logoUrl);
-        setNombreAserradero(config.nombreAserradero);
-        
-        // Update favicon dynamically
-        const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
-        if (favicon && config.logoUrl && config.logoUrl.startsWith('data:image')) {
-          favicon.href = config.logoUrl;
-        }
-        
-      } catch (error) {
-        console.error("AppShell: Could not fetch app config", error);
-        // Fallback to a default name if config fails
-        setNombreAserradero("Aserradero");
-      }
-    }
-    fetchConfig();
-  }, [pathname]); // Re-fetch on route change to ensure data is fresh
+  const { config } = useConfig(); // Use the context to get config
+  const { logoUrl, nombreAserradero } = config;
 
   const isDataUri = (string: string | undefined) => {
     if (!string) return false;

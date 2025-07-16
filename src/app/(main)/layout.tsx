@@ -1,7 +1,9 @@
+
 'use client';
 
 import { AppShell } from "@/components/layout/app-shell";
 import { AuthProvider } from "@/contexts/authContext";
+import { ConfigProvider } from "@/contexts/configContext";
 
 export default function MainAppLayout({
   children,
@@ -10,7 +12,9 @@ export default function MainAppLayout({
 }) {
   return (
     <AuthProvider>
-      <AppShell>{children}</AppShell>
+      <ConfigProvider>
+        <AppShell>{children}</AppShell>
+      </ConfigProvider>
     </AuthProvider>
   );
 }
