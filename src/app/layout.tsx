@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="es">
        <head>
         <meta name="theme-color" content="#228B22" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.ico" sizes="any" id="favicon" />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
