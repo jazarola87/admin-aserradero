@@ -16,16 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
-  icons: {
-    icon: '/favicon.ico',
-    other: [
-      {
-        rel: 'icon',
-        id: 'favicon', // Add an ID to the favicon link
-        url: '/favicon.ico',
-      },
-    ],
-  },
+  // The icon link is now handled directly in the head below to ensure it has a stable ID
 };
 
 export default function RootLayout({
@@ -35,6 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
+       <head>
+        {/* This link provides a default favicon and an ID for our script to target */}
+        <link id="favicon" rel="icon" href="/favicon.ico" sizes="any" />
+      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
         <Toaster />
