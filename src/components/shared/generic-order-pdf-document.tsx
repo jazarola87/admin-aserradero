@@ -111,7 +111,7 @@ export const generateOrderPDF = (order: Presupuesto | Venta, config: Configuraci
   cursorY = (doc as any).lastAutoTable.finalY + 15;
 
   // --- Totals ---
-  const orderTotal = 'totalPresupuesto' in order ? order.totalPresupuesto : order.totalVenta;
+  const orderTotal = 'totalPresupuesto' in order ? order.totalPresupuesto : ('totalVenta' in order ? order.totalVenta : 0);
   
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
