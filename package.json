@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 9002",
-    "build": "next build",
+    "build": "rimraf ./.next && next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "next build && firebase deploy --only functions,hosting"
+    "deploy": "npm run build && firebase deploy --only functions,hosting"
   },
   "engines": {
     "node": "20"
@@ -60,6 +60,7 @@
     "@types/react-dom": "^18.3.0",
     "firebase-functions-test": "^3.2.0",
     "postcss": "^8",
+    "rimraf": "^5.0.7",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
