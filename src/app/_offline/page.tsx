@@ -1,3 +1,5 @@
+"use client";
+
 import { WifiOff } from 'lucide-react';
 
 export default function OfflinePage() {
@@ -6,7 +8,7 @@ export default function OfflinePage() {
       <WifiOff className="h-24 w-24" />
       <h1 className="mt-4 text-4xl font-bold">Sin Conexión</h1>
       <p className="mt-2">Parece que no tienes conexión a internet.</p>
-      <p>Esta página se mostrará desde la memoria caché.</p>
+      <p>Esta página se está mostrando desde la memoria caché de la aplicación.</p>
     </div>
   );
 }

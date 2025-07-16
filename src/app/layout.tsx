@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
-  manifest: '/manifest.json', // Let next-pwa handle this
+  manifest: '/manifest.json',
 };
 
 export default function RootLayout({
