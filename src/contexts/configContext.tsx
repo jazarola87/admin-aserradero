@@ -23,7 +23,6 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = async () => {
-    // No need to set loading to true here, to avoid flashing loading screens
     try {
       const appConfig = await getAppConfig();
       setConfig(appConfig);
@@ -42,10 +41,6 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     fetchConfig();
   }, []);
-
-  // No longer show a loading screen here.
-  // The AuthProvider already handles the initial app load screen.
-  // This provider will now load config in the background and update the UI when ready.
 
   return (
     <ConfigContext.Provider value={{ config, loading, refetchConfig: fetchConfig }}>
