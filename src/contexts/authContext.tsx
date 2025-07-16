@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
 interface AuthContextType {
@@ -20,6 +20,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -31,14 +32,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    // If not loading and no user, redirect to login page
-    if (!loading && !user) {
+    const isLoginPage = pathname === '/login';
+
+    if (!loading && !user && !isLoginPage) {
       router.push('/login');
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, pathname]);
 
-  // While checking auth state, or if there's no user (and redirecting), show a loader.
-  if (loading || !user) {
+  if (loading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -46,8 +47,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
+  
+  // If we are not loading and there's no user, we are likely redirecting.
+  // Render nothing to avoid a flash of content. The redirect will happen.
+  if (!user && pathname !== '/login') {
+    return null;
+  }
 
-  // If user is authenticated, render the children
   return (
     <AuthContext.Provider value={{ user, loading }}>
       {children}
