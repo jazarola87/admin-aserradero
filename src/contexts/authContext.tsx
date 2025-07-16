@@ -32,14 +32,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (loading) return; // Don't do anything while loading
-
-    const isLoginPage = pathname === '/login';
-
-    if (!user && !isLoginPage) {
+    // This effect handles redirection after the loading state is resolved.
+    if (!loading && !user && pathname !== '/login') {
       router.push('/login');
     }
-  }, [loading, user, router, pathname]);
+  }, [loading, user, pathname, router]);
+
 
   if (loading) {
     return (
@@ -50,11 +48,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
   }
   
-  // If there's no user and we are not on the login page, we're in the process of redirecting.
-  // Rendering null prevents a flash of the old page content.
+  // While redirecting, it's better to show nothing than a flash of the wrong page.
   if (!user && pathname !== '/login') {
     return null;
   }
+
+  // If user is logged in but on the login page, let the layout handle redirection or show nothing.
+  if(user && pathname === '/login') {
+    router.push('/');
+    return null;
+  }
+
 
   return (
     <AuthContext.Provider value={{ user, loading }}>
