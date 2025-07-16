@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { getAppConfig } from '@/lib/firebase/services/configuracionService';
+// We remove getAppConfig from here as it causes build errors.
+// Configuration will now be loaded client-side in AppShell.
 
 const inter = Inter({
   variable: '--font-geist-sans',
@@ -18,21 +19,18 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
+  icons: {
+    icon: '/favicon.ico', // Use a static favicon
+  },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const config = await getAppConfig();
-  const faviconUrl = config.logoUrl && config.logoUrl.startsWith('data:image') ? config.logoUrl : '/favicon.ico'; // Fallback needed
-
   return (
     <html lang="es">
-      <head>
-        {faviconUrl && <link rel="icon" href={faviconUrl} sizes="any" />}
-      </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
         <Toaster />

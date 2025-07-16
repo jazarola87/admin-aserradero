@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const pathname = usePathname();
   const [logoUrl, setLogoUrl] = React.useState<string | undefined>(undefined);
-  const [nombreAserradero, setNombreAserradero] = React.useState<string>("");
+  const [nombreAserradero, setNombreAserradero] = React.useState<string>("Cargando...");
 
   React.useEffect(() => {
     async function fetchConfig() {
@@ -92,6 +92,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const config = await getAppConfig();
         setLogoUrl(config.logoUrl);
         setNombreAserradero(config.nombreAserradero);
+        
+        // Update favicon dynamically
+        const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
+        if (favicon && config.logoUrl && config.logoUrl.startsWith('data:image')) {
+          favicon.href = config.logoUrl;
+        }
+        
       } catch (error) {
         console.error("AppShell: Could not fetch app config", error);
         // Fallback to a default name if config fails
@@ -127,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <SawmillLogo className="h-8 w-8 text-primary shrink-0" />
             )}
             <span className="text-lg font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden truncate">
-              {nombreAserradero || "Cargando..."}
+              {nombreAserradero}
             </span>
           </Link>
         </SidebarHeader>
