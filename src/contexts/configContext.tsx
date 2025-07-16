@@ -23,7 +23,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = async () => {
-    setLoading(true);
+    // No need to set loading to true here, to avoid flashing loading screens
     try {
       const appConfig = await getAppConfig();
       setConfig(appConfig);

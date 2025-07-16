@@ -32,9 +32,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    if (loading) return; // Don't do anything while loading
+
     const isLoginPage = pathname === '/login';
 
-    if (!loading && !user && !isLoginPage) {
+    if (!user && !isLoginPage) {
       router.push('/login');
     }
   }, [loading, user, router, pathname]);
@@ -43,13 +45,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Cargando...</p>
+        <p className="ml-4 text-muted-foreground">Verificando sesión...</p>
       </div>
     );
   }
   
-  // If we are not loading and there's no user, we are likely redirecting.
-  // Render nothing to avoid a flash of content. The redirect will happen.
+  // If there's no user and we are not on the login page, we're in the process of redirecting.
+  // Rendering null prevents a flash of the old page content.
   if (!user && pathname !== '/login') {
     return null;
   }
