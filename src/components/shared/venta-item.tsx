@@ -112,7 +112,7 @@ function VentaItemComponent({ venta, config, onDelete, onUpdateVenta }: VentaIte
   }, [venta.totalVenta, costoTotalMaderaVenta, costoTotalAserrioVenta, costoOperarioActual]);
 
   const valorJavier = costoTotalMaderaVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = costoTotalAserrioVenta + costoOperarioActual + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = costoTotalAserrioVenta + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
 
   const senaActual = Number(venta.sena) || 0;
   const saldoPendiente = (Number(venta.totalVenta) || 0) - senaActual;
@@ -366,7 +366,7 @@ function VentaItemComponent({ venta, config, onDelete, onUpdateVenta }: VentaIte
                 <span>${(Number(valorJavier) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
             <div className="flex justify-between text-sm">
-                <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
+                <span>Lucas (Aserrío + 50% Gan. Neta):</span>
                 <span>${(Number(valorLucas) || 0).toLocaleString('es-ES', { minimumFractionDigits: 2})}</span>
             </div>
         </div>

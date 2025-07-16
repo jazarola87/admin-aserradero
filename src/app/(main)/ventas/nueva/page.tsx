@@ -208,7 +208,7 @@ export default function NuevaVentaPage() {
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = totals.costoAserrio + (Number(watchedCostoOperario) || 0) + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = totals.costoAserrio + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const saldoPendiente = totals.totalVenta - (Number(watchedSena) || 0);
 
   const isRowEffectivelyEmpty = (detalle: Partial<z.infer<typeof ventaDetalleSchema>>) => {
@@ -265,18 +265,18 @@ export default function NuevaVentaPage() {
     }
     const { tipoMadera, alto, ancho, largo, cepillado } = detalle;
     
-    const matchingStock = stockSummary.filter(stockItem => {
+    const matchingStock = stockSummary.filter(s => {
       if (
-        stockItem.tipoMadera !== tipoMadera ||
-        stockItem.alto !== alto ||
-        stockItem.ancho !== ancho ||
-        stockItem.largo < (largo || 0) ||
-        stockItem.unidades <= 0
+        s.tipoMadera !== tipoMadera ||
+        s.alto !== alto ||
+        s.ancho !== ancho ||
+        s.largo < (largo || 0) ||
+        s.unidades <= 0
       ) {
         return false;
       }
       
-      return cepillado ? true : !stockItem.cepillado;
+      return cepillado ? true : !s.cepillado;
     });
 
     if (matchingStock.length === 0) {
@@ -782,7 +782,7 @@ export default function NuevaVentaPage() {
                         <span>${valorJavier.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
+                        <span>Lucas (Aserrío + 50% Gan. Neta):</span>
                         <span>${valorLucas.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     {(Number(watchedSena) || 0) > 0 && (

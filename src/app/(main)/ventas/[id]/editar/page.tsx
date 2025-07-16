@@ -238,7 +238,7 @@ export default function EditarVentaPage() {
 
   const gananciaNetaEstimada = totals.totalVenta - totals.costoMadera - totals.costoAserrio - (Number(watchedCostoOperario) || 0);
   const valorJavier = totals.costoMadera + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
-  const valorLucas = totals.costoAserrio + (Number(watchedCostoOperario) || 0) + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
+  const valorLucas = totals.costoAserrio + (gananciaNetaEstimada > 0 ? gananciaNetaEstimada / 2 : 0);
   const saldoPendiente = totals.totalVenta - (Number(watchedSena) || 0);
 
   const handleTipoMaderaChange = (value: string, index: number) => {
@@ -745,7 +745,7 @@ export default function EditarVentaPage() {
                         <span>${valorJavier.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                        <span>Lucas (Aserrío + Operario + 50% Gan. Neta):</span>
+                        <span>Lucas (Aserrío + 50% Gan. Neta):</span>
                         <span>${valorLucas.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     {(Number(watchedSena) || 0) > 0 && (
