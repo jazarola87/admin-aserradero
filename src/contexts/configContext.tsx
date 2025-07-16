@@ -23,6 +23,7 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchConfig = async () => {
+    // No set loading to true here to avoid re-showing loader on refetch
     try {
       const appConfig = await getAppConfig();
       setConfig(appConfig);
