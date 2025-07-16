@@ -5,6 +5,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { getAppConfig } from '@/lib/firebase/services/configuracionService';
 import type { Configuracion } from '@/types';
 import { defaultConfig } from '@/lib/config-data';
+import { useAuth } from './authContext';
 
 interface ConfigContextType {
   config: Configuracion;
@@ -21,27 +22,25 @@ const ConfigContext = createContext<ConfigContextType>({
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
   const [config, setConfig] = useState<Configuracion>(defaultConfig);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
-  const fetchConfig = async () => {
-    // No set loading to true here to avoid re-showing loader on refetch
+  const fetchConfig = React.useCallback(async () => {
     try {
       const appConfig = await getAppConfig();
       setConfig(appConfig);
       
-      const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
-      if (favicon && appConfig.logoUrl && appConfig.logoUrl.startsWith('data:image')) {
-        favicon.href = appConfig.logoUrl;
-      }
     } catch (error) {
       console.error("ConfigProvider: Could not fetch app config", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchConfig();
-  }, []);
+    if (user) {
+      fetchConfig();
+    }
+  }, [user, fetchConfig]);
 
   return (
     <ConfigContext.Provider value={{ config, loading, refetchConfig: fetchConfig }}>

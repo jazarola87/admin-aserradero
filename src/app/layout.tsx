@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
-  manifest: '/manifest.json',
+  manifest: '/manifest.webmanifest',
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
     <html lang="es">
        <head>
         <meta name="theme-color" content="#228B22" />
-        <link id="favicon" rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
