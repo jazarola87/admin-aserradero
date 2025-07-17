@@ -19,8 +19,6 @@ const withPWA = require('next-pwa')({
   ],
 });
 
-const nextConfig = {
-  // Las variables de entorno ahora se gestionan en el archivo .env.local
-};
+const nextConfig = {};
 
 module.exports = withPWA(nextConfig);
