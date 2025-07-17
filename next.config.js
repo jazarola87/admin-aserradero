@@ -1,14 +1,26 @@
 /** @type {import('next').NextConfig} */
+
+const withPWA = require('next-pwa')({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === 'development',
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
+});
+
 const nextConfig = {
-  env: {
-    NEXT_PUBLIC_FIREBASE_API_KEY: "AIzaSyD-NVeAE1XPsQxrQWvMo8XDfNDpvK4YT0o",
-    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: "aserradero-lhm-336e9.firebaseapp.com",
-    NEXT_PUBLIC_FIREBASE_PROJECT_ID: "aserradero-lhm-336e9",
-    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: "aserradero-lhm-336e9.appspot.com",
-    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1052943793792",
-    NEXT_PUBLIC_FIREBASE_APP_ID: "1:1052943793792:web:72828b615e85f061e38943",
-    NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: "G-G6509EV63K",
-  },
+  // Tu configuración de Next.js existente va aquí
 };
 
-module.exports = nextConfig;
+module.exports = withPWA(nextConfig);

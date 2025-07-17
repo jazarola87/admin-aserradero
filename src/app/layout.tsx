@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
-  // The icon link is now handled directly in the head below to ensure it has a stable ID
+  manifest: '/manifest.webmanifest',
 };
 
 export default function RootLayout({
@@ -27,8 +27,8 @@ export default function RootLayout({
   return (
     <html lang="es">
        <head>
-        {/* This link provides a default favicon and an ID for our script to target */}
-        <link id="favicon" rel="icon" href="/favicon.ico" sizes="any" />
+        <meta name="theme-color" content="#228B22" />
+        <link rel="icon" href="/favicon.ico" sizes="any" id="favicon" />
       </head>
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         {children}
