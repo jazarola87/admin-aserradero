@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -28,21 +27,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService"; 
-import { getPresupuestoById, updatePresupuesto, getAllPresupuestos } from "@/lib/firebase/services/presupuestosService";
+import { getPresupuestoById, updatePresupuesto } from "@/lib/firebase/services/presupuestosService";
 import type { Presupuesto, PresupuestoDetalle, Configuracion } from "@/types";
 import { useRouter, useParams } from "next/navigation";
-
-export async function generateStaticParams() {
-  try {
-    const presupuestos = await getAllPresupuestos();
-    return presupuestos.map((presupuesto) => ({
-      id: presupuesto.id,
-    }));
-  } catch (error) {
-    console.error("Failed to generate static params for presupuestos:", error);
-    return [];
-  }
-}
 
 const initialDetallesCount = 15; 
 
@@ -488,5 +475,3 @@ export default function EditarPresupuestoPage() {
     </div>
   );
 }
-
-    

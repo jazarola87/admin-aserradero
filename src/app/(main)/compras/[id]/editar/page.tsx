@@ -26,20 +26,8 @@ import { Calendar } from "@/components/ui/calendar";
 import type { Compra, Configuracion } from "@/types";
 import { useRouter, useParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getCompraById, updateCompra, getAllCompras } from "@/lib/firebase/services/comprasService";
+import { getCompraById, updateCompra } from "@/lib/firebase/services/comprasService";
 import { getAppConfig } from "@/lib/firebase/services/configuracionService";
-
-export async function generateStaticParams() {
-  try {
-    const compras = await getAllCompras();
-    return compras.map((compra) => ({
-      id: compra.id,
-    }));
-  } catch (error) {
-    console.error("Failed to generate static params for compras:", error);
-    return [];
-  }
-}
 
 const compraFormSchema = z.object({
   fecha: z.date({
