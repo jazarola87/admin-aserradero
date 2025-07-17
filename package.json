@@ -7,8 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "deploy": "npm run build && firebase deploy --only functions,hosting"
+    "lint": "next lint"
   },
   "engines": {
     "node": "18"

@@ -1,0 +1,51 @@
+[debug] [2025-07-17T18:12:12.470Z] ----------------------------------------------------------------------
+[debug] [2025-07-17T18:12:12.473Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/gv0i9ndcpzjpfi2yr06402kzy90q51ki-firebase-tools-14.10.1/lib/node_modules/firebase-tools/lib/bin/firebase.js deploy --only hosting
+[debug] [2025-07-17T18:12:12.473Z] CLI Version:   14.10.1
+[debug] [2025-07-17T18:12:12.474Z] Platform:      linux
+[debug] [2025-07-17T18:12:12.474Z] Node Version:  v20.19.1
+[debug] [2025-07-17T18:12:12.474Z] Time:          Thu Jul 17 2025 18:12:12 GMT+0000 (Coordinated Universal Time)
+[debug] [2025-07-17T18:12:12.474Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-07-17T18:12:12.966Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-07-17T18:12:31.697Z] Running auto auth
+[debug] [2025-07-17T18:12:31.738Z] [iam] checking project aserradero-lhm-336e9 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-07-17T18:12:31.750Z] No OAuth tokens found
+[debug] [2025-07-17T18:12:31.752Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/aserradero-lhm-336e9:testIamPermissions [none]
+[debug] [2025-07-17T18:12:31.753Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/aserradero-lhm-336e9:testIamPermissions x-goog-quota-user=projects/aserradero-lhm-336e9
+[debug] [2025-07-17T18:12:31.753Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/aserradero-lhm-336e9:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-07-17T18:12:31.991Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/aserradero-lhm-336e9:testIamPermissions 200
+[debug] [2025-07-17T18:12:31.992Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/aserradero-lhm-336e9:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-07-17T18:12:31.996Z] No OAuth tokens found
+[debug] [2025-07-17T18:12:31.996Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/aserradero-lhm-336e9 [none]
+[debug] [2025-07-17T18:12:32.260Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/aserradero-lhm-336e9 200
+[debug] [2025-07-17T18:12:32.260Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/aserradero-lhm-336e9 {"projectId":"aserradero-lhm-336e9","projectNumber":"453456443377","displayName":"Aserradero LHM","name":"projects/aserradero-lhm-336e9","resources":{"hostingSite":"aserradero-lhm-336e9"},"state":"ACTIVE","etag":"1_8ab5b6de-b8fb-407a-905f-06f0f317f23d"}
+[debug] [2025-07-17T18:12:35.223Z] defaultcredentials: no credential available.
+[debug] [2025-07-17T18:12:35.224Z] No OAuth tokens found
+[debug] [2025-07-17T18:12:35.224Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites pageToken=&pageSize=10
+[debug] [2025-07-17T18:12:36.371Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites 200
+[debug] [2025-07-17T18:12:36.371Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites {"sites":[{"name":"projects/aserradero-lhm-336e9/sites/aserradero-lhm-336e9","defaultUrl":"https://aserradero-lhm-336e9.web.app","appId":"1:453456443377:web:44c4aa9ab6618215b77650","type":"DEFAULT_SITE"}]}
+[debug] [2025-07-17T18:12:36.372Z] No OAuth tokens found
+[debug] [2025-07-17T18:12:36.372Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:453456443377:web:44c4aa9ab6618215b77650/config [none]
+[debug] [2025-07-17T18:12:38.042Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:453456443377:web:44c4aa9ab6618215b77650/config 200
+[debug] [2025-07-17T18:12:38.043Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:453456443377:web:44c4aa9ab6618215b77650/config {"projectId":"aserradero-lhm-336e9","appId":"1:453456443377:web:44c4aa9ab6618215b77650","storageBucket":"aserradero-lhm-336e9.firebasestorage.app","apiKey":"AIzaSyBqKPxyK_nfaQQXqvCV6bxkowgxv57kpVc","authDomain":"aserradero-lhm-336e9.firebaseapp.com","messagingSenderId":"453456443377","measurementId":"G-HCGK19WQDQ"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2025-07-17T18:12:44.632Z] No OAuth tokens found
+[debug] [2025-07-17T18:12:44.633Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites/aserradero-lhm-336e9 [none]
+[debug] [2025-07-17T18:12:45.670Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites/aserradero-lhm-336e9 200
+[debug] [2025-07-17T18:12:45.670Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/aserradero-lhm-336e9/sites/aserradero-lhm-336e9 {"name":"projects/aserradero-lhm-336e9/sites/aserradero-lhm-336e9","defaultUrl":"https://aserradero-lhm-336e9.web.app","appId":"1:453456443377:web:44c4aa9ab6618215b77650","type":"DEFAULT_SITE"}
+[info]   ▲ Next.js 14.2.5
+
+[info]   - Environments: .env.local
+
+
+[info]    Creating an optimized production build ...
+
