@@ -18,6 +18,8 @@ import { useToast } from "@/hooks/use-toast";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
 import { getAllStockEntries } from "@/lib/firebase/services/stockService";
 
+export const dynamic = 'force-dynamic';
+
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
   const unidades = Number(detalle?.unidades) || 0;

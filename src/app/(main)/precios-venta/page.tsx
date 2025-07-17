@@ -27,6 +27,8 @@ import type { Configuracion } from "@/types";
 import React, { useState, useEffect } from "react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
+export const dynamic = 'force-dynamic';
+
 const precioMaderaSchema = z.object({
   tipoMadera: z.string().min(1, "El tipo de madera es requerido."),
   precioPorPie: z.coerce.number().positive("El precio debe ser positivo."),

@@ -13,6 +13,8 @@ import { Loader2, LogIn } from 'lucide-react';
 import { SawmillLogo } from '@/components/icons/sawmill-logo';
 import { FirebaseError } from 'firebase/app';
 
+export const dynamic = 'force-dynamic';
+
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();

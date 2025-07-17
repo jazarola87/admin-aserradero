@@ -23,6 +23,8 @@ import { es } from 'date-fns/locale';
 import { Separator } from "@/components/ui/separator";
 import { PresupuestoItem } from "@/components/shared/presupuesto-item";
 
+export const dynamic = 'force-dynamic';
+
 // Helper to calculate costs for the new Venta, ensuring data integrity at the moment of conversion
 const calculateCostsForVenta = (detalles: PresupuestoDetalle[], config: Configuracion) => {
     const piesTablaresPorDetalle = (detalle: PresupuestoDetalle): number => {
@@ -354,5 +356,3 @@ export default function PresupuestosPage() {
     </div>
   );
 }
-
-    

@@ -14,6 +14,8 @@ import { getAllStockEntries, deleteStockEntry } from "@/lib/firebase/services/st
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockEntryItem } from "@/components/shared/stock-entry-item";
 
+export const dynamic = 'force-dynamic';
+
 export default function StockPage() {
   const [stockEntries, setStockEntries] = useState<StockMaderaAserrada[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
