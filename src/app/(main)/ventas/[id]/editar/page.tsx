@@ -31,22 +31,10 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import type { VentaDetalle as VentaDetalleType, Venta, Configuracion } from "@/types";
 import { Separator } from "@/components/ui/separator";
 import { useRouter, useParams } from "next/navigation";
-import { getVentaById, updateVenta, getAllVentas } from "@/lib/firebase/services/ventasService";
+import { getVentaById, updateVenta } from "@/lib/firebase/services/ventasService";
 import { getStockSummary, type StockSummaryItem } from "@/lib/firebase/services/stockService";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-
-export async function generateStaticParams() {
-  try {
-    const ventas = await getAllVentas();
-    return ventas.map((venta) => ({
-      id: venta.id,
-    }));
-  } catch (error) {
-    console.error("Failed to generate static params for ventas:", error);
-    return [];
-  }
-}
 
 const initialDetallesCount = 15; 
 
