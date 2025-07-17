@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState } from 'react';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, LogIn } from 'lucide-react';
 import { SawmillLogo } from '@/components/icons/sawmill-logo';
+import { FirebaseError } from 'firebase/app';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,9 +32,31 @@ export default function LoginPage() {
       router.push('/');
     } catch (error) {
       console.error(error);
+      let errorMessage = 'Ha ocurrido un error inesperado. Por favor, intente de nuevo.';
+      if (error instanceof FirebaseError) {
+        switch (error.code) {
+          case 'auth/invalid-credential':
+            errorMessage = 'Las credenciales proporcionadas son incorrectas. Verifique el email y la contraseña.';
+            break;
+          case 'auth/user-not-found':
+            errorMessage = 'No se encontró ningún usuario con este correo electrónico.';
+            break;
+          case 'auth/wrong-password':
+            errorMessage = 'La contraseña es incorrecta.';
+            break;
+          case 'auth/invalid-api-key':
+            errorMessage = 'Error de Configuración: La clave API de Firebase no es válida. Por favor, verifíquela.';
+            break;
+          case 'auth/network-request-failed':
+            errorMessage = 'Error de Red: No se pudo conectar con los servicios de Firebase. Verifique su conexión a internet.';
+            break;
+          default:
+            errorMessage = `Error de Firebase: ${error.message} (código: ${error.code})`;
+        }
+      }
       toast({
         title: 'Error de Autenticación',
-        description: 'El email o la contraseña son incorrectos. Por favor, intente de nuevo.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
