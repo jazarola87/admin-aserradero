@@ -6,9 +6,9 @@ version: 1
 # Define los pasos de construcción para el backend de la aplicación.
 build:
   # El comando que se ejecutará para construir tu aplicación Next.js.
-  # Se ejecutará desde el directorio especificado en 'directory'.
+  # Usamos 'npm ci' en lugar de 'npm i' para entornos de CI/CD, ya que evita escrituras en el lockfile.
   run:
-    - npm i && npm run build
+    - npm ci && npm run build
   # Especifica el directorio desde el cual se ejecutarán los comandos de build.
   # En este caso, el proyecto Next.js está en la subcarpeta 'workspace'.
   directory: "workspace"
