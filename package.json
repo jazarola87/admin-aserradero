@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 9002",
-    "build": "rimraf ./.next && next build",
+    "dev": "next dev",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "npm run build && firebase deploy --only functions,hosting",
-    "gcp-build": "npm install --omit=dev && npm run build"
+    "deploy": "npm run build && firebase deploy --only functions,hosting"
   },
   "engines": {
     "node": "20"
