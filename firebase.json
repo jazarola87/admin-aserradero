@@ -9,16 +9,5 @@
     "frameworksBackend": {
       "region": "us-central1"
     }
-  },
-  "apphosting": {
-    "backends": [
-      "admin-aserradero"
-    ],
-    "region": "us-central1",
-    "source": ".",
-    "repo": {
-      "owner": "AserraderoLHM",
-      "name": "LHM"
-    }
   }
 }
