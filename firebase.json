@@ -1,9 +1,5 @@
 
 {
-  "functions": {
-    "source": ".",
-    "runtime": "nodejs20"
-  },
   "hosting": {
     "source": ".",
     "ignore": [
@@ -11,11 +7,8 @@
       "**/.*",
       "**/node_modules/**"
     ],
-    "rewrites": [
-      {
-        "source": "**",
-        "function": "nextServer"
-      }
-    ]
+    "frameworksBackend": {
+      "region": "us-central1"
+    }
   }
 }
