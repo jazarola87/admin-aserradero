@@ -18,8 +18,6 @@ import { getAppConfig } from "@/lib/firebase/services/configuracionService";
 import { getAllVentas, updateVenta } from "@/lib/firebase/services/ventasService";
 import { Badge } from "@/components/ui/badge";
 
-export const dynamic = 'force-dynamic';
-
 type EstadoCobro = { texto: string; variant: "default" | "secondary" | "destructive" | "outline" };
 
 // Helper to determine payment status

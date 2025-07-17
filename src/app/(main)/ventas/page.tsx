@@ -19,8 +19,6 @@ import { getAllVentas, deleteVenta, updateVenta } from "@/lib/firebase/services/
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VentaItem } from "@/components/shared/venta-item";
 
-export const dynamic = 'force-dynamic';
-
 const getEstadoCobroSimple = (venta: Venta): 'cobrado' | 'parcialmente-cobrado' | 'pendiente' | 'otro' => {
     const totalVentaNum = Number(venta.totalVenta) || 0;
     const senaNum = Number(venta.sena) || 0;

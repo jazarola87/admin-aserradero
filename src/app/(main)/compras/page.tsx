@@ -13,8 +13,6 @@ import { useToast } from "@/hooks/use-toast";
 import { getAllCompras, deleteCompra } from "@/lib/firebase/services/comprasService";
 import { CompraItem } from "@/components/shared/compra-item";
 
-export const dynamic = 'force-dynamic';
-
 export default function ComprasPage() {
   const [compras, setCompras] = useState<Compra[]>([]);
   const [searchTerm, setSearchTerm] = useState("");

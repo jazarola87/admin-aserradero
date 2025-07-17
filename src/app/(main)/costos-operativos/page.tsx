@@ -24,8 +24,6 @@ import { getAppConfig, updateAppConfig } from "@/lib/firebase/services/configura
 import type { Configuracion } from "@/types";
 import React, { useEffect, useState } from "react";
 
-export const dynamic = 'force-dynamic';
-
 const costoMaderaMetroCubicoSchema = z.object({
   tipoMadera: z.string(), // This will be read-only from config.preciosMadera
   costoPorMetroCubico: z.coerce.number().nonnegative("El costo debe ser no negativo.").optional(),
