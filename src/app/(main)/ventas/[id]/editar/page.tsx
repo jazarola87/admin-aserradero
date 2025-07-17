@@ -773,3 +773,5 @@ export default function EditarVentaPage() {
     </div>
   );
 }
+
+    
