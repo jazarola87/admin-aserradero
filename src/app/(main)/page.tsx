@@ -12,12 +12,11 @@ import { cn } from "@/lib/utils";
 import { format, parseISO, startOfMonth, endOfMonth, isValid, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import type { Compra, Venta, VentaDetalle, Configuracion, StockMaderaAserrada } from "@/types";
-import { getAppConfig } from "@/lib/firebase/services/configuracionService";
+import { useConfig } from "@/contexts/configContext";
 import { getAllCompras } from "@/lib/firebase/services/comprasService";
 import { useToast } from "@/hooks/use-toast";
 import { getAllVentas } from "@/lib/firebase/services/ventasService";
 import { getAllStockEntries } from "@/lib/firebase/services/stockService";
-import { defaultConfig } from "@/lib/config-data";
 
 // Helper to calculate board feet for a single sale item
 const calcularPiesTablaresItem = (detalle: Partial<VentaDetalle>): number => {
@@ -79,7 +78,7 @@ export default function DashboardPage() {
   const [comprasList, setComprasList] = useState<Compra[]>([]);
   const [ventasList, setVentasList] = useState<Venta[]>([]);
   const [stockEntries, setStockEntries] = useState<StockMaderaAserrada[]>([]);
-  const [config, setConfig] = useState<Configuracion | null>(null);
+  const { config, loading: configLoading } = useConfig();
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -91,14 +90,12 @@ export default function DashboardPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [comprasData, configData, ventasData, stockData] = await Promise.all([
+      const [comprasData, ventasData, stockData] = await Promise.all([
         getAllCompras(),
-        getAppConfig(),
         getAllVentas(),
         getAllStockEntries(),
       ]);
       setComprasList(comprasData);
-      setConfig(configData);
       setVentasList(ventasData);
       setStockEntries(stockData);
 
@@ -131,8 +128,10 @@ export default function DashboardPage() {
   }, [toast, fechaDesde, fechaHasta]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!configLoading) {
+        loadData();
+    }
+  }, [loadData, configLoading]);
 
 
   const filteredComprasList = useMemo(() => {
@@ -281,7 +280,7 @@ export default function DashboardPage() {
   }, [fechaDesde, fechaHasta, isLoading]);
 
 
-  if (isLoading || !config) {
+  if (isLoading || configLoading) {
     return (
       <div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]">
         <Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" />
