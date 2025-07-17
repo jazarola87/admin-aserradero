@@ -4,11 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 9002",
-    "build": "rimraf .next && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "npm run build && firebase deploy --only functions,hosting",
-    "gcp-build": "npm run build"
+    "deploy": "npm run build && firebase deploy --only functions,hosting"
   },
   "main": "server.js",
   "engines": {
