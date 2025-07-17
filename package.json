@@ -10,7 +10,7 @@
     "deploy": "npm run build && firebase deploy --only functions,hosting"
   },
   "engines": {
-    "node": ">=20"
+    "node": "18"
   },
   "dependencies": {
     "@hookform/resolvers": "^4.1.3",
