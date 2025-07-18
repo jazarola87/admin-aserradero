@@ -4,20 +4,20 @@ import { getFirestore, type Firestore, enableIndexedDbPersistence } from 'fireba
 import { getAuth, type Auth } from 'firebase/auth';
 
 // Your web app's Firebase configuration
-// REEMPLAZA ESTOS VALORES CON LOS DE TU PROYECTO DE FIREBASE
+// REEMPLAZA "TU_API_KEY_AQUI" CON TU CLAVE REAL DE FIREBASE
 export const firebaseConfig = {
   apiKey: "TU_API_KEY_AQUI",
-  authDomain: "TU_AUTH_DOMAIN_AQUI",
-  projectId: "TU_PROJECT_ID_AQUI",
-  storageBucket: "TU_STORAGE_BUCKET_AQUI",
-  messagingSenderId: "TU_MESSAGING_SENDER_ID_AQUI",
-  appId: "TU_APP_ID_AQUI",
-  measurementId: "TU_MEASUREMENT_ID_AQUI"
+  authDomain: "aserradero-lhm-336e9.firebaseapp.com",
+  projectId: "aserradero-lhm-336e9",
+  storageBucket: "aserradero-lhm-336e9.appspot.com",
+  messagingSenderId: "95638421422",
+  appId: "1:95638421422:web:f5981f56-391d-4e30-accd-b3892920254e",
+  measurementId: "G-6511P9P9F7"
 };
 
 // Function to safely check if all config keys are present
 const isFirebaseConfigComplete = (config: typeof firebaseConfig): boolean => {
-  return !!config.apiKey && !!config.authDomain && !!config.projectId;
+  return !!config.apiKey && config.apiKey !== "TU_API_KEY_AQUI" && !!config.authDomain && !!config.projectId;
 };
 
 
@@ -27,7 +27,7 @@ let db: Firestore;
 let auth: Auth;
 
 // Only initialize if the config is complete
-if (isFirebaseConfigComplete(firebaseConfig) && firebaseConfig.apiKey !== "TU_API_KEY_AQUI") {
+if (isFirebaseConfigComplete(firebaseConfig)) {
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
