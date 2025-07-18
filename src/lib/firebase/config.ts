@@ -17,7 +17,7 @@ export const firebaseConfig = {
 
 // Function to safely check if all config keys are present
 const isFirebaseConfigComplete = (config: typeof firebaseConfig): boolean => {
-  return Object.values(config).every(value => !!value);
+  return !!config.apiKey && !!config.authDomain && !!config.projectId;
 };
 
 
