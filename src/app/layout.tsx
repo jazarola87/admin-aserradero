@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: 'Administrador de Aserradero',
   description: 'Aplicación para la gestión de aserraderos.',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({
@@ -22,7 +25,6 @@ export default function RootLayout({
     <html lang="es">
        <head>
         <meta name="theme-color" content="#228B22" />
-        <link rel="icon" href="/favicon.ico" sizes="any" id="favicon" />
       </head>
       <body className={`${inter.className} antialiased`}>
         {children}
