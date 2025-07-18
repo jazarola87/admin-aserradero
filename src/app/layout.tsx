@@ -11,6 +11,10 @@ export const metadata: Metadata = {
   title: 'Aserradero LHM',
   description: 'Aplicación para la gestión de aserraderos.',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/favicon.ico', // También para dispositivos Apple
+  },
 };
 
 export const viewport: Viewport = {
