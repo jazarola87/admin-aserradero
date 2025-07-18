@@ -1,15 +1,9 @@
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: '--font-geist-mono',
   subsets: ['latin'],
 });
 
@@ -30,7 +24,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#228B22" />
         <link rel="icon" href="/favicon.ico" sizes="any" id="favicon" />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
+      <body className={`${inter.className} antialiased`}>
         {children}
         <Toaster />
       </body>
