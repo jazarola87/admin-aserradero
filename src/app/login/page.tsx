@@ -1,30 +1,46 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { signIn } from '@/lib/firebase/services/authService';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Loader2, LogIn } from 'lucide-react';
 import { SawmillLogo } from '@/components/icons/sawmill-logo';
 import { FirebaseError } from 'firebase/app';
 
+const loginFormSchema = z.object({
+  email: z.string().email({ message: "Por favor, ingrese un correo electrónico válido." }),
+  password: z.string().min(1, { message: "La contraseña es requerida." }),
+});
+
+type LoginFormValues = z.infer<typeof loginFormSchema>;
+
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const { isSubmitting } = form.formState;
+
+  const handleLogin = async (data: LoginFormValues) => {
     try {
-      await signIn(email, password);
+      await signIn(data.email, data.password);
       toast({
         title: 'Inicio de Sesión Exitoso',
         description: 'Bienvenido de vuelta.',
@@ -36,13 +52,9 @@ export default function LoginPage() {
       if (error instanceof FirebaseError) {
         switch (error.code) {
           case 'auth/invalid-credential':
-            errorMessage = 'Las credenciales proporcionadas son incorrectas. Verifique el email y la contraseña.';
-            break;
           case 'auth/user-not-found':
-            errorMessage = 'No se encontró ningún usuario con este correo electrónico.';
-            break;
           case 'auth/wrong-password':
-            errorMessage = 'La contraseña es incorrecta.';
+            errorMessage = 'Las credenciales proporcionadas son incorrectas. Verifique el correo y la contraseña.';
             break;
           case 'auth/invalid-api-key':
             errorMessage = 'Error de Configuración: La clave API de Firebase no es válida. Por favor, verifíquela.';
@@ -59,8 +71,6 @@ export default function LoginPage() {
         description: errorMessage,
         variant: 'destructive',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -73,39 +83,54 @@ export default function LoginPage() {
           <CardDescription>Ingrese sus credenciales para acceder al sistema.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="usuario@ejemplo.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleLogin)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="usuario@ejemplo.com"
+                        {...field}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
+                        {...field}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <LogIn className="mr-2 h-4 w-4" />
-              )}
-              {isLoading ? 'Ingresando...' : 'Ingresar'}
-            </Button>
-          </form>
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <LogIn className="mr-2 h-4 w-4" />
+                )}
+                {isSubmitting ? 'Ingresando...' : 'Ingresar'}
+              </Button>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </main>
