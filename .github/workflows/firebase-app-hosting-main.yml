@@ -13,11 +13,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Set up Node.js environment to match package.json
-      - name: Use Node.js 18
+      # Set up Node.js environment to match Firebase Tools requirement
+      - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
       
       - run: npm ci && npm run build
