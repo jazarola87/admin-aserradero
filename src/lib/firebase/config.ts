@@ -3,16 +3,16 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
-// Your web app's Firebase configuration is now read from environment variables
-// These are automatically provided by Firebase App Hosting.
+// Your web app's Firebase configuration
+// REEMPLAZA ESTOS VALORES CON LOS DE TU PROYECTO DE FIREBASE
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "TU_API_KEY_AQUI",
+  authDomain: "TU_AUTH_DOMAIN_AQUI",
+  projectId: "TU_PROJECT_ID_AQUI",
+  storageBucket: "TU_STORAGE_BUCKET_AQUI",
+  messagingSenderId: "TU_MESSAGING_SENDER_ID_AQUI",
+  appId: "TU_APP_ID_AQUI",
+  measurementId: "TU_MEASUREMENT_ID_AQUI"
 };
 
 // Function to safely check if all config keys are present
@@ -27,7 +27,7 @@ let db: Firestore;
 let auth: Auth;
 
 // Only initialize if the config is complete
-if (isFirebaseConfigComplete(firebaseConfig)) {
+if (isFirebaseConfigComplete(firebaseConfig) && firebaseConfig.apiKey !== "TU_API_KEY_AQUI") {
   if (!getApps().length) {
     app = initializeApp(firebaseConfig);
   } else {
@@ -55,7 +55,7 @@ if (isFirebaseConfigComplete(firebaseConfig)) {
     }
   }
 } else {
-  console.warn("La configuración de Firebase está incompleta. La inicialización de Firebase se omitirá. Esto puede ser normal durante el proceso de build, pero es un error en producción.");
+  console.warn("La configuración de Firebase está incompleta o usa valores de placeholder. La inicialización de Firebase se omitirá.");
   // Provide dummy instances if initialization is skipped to avoid crashing the app
   // @ts-ignore
   app = {};
