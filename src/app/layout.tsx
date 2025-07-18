@@ -2,32 +2,19 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { getAppConfig } from '@/lib/firebase/services/configuracionService';
 
 const inter = Inter({
   subsets: ['latin'],
 });
 
-// Generar metadatos dinámicamente
-export async function generateMetadata(): Promise<Metadata> {
-  // Obtener la configuración de la aplicación desde Firebase
-  const config = await getAppConfig();
-  
-  const metadata: Metadata = {
-    title: 'Aserradero LHM',
-    description: 'Aplicación para la gestión de aserraderos.',
-    manifest: '/manifest.webmanifest',
-    icons: {
-      icon: 'data:image/png;base64,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j7/7V+hfrN8+/n3+/v4O4N+/wL8C/P1+/v93+PdP8e9fn/3b53v+4b8d+ffveH/+Cfj3L9e///p+/o/g3/2f+z8j/Pfv+P8R/3v/H8Df/x/59/c//59++wP8+3fy7z/x//719c8f8L+y//mX1z//2r9+r1+d/Vv/h///49+f598v/79ivn76537+//2fr/8z/37+//3rX/Pvf+v/+p/gP/8+/uXv5+/fn/2T/4j/yH9E/7t/9z/5H/x7//+I/2/+3f/j//x//a9+v/7D9P/i//23/69ivv37V//v/+sP+Nf/BfzL/+tf8O/+n/hf+N//6n8O/8f+L/hP83/7B+hfgP/7H+9f/a/7/6v/hP/sX/i/+n/+//vW/4n/43/Df8z/j/3X/+/3D//df8t/+z/+F/5v/5v/w/+3f+r/2f/5H//j//yv+G/+gP/+L/1n+Pf/AP/i/+5/xL+w/wv/m/vP//W//a/gX/7n+K//w/8N/+bf+r/rT/+v/jP//v/0f//7/9L8C/+Rf/t/gX//V+f/5v+F/+n/xf+1/9n//v//f/+7/87//3P/L/H//X/xH+/r//D/hP//f//x8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fH/gD/8//sf/4D47Vd9gAAAABJRU5ErkJggg==',
-      apple: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAMAAABBFDOJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAPUExURcHDxH+GmDssNaC/0wAAAKqqqiH+MvsAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAd8SURBVHja7d3NrqsoEAVQjGAYBEHvf2fX1bZBYmhARnLObD6b55KqKu2zCqf7fC/x8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fH/gD/8//sf/4D47Vd9gAAAABJRU5ErkJggg==',
-    }
-  };
-
-  return metadata;
-}
+export const metadata: Metadata = {
+  title: 'Aserradero LHM',
+  description: 'Aplicación para la gestión de aserraderos.',
+  manifest: '/manifest.webmanifest',
+};
 
 export const viewport: Viewport = {
-  themeColor: '#228B22',
+  themeColor: '#008000',
 };
 
 export default function RootLayout({
@@ -44,5 +31,3 @@ export default function RootLayout({
     </html>
   );
 }
-
-    
