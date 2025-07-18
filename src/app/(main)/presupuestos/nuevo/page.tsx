@@ -155,7 +155,7 @@ function NuevoPresupuestoFormComponent() {
       }
     }
     loadInitialData();
-  }, [searchParams, form, toast, replace, append]);
+  }, [searchParams, form, toast, replace]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -370,7 +370,7 @@ function NuevoPresupuestoFormComponent() {
                   <TableBody>
                     {fields.map((item, index) => {
                       const currentDetalle = watchedDetalles?.[index];
-                      if (!currentDetalle) return null;
+                      if (!currentDetalle) return null; // Safe guard for rendering
                       const piesTablares = calcularPiesTablares(currentDetalle);
                       const subTotal = calcularSubtotal(currentDetalle, piesTablares);
                       const valorUnitario = (currentDetalle?.unidades && currentDetalle.unidades > 0 && subTotal > 0) ? subTotal / currentDetalle.unidades : 0;
