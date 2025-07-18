@@ -87,6 +87,5 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* Default font-family is set by next/font in layout.tsx, so remove specific body font-family here */
   }
 }

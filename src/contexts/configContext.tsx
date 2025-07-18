@@ -34,14 +34,6 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
       const appConfig = await getAppConfig();
       setConfig(appConfig);
       
-      // Dynamically update favicon when config with logo is loaded
-      if (typeof window !== 'undefined' && appConfig.logoUrl && appConfig.logoUrl.startsWith('data:image')) {
-        const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
-        if (favicon) {
-          favicon.href = appConfig.logoUrl;
-        }
-      }
-
     } catch (error) {
       console.error("ConfigProvider: Could not fetch app config", error);
     } finally {
