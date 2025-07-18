@@ -15,13 +15,12 @@ jobs:
       
       - run: npm ci && npm run build
       
-      - name: Create service account file and set environment variable
-        run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ASERRADERO_LHM }}' > ./google-credentials.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json" >> $GITHUB_ENV
+      - name: Create service account file
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_ASERRADERO_LHM }}' > ./google-credentials.json
         
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           projectId: aserradero-lhm
+          serviceAccount: './google-credentials.json'
           channelId: live
