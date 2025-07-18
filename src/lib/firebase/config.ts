@@ -1,3 +1,4 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
@@ -10,7 +11,7 @@ export const firebaseConfig = {
   authDomain: "aserradero-lhm-336e9.firebaseapp.com",
   projectId: "aserradero-lhm-336e9",
   storageBucket: "aserradero-lhm-336e9.appspot.com",
-  messagingSenderId: "95638421422",
+  messagingSenderId: "453456443377",
   appId: "1:95638421422:web:f5981f56-391d-4e30-accd-b3892920254e",
   measurementId: "G-6511P9P9F7"
 };
