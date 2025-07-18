@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
@@ -485,7 +484,7 @@ function NuevoPresupuestoFormComponent() {
 
 export default function NuevoPresupuestoPage() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" /><p>Cargando...</p></div>}>
       <NuevoPresupuestoFormComponent />
     </Suspense>
   );

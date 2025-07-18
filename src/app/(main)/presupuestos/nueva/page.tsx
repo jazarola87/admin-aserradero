@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, useFieldArray } from "react-hook-form";
 import { z } from "zod";
@@ -77,8 +77,7 @@ const createEmptyDetalle = (): z.infer<typeof itemDetalleSchema> => ({
 
 const initialDetallesCount = 15;
 
-
-export default function NuevoPresupuestoPage() {
+function NuevoPresupuestoFormComponent() {
   const { toast } = useToast();
   const router = useRouter(); 
   const searchParams = useSearchParams();
@@ -89,10 +88,9 @@ export default function NuevoPresupuestoPage() {
 
   const form = useForm<PresupuestoFormValues>({
     resolver: zodResolver(presupuestoFormSchema),
-    // Default values will be set inside useEffect based on query params
   });
   
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "detalles",
   });
@@ -110,28 +108,30 @@ export default function NuevoPresupuestoPage() {
         const cliente = searchParams.get('cliente') || '';
         const telefono = searchParams.get('telefono') || '';
 
-        const preciosMap = new Map(appConfig?.preciosMadera?.map(p => [p.tipoMadera, p.precioPorPie]));
+        if (appConfig?.preciosMadera) {
+          const preciosMap = new Map(appConfig.preciosMadera.map(p => [p.tipoMadera, p.precioPorPie]));
+          
+          searchParams.forEach((countStr, tipoMadera) => {
+            if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
 
-        searchParams.forEach((countStr, tipoMadera) => {
-          if (tipoMadera === 'cliente' || tipoMadera === 'telefono') return;
-
-          const count = parseInt(countStr, 10);
-          if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
-            for (let i = 0; i < count; i++) {
-              initialDetails.push({
-                tipoMadera: tipoMadera,
-                precioPorPie: preciosMap.get(tipoMadera),
-                unidades: undefined,
-                ancho: undefined,
-                alto: undefined,
-                largo: undefined,
-                cepillado: false,
-              });
+            const count = parseInt(countStr, 10);
+            if (!isNaN(count) && count > 0 && preciosMap.has(tipoMadera)) {
+              for (let i = 0; i < count; i++) {
+                initialDetails.push({
+                  tipoMadera: tipoMadera,
+                  precioPorPie: preciosMap.get(tipoMadera),
+                  unidades: undefined,
+                  ancho: undefined,
+                  alto: undefined,
+                  largo: undefined,
+                  cepillado: false,
+                });
+              }
+              prefilledRows += count;
             }
-            prefilledRows += count;
-          }
-        });
-        
+          });
+        }
+
         const emptyRowsToAdd = Math.max(0, initialDetallesCount - prefilledRows);
         for (let i = 0; i < emptyRowsToAdd; i++) {
           initialDetails.push(createEmptyDetalle());
@@ -155,7 +155,7 @@ export default function NuevoPresupuestoPage() {
       }
     }
     loadInitialData();
-  }, [searchParams, form, toast]);
+  }, [searchParams, form, toast, replace]);
 
 
   const watchedDetalles = form.watch("detalles");
@@ -483,4 +483,10 @@ export default function NuevoPresupuestoPage() {
   );
 }
 
-    
+export default function NuevoPresupuestoPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto py-6 flex justify-center items-center min-h-[calc(100vh-200px)]"><Loader2 className="mr-2 h-12 w-12 animate-spin text-primary" /><p>Cargando...</p></div>}>
+      <NuevoPresupuestoFormComponent />
+    </Suspense>
+  );
+}
