@@ -108,6 +108,10 @@ export default function DashboardPage() {
           allRecordDates.sort((a, b) => a.getTime() - b.getTime());
           setFechaDesde(allRecordDates[0]);
           setFechaHasta(allRecordDates[allRecordDates.length - 1]);
+        } else {
+           const today = new Date();
+           setFechaDesde(startOfMonth(today));
+           setFechaHasta(endOfMonth(today));
         }
       }
 
