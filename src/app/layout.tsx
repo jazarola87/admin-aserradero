@@ -12,13 +12,15 @@ export const metadata: Metadata = {
   description: 'Aplicación para la gestión de aserraderos.',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/favicon.ico',
-    apple: '/favicon.ico', // También para dispositivos Apple
+    icon: '/icon.png',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#008000',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: 'hsl(var(--background))' },
+    { media: '(prefers-color-scheme: dark)', color: 'hsl(var(--background))' },
+  ],
 };
 
 export default function RootLayout({
