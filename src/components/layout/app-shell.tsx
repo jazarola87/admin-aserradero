@@ -25,7 +25,8 @@ import { SawmillLogo } from "@/components/icons/sawmill-logo";
 import { LogOut, PanelLeft } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
 import { signOut } from "@/lib/firebase/services/authService";
-import { useConfig } from "@/contexts/configContext"; // Import useConfig
+import { useConfig } from "@/contexts/configContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function SidebarNav() {
   const pathname = usePathname();
@@ -80,14 +81,47 @@ function AppShellFooter() {
   );
 }
 
+function AppShellSkeleton() {
+  return (
+    <SidebarProvider open={true}>
+      <Sidebar variant="sidebar" collapsible="icon" className="border-r flex flex-col">
+        <SidebarHeader className="p-4">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-8" />
+            <Skeleton className="h-6 w-32" />
+          </div>
+        </SidebarHeader>
+        <SidebarContent asChild>
+          <div className="p-4 space-y-2">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        </SidebarContent>
+      </Sidebar>
+      <SidebarInset className="flex flex-col">
+        <main className="flex-1 overflow-auto p-4 sm:px-6 sm:py-0">
+          {/* Children will be rendered by the main component */}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
-  const { config } = useConfig();
+  const { config, loading: configLoading } = useConfig();
   const { logoUrl, nombreAserradero } = config;
 
   const isDataUri = (string: string | undefined) => {
     if (!string) return false;
     return string.startsWith('data:image');
+  }
+
+  // Show a skeleton loader while the config is loading to prevent hydration mismatch
+  if (configLoading) {
+    return <AppShellSkeleton />;
   }
 
   return (
