@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
@@ -12,8 +12,13 @@ export const metadata: Metadata = {
   description: 'Aplicación para la gestión de aserraderos.',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/favicon.ico', // Fallback for older browsers
+    apple: '/apple-icon.png', // Future-proofing
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#228B22',
 };
 
 export default function RootLayout({
@@ -23,9 +28,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-       <head>
-        <meta name="theme-color" content="#228B22" />
-      </head>
       <body className={`${inter.className} antialiased`}>
         {children}
         <Toaster />
