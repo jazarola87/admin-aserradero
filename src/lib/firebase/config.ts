@@ -3,50 +3,67 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
-// Your web app's Firebase configuration is read from environment variables
-// This is the recommended and secure way to handle secrets.
+// Your web app's Firebase configuration
+// REEMPLAZA "TU_API_KEY_AQUI" CON TU CLAVE REAL DE FIREBASE
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyBqKPxyK_nfaQQXqvCV6bxkowgxv57kpVc",
+  authDomain: "aserradero-lhm-336e9.firebaseapp.com",
+  projectId: "aserradero-lhm-336e9",
+  storageBucket: "aserradero-lhm-336e9.appspot.com",
+  messagingSenderId: "453456443377",
+  appId: "1:453456443377:web:44c4aa9ab6618215b77650",
+  measurementId: "G-HCGK19WQDQ"
 };
 
-// Robust function to get the Firebase app instance, initializing it only once.
-function getFirebaseApp(): FirebaseApp {
+// Function to safely check if all config keys are present
+const isFirebaseConfigComplete = (config: typeof firebaseConfig): boolean => {
+  return !!config.apiKey && config.apiKey !== "TU_API_KEY_AQUI" && !!config.authDomain && !!config.projectId;
+};
+
+
+// Initialize Firebase for SSR
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+
+// Only initialize if the config is complete
+if (isFirebaseConfigComplete(firebaseConfig)) {
   if (!getApps().length) {
-    if (!firebaseConfig.projectId || !firebaseConfig.apiKey) {
-        throw new Error("Firebase config keys are missing. Firebase cannot be initialized.");
+    app = initializeApp(firebaseConfig);
+  } else {
+    app = getApp();
+  }
+  db = getFirestore(app);
+  auth = getAuth(app);
+
+  // Enable offline persistence only on the client-side
+  if (typeof window !== 'undefined') {
+    try {
+      enableIndexedDbPersistence(db)
+        .then(() => {
+          console.log("Persistencia offline de Firestore habilitada.");
+        })
+        .catch((err) => {
+          if (err.code == 'failed-precondition') {
+            console.warn("La persistencia de Firestore no se pudo habilitar. Es probable que ya esté activa en otra pestaña.");
+          } else if (err.code == 'unimplemented') {
+            console.warn("El navegador actual no soporta la persistencia offline de Firestore.");
+          }
+        });
+    } catch (error) {
+      console.error("Error al intentar habilitar la persistencia de Firestore:", error);
     }
-    return initializeApp(firebaseConfig);
   }
-  return getApp();
+} else {
+  console.warn("La configuración de Firebase está incompleta o usa valores de placeholder. La inicialización de Firebase se omitirá.");
+  // Provide dummy instances if initialization is skipped to avoid crashing the app
+  // @ts-ignore
+  app = {};
+  // @ts-ignore
+  db = {};
+  // @ts-ignore
+  auth = {};
 }
 
-const app = getFirebaseApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// Enable offline persistence only on the client-side
-if (typeof window !== 'undefined') {
-  try {
-    enableIndexedDbPersistence(db)
-      .then(() => {
-        console.log("Persistencia offline de Firestore habilitada.");
-      })
-      .catch((err) => {
-        if (err.code == 'failed-precondition') {
-          console.warn("La persistencia de Firestore no se pudo habilitar. Es probable que ya esté activa en otra pestaña.");
-        } else if (err.code == 'unimplemented') {
-          console.warn("El navegador actual no soporta la persistencia offline de Firestore.");
-        }
-      });
-  } catch (error) {
-    console.error("Error al intentar habilitar la persistencia de Firestore:", error);
-  }
-}
 
 export { app, db, auth };
