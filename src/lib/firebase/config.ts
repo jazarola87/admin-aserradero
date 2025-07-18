@@ -4,6 +4,7 @@ import { getFirestore, type Firestore, enableIndexedDbPersistence } from 'fireba
 import { getAuth, type Auth } from 'firebase/auth';
 
 // Your web app's Firebase configuration is now read from environment variables
+// These are automatically provided by Firebase App Hosting.
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -54,7 +55,7 @@ if (isFirebaseConfigComplete(firebaseConfig)) {
     }
   }
 } else {
-  console.warn("La configuración de Firebase está incompleta. La inicialización se omitirá. Esto es normal durante el proceso de build.");
+  console.warn("La configuración de Firebase está incompleta. La inicialización de Firebase se omitirá. Esto puede ser normal durante el proceso de build, pero es un error en producción.");
   // Provide dummy instances if initialization is skipped to avoid crashing the app
   // @ts-ignore
   app = {};
