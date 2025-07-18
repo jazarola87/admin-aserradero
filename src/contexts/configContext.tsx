@@ -20,17 +20,22 @@ const ConfigContext = createContext<ConfigContextType>({
 });
 
 export const ConfigProvider = ({ children }: { children: ReactNode }) => {
+  const { user, loading: authLoading } = useAuth(); // Depend on auth context
   const [config, setConfig] = useState<Configuracion>(defaultConfig);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
 
   const fetchConfig = React.useCallback(async () => {
+    if (!user) { // Don't fetch if no user
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     try {
       const appConfig = await getAppConfig();
       setConfig(appConfig);
       
       // Dynamically update favicon when config with logo is loaded
-      if (appConfig.logoUrl && appConfig.logoUrl.startsWith('data:image')) {
+      if (typeof window !== 'undefined' && appConfig.logoUrl && appConfig.logoUrl.startsWith('data:image')) {
         const favicon = document.getElementById('favicon') as HTMLLinkElement | null;
         if (favicon) {
           favicon.href = appConfig.logoUrl;
@@ -42,13 +47,14 @@ export const ConfigProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (user) {
+    // Fetch config only when authentication is resolved and there is a user
+    if (!authLoading) {
       fetchConfig();
     }
-  }, [user, fetchConfig]);
+  }, [authLoading, fetchConfig]);
 
   return (
     <ConfigContext.Provider value={{ config, loading, refetchConfig: fetchConfig }}>

@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { NAV_ITEMS } from "@/lib/constants";
 import { SawmillLogo } from "@/components/icons/sawmill-logo";
-import { LogOut, PanelLeft } from "lucide-react";
+import { LogOut, PanelLeft, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/authContext";
 import { signOut } from "@/lib/firebase/services/authService";
 import { useConfig } from "@/contexts/configContext";
@@ -83,35 +83,18 @@ function AppShellFooter() {
 
 function AppShellSkeleton() {
   return (
-    <SidebarProvider open={true}>
-      <Sidebar variant="sidebar" collapsible="icon" className="border-r flex flex-col">
-        <SidebarHeader className="p-4">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 w-8" />
-            <Skeleton className="h-6 w-32" />
-          </div>
-        </SidebarHeader>
-        <SidebarContent asChild>
-          <div className="p-4 space-y-2">
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-8 w-full" />
-          </div>
-        </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="flex flex-col">
-        <main className="flex-1 overflow-auto p-4 sm:px-6 sm:py-0">
-          {/* Children will be rendered by the main component */}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="ml-4 text-muted-foreground">Cargando aplicación...</p>
+      </div>
   );
 }
+
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(true);
   const { config, loading: configLoading } = useConfig();
+  const { loading: authLoading } = useAuth();
   const { logoUrl, nombreAserradero } = config;
 
   const isDataUri = (string: string | undefined) => {
@@ -119,8 +102,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return string.startsWith('data:image');
   }
 
-  // Show a skeleton loader while the config is loading to prevent hydration mismatch
-  if (configLoading) {
+  // Show a skeleton loader while auth or config is loading.
+  // This is the key to preventing hydration errors.
+  if (authLoading || configLoading) {
     return <AppShellSkeleton />;
   }
 
@@ -140,6 +124,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 width={32} 
                 height={32} 
                 className="h-8 w-8 object-contain shrink-0"
+                data-ai-hint="logo company"
               />
             ) : (
               <SawmillLogo className="h-8 w-8 text-primary shrink-0" />
