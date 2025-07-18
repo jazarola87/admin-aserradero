@@ -30,4 +30,3 @@ jobs:
           args: --force
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
-
